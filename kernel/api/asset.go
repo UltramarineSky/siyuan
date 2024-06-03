@@ -17,17 +17,85 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/88250/go-humanize"
 	"github.com/88250/gulu"
+	"github.com/djherbis/times"
 	"github.com/gin-gonic/gin"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/siyuan/kernel/model"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func statAsset(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	path := arg["path"].(string)
+	var p string
+	if strings.HasPrefix(path, "assets/") {
+		var err error
+		p, err = model.GetAssetAbsPath(path)
+		if nil != err {
+			ret.Code = 1
+			return
+		}
+
+	} else if strings.HasPrefix(path, "file://") {
+		p = strings.TrimPrefix(path, "file://")
+	} else {
+		ret.Code = 1
+		return
+	}
+
+	info, err := os.Stat(p)
+	if nil != err {
+		ret.Code = 1
+		return
+	}
+
+	t, err := times.Stat(p)
+	if nil != err {
+		ret.Code = 1
+		return
+	}
+
+	updated := t.ModTime().UnixMilli()
+	hUpdated := t.ModTime().Format("2006-01-02 15:04:05")
+	created := updated
+	hCreated := hUpdated
+	// Check birthtime before use
+	if t.HasBirthTime() {
+		created = t.BirthTime().UnixMilli()
+		hCreated = t.BirthTime().Format("2006-01-02 15:04:05")
+	}
+
+	ret.Data = map[string]interface{}{
+		"size":     info.Size(),
+		"hSize":    humanize.BytesCustomCeil(uint64(info.Size()), 2),
+		"created":  created,
+		"hCreated": hCreated,
+		"updated":  updated,
+		"hUpdated": hUpdated,
+	}
+}
+
+func fullReindexAssetContent(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	model.ReindexAssetContent()
+}
 
 func getImageOCRText(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -146,12 +214,12 @@ func getFileAnnotation(c *gin.Context) {
 		ret.Data = map[string]interface{}{"closeTimeout": 5000}
 		return
 	}
-	if !gulu.File.IsExist(readPath) {
+	if !filelock.IsExist(readPath) {
 		ret.Code = 1
 		return
 	}
 
-	data, err := os.ReadFile(readPath)
+	data, err := filelock.ReadFile(readPath)
 	if nil != err {
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -251,14 +319,15 @@ func uploadCloud(c *gin.Context) {
 	}
 
 	rootID := arg["id"].(string)
-	err := model.UploadAssets2Cloud(rootID)
+	count, err := model.UploadAssets2Cloud(rootID)
 	if nil != err {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 3000}
-	} else {
-		util.PushMsg(model.Conf.Language(41), 3000)
+		return
 	}
+
+	util.PushMsg(fmt.Sprintf(model.Conf.Language(41), count), 3000)
 }
 
 func insertLocalAssets(c *gin.Context) {

@@ -27,7 +27,7 @@ import (
 )
 
 func ListItem2Doc(srcListItemID, targetBoxID, targetPath string) (srcRootBlockID, newTargetPath string, err error) {
-	srcTree, _ := loadTreeByBlockID(srcListItemID)
+	srcTree, _ := LoadTreeByBlockID(srcListItemID)
 	if nil == srcTree {
 		err = ErrBlockNotFound
 		return
@@ -97,14 +97,15 @@ func ListItem2Doc(srcListItemID, targetBoxID, targetPath string) (srcRootBlockID
 		srcTree.Root.AppendChild(treenode.NewParagraph())
 	}
 	treenode.RemoveBlockTreesByRootID(srcTree.ID)
-	if err = indexWriteJSONQueue(srcTree); nil != err {
+	if err = indexWriteTreeUpsertQueue(srcTree); nil != err {
 		return "", "", err
 	}
 
 	newTree.Box, newTree.Path = targetBoxID, newTargetPath
 	newTree.Root.SetIALAttr("updated", util.CurrentTimeSecondsStr())
 	newTree.Root.Spec = "1"
-	if err = indexWriteJSONQueue(newTree); nil != err {
+	box.addMinSort(path.Dir(newTargetPath), newTree.ID)
+	if err = indexWriteTreeUpsertQueue(newTree); nil != err {
 		return "", "", err
 	}
 	IncSync()

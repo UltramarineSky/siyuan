@@ -17,6 +17,7 @@
 package util
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -26,10 +27,49 @@ import (
 	"github.com/88250/lute/ast"
 	"github.com/gin-gonic/gin"
 	"github.com/imroc/req/v3"
-	"github.com/olahol/melody"
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
 )
+
+func ValidOptionalPort(port string) bool {
+	if port == "" {
+		return true
+	}
+	if port[0] != ':' {
+		return false
+	}
+	for _, b := range port[1:] {
+		if b < '0' || b > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func IsLocalHostname(hostname string) bool {
+	if "localhost" == hostname || strings.HasSuffix(hostname, ".localhost") {
+		return true
+	}
+	if ip := net.ParseIP(hostname); nil != ip {
+		return ip.IsLoopback()
+	}
+	return false
+}
+
+func IsLocalHost(host string) bool {
+	if hostname, _, err := net.SplitHostPort(strings.TrimSpace(host)); nil != err {
+		return false
+	} else {
+		return IsLocalHostname(hostname)
+	}
+}
+
+func IsLocalOrigin(origin string) bool {
+	if url, err := url.Parse(origin); nil == err {
+		return IsLocalHostname(url.Hostname())
+	}
+	return false
+}
 
 func IsOnline(checkURL string, skipTlsVerify bool) bool {
 	_, err := url.Parse(checkURL)
@@ -55,9 +95,11 @@ func isOnline(checkURL string, skipTlsVerify bool) (ret bool) {
 	if skipTlsVerify {
 		c.EnableInsecureSkipVerify()
 	}
+	c.SetUserAgent(UserAgent)
 
 	for i := 0; i < 3; i++ {
 		resp, err := c.R().Get(checkURL)
+
 		if resp.GetHeader("Location") != "" {
 			return true
 		}
@@ -66,6 +108,7 @@ func isOnline(checkURL string, skipTlsVerify bool) (ret bool) {
 		case *url.Error:
 			if err.(*url.Error).URL != checkURL {
 				// DNS 重定向
+				logging.LogWarnf("network is online [DNS redirect, checkURL=%s, retURL=%s]", checkURL, err.(*url.Error).URL)
 				return true
 			}
 		}
@@ -74,19 +117,22 @@ func isOnline(checkURL string, skipTlsVerify bool) (ret bool) {
 		if ret {
 			break
 		}
+
+		time.Sleep(1 * time.Second)
+		logging.LogWarnf("check url [%s] is online failed: %s", checkURL, err)
 	}
 	return
 }
 
-func GetRemoteAddr(session *melody.Session) string {
-	ret := session.Request.Header.Get("X-forwarded-for")
+func GetRemoteAddr(req *http.Request) string {
+	ret := req.Header.Get("X-forwarded-for")
 	ret = strings.TrimSpace(ret)
 	if "" == ret {
-		ret = session.Request.Header.Get("X-Real-IP")
+		ret = req.Header.Get("X-Real-IP")
 	}
 	ret = strings.TrimSpace(ret)
 	if "" == ret {
-		return session.Request.RemoteAddr
+		return req.RemoteAddr
 	}
 	return strings.Split(ret, ",")[0]
 }

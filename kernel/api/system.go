@@ -33,6 +33,22 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func getNetwork(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	maskedConf, err := model.GetMaskedConf()
+	if nil != err {
+		ret.Code = -1
+		ret.Msg = "get conf failed: " + err.Error()
+		return
+	}
+
+	ret.Data = map[string]interface{}{
+		"proxy": maskedConf.System.NetworkProxy,
+	}
+}
+
 func getChangelog(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -124,6 +140,10 @@ func getEmojiConf(c *gin.Context) {
 					}
 
 					for _, subCustomEmoji := range subCustomEmojis {
+						if subCustomEmoji.IsDir() {
+							continue
+						}
+
 						name = subCustomEmoji.Name()
 						if strings.HasPrefix(name, ".") {
 							continue
@@ -202,20 +222,6 @@ func getConf(c *gin.Context) {
 		"conf":  maskedConf,
 		"start": !util.IsUILoaded,
 	}
-
-	if !util.IsUILoaded {
-		go func() {
-			util.WaitForUILoaded()
-
-			if model.Conf.Editor.ReadOnly {
-				// 编辑器启用只读模式时启动后提示用户 https://github.com/siyuan-note/siyuan/issues/7700
-				time.Sleep(time.Second * 3)
-				if model.Conf.Editor.ReadOnly {
-					util.PushMsg(model.Conf.Language(197), 7000)
-				}
-			}
-		}()
-	}
 }
 
 func setUILayout(c *gin.Context) {
@@ -245,7 +251,21 @@ func setUILayout(c *gin.Context) {
 		return
 	}
 
-	model.Conf.UILayout = uiLayout
+	model.Conf.SetUILayout(uiLayout)
+	model.Conf.Save()
+}
+
+func setAPIToken(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	token := arg["token"].(string)
+	model.Conf.Api.Token = token
 	model.Conf.Save()
 }
 
@@ -274,6 +294,22 @@ func setAccessAuthCode(c *gin.Context) {
 		time.Sleep(200 * time.Millisecond)
 		util.ReloadUI()
 	}()
+	return
+}
+
+func setFollowSystemLockScreen(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	lockScreenMode := int(arg["lockScreenMode"].(float64))
+
+	model.Conf.System.LockScreenMode = lockScreenMode
+	model.Conf.Save()
 	return
 }
 
@@ -385,8 +421,8 @@ func setAutoLaunch(c *gin.Context) {
 		return
 	}
 
-	autoLaunch := arg["autoLaunch"].(bool)
-	model.Conf.System.AutoLaunch = autoLaunch
+	autoLaunch := int(arg["autoLaunch"].(float64))
+	model.Conf.System.AutoLaunch2 = autoLaunch
 	model.Conf.Save()
 }
 
@@ -454,7 +490,7 @@ func exit(c *gin.Context) {
 		execInstallPkg = int(execInstallPkgArg.(float64))
 	}
 
-	exitCode := model.Close(force, execInstallPkg)
+	exitCode := model.Close(force, true, execInstallPkg)
 	ret.Code = exitCode
 	switch exitCode {
 	case 0:

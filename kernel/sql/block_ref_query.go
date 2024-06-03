@@ -28,6 +28,21 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/search"
 )
 
+func GetRefDuplicatedDefRootIDs() (ret []string) {
+	rows, err := query("SELECT DISTINCT def_block_root_id FROM `refs` GROUP BY def_block_id, def_block_root_id, block_id HAVING COUNT(*) > 1")
+	if nil != err {
+		logging.LogErrorf("sql query failed: %s", err)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		rows.Scan(&id)
+		ret = append(ret, id)
+	}
+	return
+}
+
 func QueryVirtualRefKeywords(name, alias, anchor, doc bool) (ret []string) {
 	if name {
 		ret = append(ret, queryNames()...)
@@ -203,6 +218,8 @@ func getRefText(defBlockID string) string {
 		return block.Content
 	case "query_embed":
 		return "Query Embed Block " + block.Markdown
+	case "av":
+		return "Database " + block.Markdown
 	case "iframe":
 		return "IFrame " + block.Markdown
 	case "tb":

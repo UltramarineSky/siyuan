@@ -30,22 +30,44 @@ const renderDoc = (element: HTMLElement, currentPage: number) => {
     const opElement = element.querySelector('.b3-select[data-type="opselect"]') as HTMLSelectElement;
     const typeElement = element.querySelector('.b3-select[data-type="typeselect"]') as HTMLSelectElement;
     const notebookElement = element.querySelector('.b3-select[data-type="notebookselect"]') as HTMLSelectElement;
-    window.siyuan.storage[Constants.LOCAL_HISTORYNOTEID] = notebookElement.value;
-    setStorageVal(Constants.LOCAL_HISTORYNOTEID, window.siyuan.storage[Constants.LOCAL_HISTORYNOTEID]);
     const docElement = element.querySelector('.history__text[data-type="docPanel"]');
     const assetElement = element.querySelector('.history__text[data-type="assetPanel"]');
     const mdElement = element.querySelector('.history__text[data-type="mdPanel"]') as HTMLTextAreaElement;
-    docElement.classList.add("fn__none");
+    const listElement = element.querySelector(".b3-list");
+    assetElement.classList.add("fn__none");
     mdElement.classList.add("fn__none");
-    if (typeElement.value === "0" || typeElement.value === "1") {
-        opElement.removeAttribute("disabled");
-        notebookElement.removeAttribute("disabled");
-        assetElement.classList.add("fn__none");
-    } else {
-        opElement.setAttribute("disabled", "disabled");
+    docElement.classList.add("fn__none");
+    if (typeElement.value === "2") {
         notebookElement.setAttribute("disabled", "disabled");
-        assetElement.classList.remove("fn__none");
+        if (window.siyuan.storage[Constants.LOCAL_HISTORY].type !== 2) {
+            opElement.value = "all";
+        }
+        opElement.querySelector('option[value="clean"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="update"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="delete"]').classList.add("fn__none");
+        opElement.querySelector('option[value="format"]').classList.add("fn__none");
+        opElement.querySelector('option[value="sync"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="replace"]').classList.add("fn__none");
+        opElement.querySelector('option[value="outline"]').classList.add("fn__none");
+    } else {
+        notebookElement.removeAttribute("disabled");
+        if (window.siyuan.storage[Constants.LOCAL_HISTORY].type === 2) {
+            opElement.value = "all";
+        }
+        opElement.querySelector('option[value="clean"]').classList.add("fn__none");
+        opElement.querySelector('option[value="update"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="delete"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="format"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="sync"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="replace"]').classList.remove("fn__none");
+        opElement.querySelector('option[value="outline"]').classList.remove("fn__none");
     }
+    window.siyuan.storage[Constants.LOCAL_HISTORY] = {
+        notebookId: notebookElement.value,
+        type: parseInt(typeElement.value),
+        operation: opElement.value
+    };
+    setStorageVal(Constants.LOCAL_HISTORY, window.siyuan.storage[Constants.LOCAL_HISTORY]);
     fetchPost("/api/history/searchHistory", {
         notebook: notebookElement.value,
         query: inputElement.value,
@@ -60,9 +82,7 @@ const renderDoc = (element: HTMLElement, currentPage: number) => {
         }
         nextElement.nextElementSibling.nextElementSibling.textContent = `${currentPage}/${response.data.pageCount || 1}`;
         if (response.data.histories.length === 0) {
-            element.lastElementChild.lastElementChild.previousElementSibling.classList.add("fn__none");
-            element.lastElementChild.lastElementChild.classList.add("fn__none");
-            element.lastElementChild.firstElementChild.innerHTML = `<li class="b3-list--empty">${window.siyuan.languages.emptyContent}</li>`;
+            listElement.innerHTML = `<li class="b3-list--empty">${window.siyuan.languages.emptyContent}</li>`;
             return;
         }
         let logsHTML = "";
@@ -72,7 +92,7 @@ const renderDoc = (element: HTMLElement, currentPage: number) => {
     <span style="padding-left: 4px" class="b3-list-item__text">${dayjs(parseInt(item) * 1000).format("YYYY-MM-DD HH:mm:ss")}</span>
 </li>`;
         });
-        element.lastElementChild.firstElementChild.innerHTML = logsHTML;
+        listElement.innerHTML = logsHTML;
     });
 };
 
@@ -303,10 +323,11 @@ export const openHistory = (app: App) => {
         return;
     }
 
-    let notebookSelectHTML = "";
+    const localHistory = window.siyuan.storage[Constants.LOCAL_HISTORY];
+    let notebookSelectHTML = `<option value='%' ${localHistory.notebookId === "%" ? "selected" : ""}>${window.siyuan.languages.allNotebooks}</option>`;
     window.siyuan.notebooks.forEach((item) => {
         if (!item.closed) {
-            notebookSelectHTML += ` <option value="${item.id}"${item.id === window.siyuan.storage[Constants.LOCAL_HISTORYNOTEID] ? " selected" : ""}>${escapeHtml(item.name)}</option>`;
+            notebookSelectHTML += ` <option value="${item.id}"${item.id === localHistory.notebookId ? " selected" : ""}>${escapeHtml(item.name)}</option>`;
         }
     });
 
@@ -333,19 +354,20 @@ export const openHistory = (app: App) => {
                     </div>
                     <span class="fn__space"></span>
                     <select data-type="typeselect" class="b3-select ${isMobile() ? "fn__size96" : "fn__size200"}">
-                        <option value="0" selected>${window.siyuan.languages.docName}</option>
-                        <option value="1">${window.siyuan.languages.docNameAndContent}</option>
-                        <option value="2">${window.siyuan.languages.assets}</option>
+                        <option value="0" ${localHistory.type === 0 ? "selected" : ""}>${window.siyuan.languages.docName}</option>
+                        <option value="1" ${localHistory.type === 1 ? "selected" : ""}>${window.siyuan.languages.docNameAndContent}</option>
+                        <option value="2" ${localHistory.type === 2 ? "selected" : ""}>${window.siyuan.languages.assets}</option>
                     </select>
                     <span class="fn__space"></span>
                     <select data-type="opselect" class="b3-select${isMobile() ? " fn__size96" : ""}">
-                        <option value="all" selected>${window.siyuan.languages.allOp}</option>
-                        <option value="clean">clean</option>
-                        <option value="update">update</option>
-                        <option value="delete">delete</option>
-                        <option value="format">format</option>
-                        <option value="sync">sync</option>
-                        <option value="replace">replace</option>
+                        <option value="all" ${localHistory.operation === "all" ? "selected" : ""}>${window.siyuan.languages.allOp}</option>
+                        <option value="clean" ${localHistory.operation === "clean" ? "selected" : ""}>${window.siyuan.languages.historyClean}</option>
+                        <option value="update" ${localHistory.operation === "update" ? "selected" : ""}>${window.siyuan.languages.historyUpdate}</option>
+                        <option value="delete" ${localHistory.operation === "delete" ? "selected" : ""}>${window.siyuan.languages.historyDelete}</option>
+                        <option value="format" ${localHistory.operation === "format" ? "selected" : ""}>${window.siyuan.languages.historyFormat}</option>
+                        <option value="sync" ${localHistory.operation === "sync" ? "selected" : ""}>${window.siyuan.languages.historySync}</option>
+                        <option value="replace" ${localHistory.operation === "replace" ? "selected" : ""}>${window.siyuan.languages.historyReplace}</option>
+                        <option value="outline" ${localHistory.operation === "outline" ? "selected" : ""}>${window.siyuan.languages.historyOutline}</option>
                     </select>
                     <span class="fn__space"></span>
                     <select data-type="notebookselect" class="b3-select ${isMobile() ? "fn__size96" : "fn__size200"}">
@@ -416,6 +438,7 @@ export const openHistory = (app: App) => {
                 historyEditor = undefined;
             }
         });
+        dialog.element.setAttribute("data-key", Constants.DIALOG_HISTORY);
         bindEvent(app, dialog.element, dialog);
     }
 };
@@ -442,10 +465,12 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
     renderDoc(firstPanelElement, 1);
     historyEditor = new Protyle(app, docElement, {
         blockId: "",
+        history: {
+            created: ""
+        },
         action: [Constants.CB_GET_HISTORY],
         render: {
             background: false,
-            title: false,
             gutter: false,
             breadcrumb: false,
             breadcrumbDocName: false,
@@ -496,7 +521,7 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
                         });
                     } else if (dataType === "doc") {
                         fetchPost("/api/history/rollbackDocHistory", {
-                            notebook: (firstPanelElement.querySelector('.b3-select[data-type="notebookselect"]') as HTMLSelectElement).value,
+                            notebook: target.parentElement.getAttribute("data-notebook-id"),
                             historyPath: target.parentElement.getAttribute("data-path")
                         });
                     } else if (dataType === "notebook") {
@@ -533,20 +558,51 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
                         const opElement = firstPanelElement.querySelector('.b3-select[data-type="opselect"]') as HTMLSelectElement;
                         const typeElement = firstPanelElement.querySelector('.b3-select[data-type="typeselect"]') as HTMLSelectElement;
                         const notebookElement = firstPanelElement.querySelector('.b3-select[data-type="notebookselect"]') as HTMLSelectElement;
+                        const created = target.getAttribute("data-created");
                         fetchPost("/api/history/getHistoryItems", {
                             notebook: notebookElement.value,
                             query: inputElement.value,
                             op: opElement.value,
                             type: parseInt(typeElement.value),
-                            created: target.getAttribute("data-created")
+                            created
                         }, (response) => {
                             iconElement.classList.add("b3-list-item__arrow--open");
                             let html = "";
-                            response.data.items.forEach((docItem: { title: string, path: string }) => {
-                                html += `<li title="${escapeAttr(docItem.title)}" data-type="${typeElement.value === "2" ? "assets" : "doc"}" data-path="${docItem.path}" class="b3-list-item b3-list-item--hide-action" style="padding-left: 40px">
-    <span class="b3-list-item__text">${escapeHtml(docItem.title)}</span>
+                            let ariaLabel = "";
+                            response.data.items.forEach((docItem: {
+                                title: string,
+                                path: string,
+                                op: string,
+                                notebook: string
+                            }) => {
+                                let chipClass = " b3-chip b3-chip--list ";
+                                if (docItem.op === "clean") {
+                                    chipClass += "b3-chip--primary ";
+                                    ariaLabel = window.siyuan.languages.historyClean;
+                                } else if (docItem.op === "update") {
+                                    chipClass += "b3-chip--info ";
+                                    ariaLabel = window.siyuan.languages.historyUpdate;
+                                } else if (docItem.op === "delete") {
+                                    chipClass += "b3-chip--error ";
+                                    ariaLabel = window.siyuan.languages.historyDelete;
+                                } else if (docItem.op === "format") {
+                                    chipClass += "b3-chip--pink ";
+                                    ariaLabel = window.siyuan.languages.historyFormat;
+                                } else if (docItem.op === "sync") {
+                                    chipClass += "b3-chip--success ";
+                                    ariaLabel = window.siyuan.languages.historySync;
+                                } else if (docItem.op === "replace") {
+                                    chipClass += "b3-chip--secondary ";
+                                    ariaLabel = window.siyuan.languages.historyReplace;
+                                } else if (docItem.op === "outline") {
+                                    chipClass += "b3-chip--warning ";
+                                    ariaLabel = window.siyuan.languages.historyOutline;
+                                }
+                                html += `<li data-notebook-id="${docItem.notebook}" data-created="${created}" data-type="${typeElement.value === "2" ? "assets" : "doc"}" data-path="${docItem.path}" class="b3-list-item b3-list-item--hide-action" style="padding-left: 22px">
+    <span class="${opElement.value === "all" ? "" : "fn__none"}${chipClass}ariaLabel" data-position="6bottom" aria-label="${ariaLabel}">${docItem.op.substring(0, 1).toUpperCase()}</span>
+    <span class="b3-list-item__text" title="${escapeAttr(docItem.title)}">${escapeHtml(docItem.title)}</span>
     <span class="fn__space"></span>
-    <span class="b3-list-item__action b3-tooltips b3-tooltips__w" data-type="rollback" aria-label="${window.siyuan.languages.rollback}">
+    <span class="b3-list-item__action ariaLabel" data-type="rollback" data-position="6bottom" aria-label="${window.siyuan.languages.rollback}">
         <svg><use xlink:href="#iconUndo"></use></svg>
     </span>
 </li>`;
@@ -598,6 +654,7 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
             } else if (target.classList.contains("b3-list-item") && (type === "assets" || type === "doc")) {
                 const dataPath = target.getAttribute("data-path");
                 if (type === "assets") {
+                    assetElement.classList.remove("fn__none");
                     assetElement.innerHTML = renderAssetsPreview(dataPath);
                 } else if (type === "doc") {
                     fetchPost("/api/history/getDocHistoryContent", {
@@ -611,6 +668,7 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
                         } else {
                             mdElement.classList.add("fn__none");
                             docElement.classList.remove("fn__none");
+                            historyEditor.protyle.options.history.created = target.dataset.created;
                             onGet({
                                 data: response,
                                 protyle: historyEditor.protyle,
@@ -642,6 +700,7 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
 </div>`,
                     width: isMobile() ? "92vw" : "520px",
                 });
+                genRepoDialog.element.setAttribute("data-key", Constants.DIALOG_SNAPSHOTMEMO);
                 const textareaElement = genRepoDialog.element.querySelector("textarea");
                 textareaElement.focus();
                 const btnsElement = genRepoDialog.element.querySelectorAll(".b3-button");
@@ -699,6 +758,7 @@ const bindEvent = (app: App, element: Element, dialog?: Dialog) => {
 </div>`,
                     width: isMobile() ? "92vw" : "520px",
                 });
+                genTagDialog.element.setAttribute("data-key", Constants.DIALOG_SNAPSHOTTAG);
                 const inputElement = genTagDialog.element.querySelector(".b3-text-field") as HTMLInputElement;
                 inputElement.select();
                 const btnsElement = genTagDialog.element.querySelectorAll(".b3-button");

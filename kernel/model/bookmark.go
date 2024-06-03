@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/88250/lute/parse"
+	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
@@ -44,7 +45,7 @@ func RemoveBookmark(bookmark string) (err error) {
 
 	for treeID, blocks := range treeBlocks {
 		util.PushEndlessProgress("[" + treeID + "]")
-		tree, e := loadTreeByBlockID(treeID)
+		tree, e := LoadTreeByBlockID(treeID)
 		if nil != e {
 			util.PushClearProgress()
 			return e
@@ -62,8 +63,8 @@ func RemoveBookmark(bookmark string) (err error) {
 			}
 		}
 
-		util.PushEndlessProgress(fmt.Sprintf(Conf.Language(111), tree.Root.IALAttr("title")))
-		if err = writeJSONQueue(tree); nil != err {
+		util.PushEndlessProgress(fmt.Sprintf(Conf.Language(111), util.EscapeHTML(tree.Root.IALAttr("title"))))
+		if err = writeTreeUpsertQueue(tree); nil != err {
 			util.ClearPushProgress(100)
 			return
 		}
@@ -75,8 +76,8 @@ func RemoveBookmark(bookmark string) (err error) {
 }
 
 func RenameBookmark(oldBookmark, newBookmark string) (err error) {
-	if treenode.ContainsMarker(newBookmark) {
-		return errors.New(Conf.Language(112))
+	if invalidChar := treenode.ContainsMarker(newBookmark); "" != invalidChar {
+		return errors.New(fmt.Sprintf(Conf.Language(112), invalidChar))
 	}
 
 	newBookmark = strings.TrimSpace(newBookmark)
@@ -102,7 +103,7 @@ func RenameBookmark(oldBookmark, newBookmark string) (err error) {
 
 	for treeID, blocks := range treeBlocks {
 		util.PushEndlessProgress("[" + treeID + "]")
-		tree, e := loadTreeByBlockID(treeID)
+		tree, e := LoadTreeByBlockID(treeID)
 		if nil != e {
 			util.ClearPushProgress(100)
 			return e
@@ -120,8 +121,8 @@ func RenameBookmark(oldBookmark, newBookmark string) (err error) {
 			}
 		}
 
-		util.PushEndlessProgress(fmt.Sprintf(Conf.Language(111), tree.Root.IALAttr("title")))
-		if err = writeJSONQueue(tree); nil != err {
+		util.PushEndlessProgress(fmt.Sprintf(Conf.Language(111), util.EscapeHTML(tree.Root.IALAttr("title"))))
+		if err = writeTreeUpsertQueue(tree); nil != err {
 			util.ClearPushProgress(100)
 			return
 		}
@@ -162,16 +163,26 @@ func BuildBookmark() (ret *Bookmarks) {
 
 	ret = &Bookmarks{}
 	sqlBlocks := sql.QueryBookmarkBlocks()
+
 	labelBlocks := map[BookmarkLabel]BookmarkBlocks{}
 	blocks := fromSQLBlocks(&sqlBlocks, "", 0)
+	luteEngine := NewLute()
 	for _, block := range blocks {
-		label := BookmarkLabel(block.IAL["bookmark"])
-
 		if "" != block.Name {
 			// Blocks in the bookmark panel display their name instead of content https://github.com/siyuan-note/siyuan/issues/8514
 			block.Content = block.Name
+		} else {
+			// Improve bookmark panel rendering https://github.com/siyuan-note/siyuan/issues/9361
+			tree, err := LoadTreeByBlockID(block.ID)
+			if nil != err {
+				logging.LogErrorf("parse block [%s] failed: %s", block.ID, err)
+			} else {
+				n := treenode.GetNodeInTree(tree, block.ID)
+				block.Content = renderOutline(n, luteEngine)
+			}
 		}
 
+		label := BookmarkLabel(block.IAL["bookmark"])
 		if bs, ok := labelBlocks[label]; ok {
 			bs = append(bs, block)
 			labelBlocks[label] = bs

@@ -26,17 +26,17 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/88250/go-humanize"
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/html"
 	"github.com/88250/lute/parse"
-	"github.com/dustin/go-humanize"
 	"github.com/facette/natsort"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
+	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/sql"
@@ -61,12 +61,9 @@ type Box struct {
 	historyGenerated int64 // 最近一次历史生成时间
 }
 
-var statLock = sync.Mutex{}
-
 func StatJob() {
-	statLock.Lock()
-	defer statLock.Unlock()
 
+	Conf.m.Lock()
 	Conf.Stat.TreeCount = treenode.CountTrees()
 	Conf.Stat.CTreeCount = treenode.CeilTreeCount(Conf.Stat.TreeCount)
 	Conf.Stat.BlockCount = treenode.CountBlocks()
@@ -74,9 +71,10 @@ func StatJob() {
 	Conf.Stat.DataSize, Conf.Stat.AssetsSize = util.DataSize()
 	Conf.Stat.CDataSize = util.CeilSize(Conf.Stat.DataSize)
 	Conf.Stat.CAssetsSize = util.CeilSize(Conf.Stat.AssetsSize)
+	Conf.m.Unlock()
 	Conf.Save()
 
-	logging.LogInfof("auto stat [trees=%d, blocks=%d, dataSize=%s, assetsSize=%s]", Conf.Stat.TreeCount, Conf.Stat.BlockCount, humanize.Bytes(uint64(Conf.Stat.DataSize)), humanize.Bytes(uint64(Conf.Stat.AssetsSize)))
+	logging.LogInfof("auto stat [trees=%d, blocks=%d, dataSize=%s, assetsSize=%s]", Conf.Stat.TreeCount, Conf.Stat.BlockCount, humanize.BytesCustomCeil(uint64(Conf.Stat.DataSize), 2), humanize.BytesCustomCeil(uint64(Conf.Stat.AssetsSize), 2))
 
 	// 桌面端检查磁盘可用空间 https://github.com/siyuan-note/siyuan/issues/6873
 	if util.ContainerStd != util.Container {
@@ -111,50 +109,60 @@ func ListNotebooks() (ret []*Box, err error) {
 		boxConf := conf.NewBoxConf()
 		boxDirPath := filepath.Join(util.DataDir, dir.Name())
 		boxConfPath := filepath.Join(boxDirPath, ".siyuan", "conf.json")
-		if !gulu.File.IsExist(boxConfPath) {
+		isExistConf := filelock.IsExist(boxConfPath)
+		if !isExistConf {
+			// 数据同步时展开文档树操作可能导致数据丢失 https://github.com/siyuan-note/siyuan/issues/7129
 			logging.LogWarnf("found a corrupted box [%s]", boxDirPath)
-			continue
-		}
-
-		data, readErr := filelock.ReadFile(boxConfPath)
-		if nil != readErr {
-			logging.LogErrorf("read box conf [%s] failed: %s", boxConfPath, readErr)
-			continue
-		}
-		if readErr = gulu.JSON.UnmarshalJSON(data, boxConf); nil != readErr {
-			logging.LogErrorf("parse box conf [%s] failed: %s", boxConfPath, readErr)
-			continue
+		} else {
+			data, readErr := filelock.ReadFile(boxConfPath)
+			if nil != readErr {
+				logging.LogErrorf("read box conf [%s] failed: %s", boxConfPath, readErr)
+				continue
+			}
+			if readErr = gulu.JSON.UnmarshalJSON(data, boxConf); nil != readErr {
+				logging.LogErrorf("parse box conf [%s] failed: %s", boxConfPath, readErr)
+				filelock.Remove(boxConfPath)
+				continue
+			}
 		}
 
 		id := dir.Name()
-		ret = append(ret, &Box{
+		box := &Box{
 			ID:       id,
 			Name:     boxConf.Name,
 			Icon:     boxConf.Icon,
 			Sort:     boxConf.Sort,
 			SortMode: boxConf.SortMode,
 			Closed:   boxConf.Closed,
-		})
+		}
+
+		if !isExistConf {
+			// Automatically create notebook conf.json if not found it https://github.com/siyuan-note/siyuan/issues/9647
+			box.SaveConf(boxConf)
+			box.Unindex()
+			logging.LogWarnf("fixed a corrupted box [%s]", boxDirPath)
+		}
+		ret = append(ret, box)
 	}
 
 	switch Conf.FileTree.Sort {
 	case util.SortModeNameASC:
 		sort.Slice(ret, func(i, j int) bool {
-			return util.PinYinCompare(util.RemoveEmoji(ret[i].Name), util.RemoveEmoji(ret[j].Name))
+			return util.PinYinCompare(util.RemoveEmojiInvisible(ret[i].Name), util.RemoveEmojiInvisible(ret[j].Name))
 		})
 	case util.SortModeNameDESC:
 		sort.Slice(ret, func(i, j int) bool {
-			return util.PinYinCompare(util.RemoveEmoji(ret[j].Name), util.RemoveEmoji(ret[i].Name))
+			return util.PinYinCompare(util.RemoveEmojiInvisible(ret[j].Name), util.RemoveEmojiInvisible(ret[i].Name))
 		})
 	case util.SortModeUpdatedASC:
 	case util.SortModeUpdatedDESC:
 	case util.SortModeAlphanumASC:
 		sort.Slice(ret, func(i, j int) bool {
-			return natsort.Compare(util.RemoveEmoji(ret[i].Name), util.RemoveEmoji(ret[j].Name))
+			return natsort.Compare(util.RemoveEmojiInvisible(ret[i].Name), util.RemoveEmojiInvisible(ret[j].Name))
 		})
 	case util.SortModeAlphanumDESC:
 		sort.Slice(ret, func(i, j int) bool {
-			return natsort.Compare(util.RemoveEmoji(ret[j].Name), util.RemoveEmoji(ret[i].Name))
+			return natsort.Compare(util.RemoveEmojiInvisible(ret[j].Name), util.RemoveEmojiInvisible(ret[i].Name))
 		})
 	case util.SortModeCustom:
 		sort.Slice(ret, func(i, j int) bool { return ret[i].Sort < ret[j].Sort })
@@ -172,7 +180,7 @@ func (box *Box) GetConf() (ret *conf.BoxConf) {
 	ret = conf.NewBoxConf()
 
 	confPath := filepath.Join(util.DataDir, box.ID, ".siyuan/conf.json")
-	if !gulu.File.IsExist(confPath) {
+	if !filelock.IsExist(confPath) {
 		return
 	}
 
@@ -251,10 +259,12 @@ func (box *Box) Ls(p string) (ret []*FileInfo, totals int, err error) {
 			continue
 		}
 		if strings.HasSuffix(name, ".tmp") {
-			// 移除写入失败时产生的临时文件
+			// 移除写入失败时产生的并且早于 30 分钟前的临时文件，近期创建的临时文件可能正在写入中
 			removePath := filepath.Join(util.DataDir, box.ID, p, name)
-			if removeErr := os.Remove(removePath); nil != removeErr {
-				logging.LogWarnf("remove tmp file [%s] failed: %s", removePath, removeErr)
+			if info.ModTime().Before(time.Now().Add(-30 * time.Minute)) {
+				if removeErr := os.Remove(removePath); nil != removeErr {
+					logging.LogWarnf("remove tmp file [%s] failed: %s", removePath, removeErr)
+				}
 			}
 			continue
 		}
@@ -293,7 +303,7 @@ func (box *Box) Stat(p string) (ret *FileInfo) {
 }
 
 func (box *Box) Exist(p string) bool {
-	return gulu.File.IsExist(filepath.Join(util.DataDir, box.ID, p))
+	return filelock.IsExist(filepath.Join(util.DataDir, box.ID, p))
 }
 
 func (box *Box) Mkdir(path string) error {
@@ -321,7 +331,7 @@ func (box *Box) Move(oldPath, newPath string) error {
 	fromPath := filepath.Join(boxLocalPath, oldPath)
 	toPath := filepath.Join(boxLocalPath, newPath)
 
-	if err := filelock.Move(fromPath, toPath); nil != err {
+	if err := filelock.Rename(fromPath, toPath); nil != err {
 		msg := fmt.Sprintf(Conf.Language(5), box.Name, fromPath, err)
 		logging.LogErrorf("move [path=%s] in box [%s] failed: %s", fromPath, box.Name, err)
 		return errors.New(msg)
@@ -379,7 +389,14 @@ func isSkipFile(filename string) bool {
 
 func moveTree(tree *parse.Tree) {
 	treenode.SetBlockTreePath(tree)
-	sql.UpsertTreeQueue(tree)
+
+	if hidden := tree.Root.IALAttr("custom-hidden"); "true" == hidden {
+		tree.Root.RemoveIALAttr("custom-hidden")
+		filesys.WriteTree(tree)
+	}
+
+	sql.RemoveTreeQueue(tree.ID)
+	sql.IndexTreeQueue(tree)
 
 	box := Conf.Box(tree.Box)
 	box.renameSubTrees(tree)
@@ -442,7 +459,7 @@ func genTreeID(tree *parse.Tree) {
 
 		if "" == n.IALAttr("id") && (ast.NodeParagraph == n.Type || ast.NodeList == n.Type || ast.NodeListItem == n.Type || ast.NodeBlockquote == n.Type ||
 			ast.NodeMathBlock == n.Type || ast.NodeCodeBlock == n.Type || ast.NodeHeading == n.Type || ast.NodeTable == n.Type || ast.NodeThematicBreak == n.Type ||
-			ast.NodeYamlFrontMatter == n.Type || ast.NodeBlockQueryEmbed == n.Type || ast.NodeSuperBlock == n.Type ||
+			ast.NodeYamlFrontMatter == n.Type || ast.NodeBlockQueryEmbed == n.Type || ast.NodeSuperBlock == n.Type || ast.NodeAttributeView == n.Type ||
 			ast.NodeHTMLBlock == n.Type || ast.NodeIFrame == n.Type || ast.NodeWidget == n.Type || ast.NodeAudio == n.Type || ast.NodeVideo == n.Type) {
 			n.ID = ast.NewNodeID()
 			n.KramdownIAL = [][]string{{"id", n.ID}}
@@ -486,19 +503,28 @@ func genTreeID(tree *parse.Tree) {
 func FullReindex() {
 	task.AppendTask(task.DatabaseIndexFull, fullReindex)
 	task.AppendTask(task.DatabaseIndexRef, IndexRefs)
+	go func() {
+		sql.WaitForWritingDatabase()
+		ResetVirtualBlockRefCache()
+	}()
+	task.AppendTaskWithTimeout(task.DatabaseIndexEmbedBlock, 30*time.Second, autoIndexEmbedBlock)
+	cache.ClearDocsIAL()
+	cache.ClearBlocksIAL()
 	task.AppendTask(task.ReloadUI, util.ReloadUI)
 }
 
 func fullReindex() {
-	util.PushMsg(Conf.Language(35), 7*1000)
+	util.PushEndlessProgress(Conf.language(35))
+	defer util.PushClearProgress()
+
 	WaitForWritingFiles()
 
 	if err := sql.InitDatabase(true); nil != err {
 		os.Exit(logging.ExitCodeReadOnlyDatabase)
 		return
 	}
-	treenode.InitBlockTree(true)
 
+	sql.IndexIgnoreCached = false
 	openedBoxes := Conf.GetOpenedBoxes()
 	for _, openedBox := range openedBoxes {
 		index(openedBox.ID)

@@ -45,7 +45,7 @@ func AppendTask(action string, handler interface{}, args ...interface{}) {
 }
 
 func AppendTaskWithTimeout(action string, timeout time.Duration, handler interface{}, args ...interface{}) {
-	if util.IsExiting {
+	if util.IsExiting.Load() {
 		//logging.LogWarnf("task queue is paused, action [%s] will be ignored", action)
 		return
 	}
@@ -69,32 +69,37 @@ func AppendTaskWithTimeout(action string, timeout time.Duration, handler interfa
 
 func getCurrentActions() (ret []string) {
 	queueLock.Lock()
-	defer queueLock.Unlock()
 
+	currentTaskActionLock.Lock()
 	if "" != currentTaskAction {
 		ret = append(ret, currentTaskAction)
 	}
+	currentTaskActionLock.Unlock()
 
 	for _, task := range taskQueue {
 		ret = append(ret, task.Action)
 	}
+
+	queueLock.Unlock()
 	return
 }
 
 const (
-	RepoCheckout               = "task.repo.checkout"                 // 从快照中检出
-	DatabaseIndexFull          = "task.database.index.full"           // 重建索引
-	DatabaseIndex              = "task.database.index"                // 数据库索引
-	DatabaseIndexCommit        = "task.database.index.commit"         // 数据库索引提交
-	DatabaseIndexRef           = "task.database.index.ref"            // 数据库索引引用
-	DatabaseIndexFix           = "task.database.index.fix"            // 数据库索引订正
-	OCRImage                   = "task.ocr.image"                     // 图片 OCR 提取文本
-	HistoryGenerateDoc         = "task.history.generateDoc"           // 生成文件历史
-	HistoryDatabaseIndexFull   = "task.history.database.index.full"   // 历史数据库重建索引
-	HistoryDatabaseIndexCommit = "task.history.database.index.commit" // 历史数据库索引提交
-	DatabaseIndexEmbedBlock    = "task.database.index.embedBlock"     // 数据库索引嵌入块
-	ReloadUI                   = "task.reload.ui"                     // 重载 UI
-	UpgradeUserGuide           = "task.upgrade.userGuide"             // 升级用户指南文档笔记本
+	RepoCheckout                    = "task.repo.checkout"                 // 从快照中检出
+	DatabaseIndexFull               = "task.database.index.full"           // 重建索引
+	DatabaseIndex                   = "task.database.index"                // 数据库索引
+	DatabaseIndexCommit             = "task.database.index.commit"         // 数据库索引提交
+	DatabaseIndexRef                = "task.database.index.ref"            // 数据库索引引用
+	DatabaseIndexFix                = "task.database.index.fix"            // 数据库索引订正
+	OCRImage                        = "task.ocr.image"                     // 图片 OCR 提取文本
+	HistoryGenerateFile             = "task.history.generateFile"          // 生成文件历史
+	HistoryDatabaseIndexFull        = "task.history.database.index.full"   // 历史数据库重建索引
+	HistoryDatabaseIndexCommit      = "task.history.database.index.commit" // 历史数据库索引提交
+	DatabaseIndexEmbedBlock         = "task.database.index.embedBlock"     // 数据库索引嵌入块
+	ReloadUI                        = "task.reload.ui"                     // 重载 UI
+	AssetContentDatabaseIndexFull   = "task.asset.database.index.full"     // 资源文件数据库重建索引
+	AssetContentDatabaseIndexCommit = "task.asset.database.index.commit"   // 资源文件数据库索引提交
+	CacheVirtualBlockRef            = "task.cache.virtualBlockRef"         // 缓存虚拟块引用
 )
 
 // uniqueActions 描述了唯一的任务，即队列中只能存在一个在执行的任务。
@@ -103,18 +108,17 @@ var uniqueActions = []string{
 	DatabaseIndexFull,
 	DatabaseIndexCommit,
 	OCRImage,
-	HistoryGenerateDoc,
+	HistoryGenerateFile,
 	HistoryDatabaseIndexFull,
 	HistoryDatabaseIndexCommit,
-	DatabaseIndexEmbedBlock,
+	AssetContentDatabaseIndexFull,
+	AssetContentDatabaseIndexCommit,
 }
 
-func Contain(action string, moreActions ...string) bool {
-	actions := append(moreActions, action)
-	actions = gulu.Str.RemoveDuplicatedElem(actions)
-
-	for _, task := range taskQueue {
-		if gulu.Str.Contains(task.Action, actions) {
+func ContainIndexTask() bool {
+	actions := getCurrentActions()
+	for _, action := range actions {
+		if gulu.Str.Contains(action, []string{DatabaseIndexFull, DatabaseIndex}) {
 			return true
 		}
 	}
@@ -122,11 +126,12 @@ func Contain(action string, moreActions ...string) bool {
 }
 
 func StatusJob() {
-	tasks := taskQueue
 	var items []map[string]interface{}
 	count := map[string]int{}
 	actionLangs := util.TaskActionLangs[util.Lang]
-	for _, task := range tasks {
+
+	queueLock.Lock()
+	for _, task := range taskQueue {
 		action := task.Action
 		if c := count[action]; 2 < c {
 			logging.LogWarnf("too many tasks [%s], ignore show its status", action)
@@ -143,7 +148,9 @@ func StatusJob() {
 		item := map[string]interface{}{"action": action}
 		items = append(items, item)
 	}
+	defer queueLock.Unlock()
 
+	currentTaskActionLock.Lock()
 	if "" != currentTaskAction {
 		if nil != actionLangs {
 			if label := actionLangs[currentTaskAction]; nil != label {
@@ -151,6 +158,7 @@ func StatusJob() {
 			}
 		}
 	}
+	currentTaskActionLock.Unlock()
 
 	if 1 > len(items) {
 		items = []map[string]interface{}{}
@@ -166,7 +174,7 @@ func ExecTaskJob() {
 		return
 	}
 
-	if util.IsExiting {
+	if util.IsExiting.Load() {
 		return
 	}
 
@@ -186,7 +194,10 @@ func popTask() (ret *Task) {
 	return
 }
 
-var currentTaskAction string
+var (
+	currentTaskAction     string
+	currentTaskActionLock = sync.Mutex{}
+)
 
 func execTask(task *Task) {
 	defer logging.Recover()
@@ -200,7 +211,9 @@ func execTask(task *Task) {
 		}
 	}
 
+	currentTaskActionLock.Lock()
 	currentTaskAction = task.Action
+	currentTaskActionLock.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), task.Timeout)
 	defer cancel()
@@ -217,5 +230,7 @@ func execTask(task *Task) {
 		//logging.LogInfof("task [%s] done", task.Action)
 	}
 
+	currentTaskActionLock.Lock()
 	currentTaskAction = ""
+	currentTaskActionLock.Unlock()
 }

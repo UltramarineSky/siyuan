@@ -25,6 +25,39 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func batchUpdatePackage(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	frontend := arg["frontend"].(string)
+	model.BatchUpdateBazaarPackages(frontend)
+}
+
+func getUpdatedPackage(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	frontend := arg["frontend"].(string)
+	plugins, widgets, icons, themes, templates := model.UpdatedPackages(frontend)
+	ret.Data = map[string]interface{}{
+		"plugins":   plugins,
+		"widgets":   widgets,
+		"icons":     icons,
+		"themes":    themes,
+		"templates": templates,
+	}
+}
+
 func getBazaarPackageREAME(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -52,9 +85,13 @@ func getBazaarPlugin(c *gin.Context) {
 	}
 
 	frontend := arg["frontend"].(string)
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
 
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarPlugins(frontend),
+		"packages": model.BazaarPlugins(frontend, keyword),
 	}
 }
 
@@ -68,9 +105,13 @@ func getInstalledPlugin(c *gin.Context) {
 	}
 
 	frontend := arg["frontend"].(string)
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
 
 	ret.Data = map[string]interface{}{
-		"packages": model.InstalledPlugins(frontend),
+		"packages": model.InstalledPlugins(frontend, keyword),
 	}
 }
 
@@ -97,7 +138,7 @@ func installBazaarPlugin(c *gin.Context) {
 
 	util.PushMsg(model.Conf.Language(69), 3000)
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarPlugins(frontend),
+		"packages": model.BazaarPlugins(frontend, ""),
 	}
 }
 
@@ -120,7 +161,7 @@ func uninstallBazaarPlugin(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarPlugins(frontend),
+		"packages": model.BazaarPlugins(frontend, ""),
 	}
 }
 
@@ -128,8 +169,18 @@ func getBazaarWidget(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarWidgets(),
+		"packages": model.BazaarWidgets(keyword),
 	}
 }
 
@@ -137,8 +188,18 @@ func getInstalledWidget(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.InstalledWidgets(),
+		"packages": model.InstalledWidgets(keyword),
 	}
 }
 
@@ -163,7 +224,7 @@ func installBazaarWidget(c *gin.Context) {
 
 	util.PushMsg(model.Conf.Language(69), 3000)
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarWidgets(),
+		"packages": model.BazaarWidgets(""),
 	}
 }
 
@@ -185,7 +246,7 @@ func uninstallBazaarWidget(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarWidgets(),
+		"packages": model.BazaarWidgets(""),
 	}
 }
 
@@ -193,8 +254,18 @@ func getBazaarIcon(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarIcons(),
+		"packages": model.BazaarIcons(keyword),
 	}
 }
 
@@ -202,8 +273,18 @@ func getInstalledIcon(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.InstalledIcons(),
+		"packages": model.InstalledIcons(keyword),
 	}
 }
 
@@ -228,7 +309,7 @@ func installBazaarIcon(c *gin.Context) {
 	util.PushMsg(model.Conf.Language(69), 3000)
 
 	ret.Data = map[string]interface{}{
-		"packages":   model.BazaarIcons(),
+		"packages":   model.BazaarIcons(""),
 		"appearance": model.Conf.Appearance,
 	}
 }
@@ -251,7 +332,7 @@ func uninstallBazaarIcon(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"packages":   model.BazaarIcons(),
+		"packages":   model.BazaarIcons(""),
 		"appearance": model.Conf.Appearance,
 	}
 }
@@ -260,8 +341,18 @@ func getBazaarTemplate(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarTemplates(),
+		"packages": model.BazaarTemplates(keyword),
 	}
 }
 
@@ -269,8 +360,18 @@ func getInstalledTemplate(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.InstalledTemplates(),
+		"packages": model.InstalledTemplates(keyword),
 	}
 }
 
@@ -294,7 +395,7 @@ func installBazaarTemplate(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarTemplates(),
+		"packages": model.BazaarTemplates(""),
 	}
 
 	util.PushMsg(model.Conf.Language(69), 3000)
@@ -318,7 +419,7 @@ func uninstallBazaarTemplate(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarTemplates(),
+		"packages": model.BazaarTemplates(""),
 	}
 }
 
@@ -326,8 +427,18 @@ func getBazaarTheme(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.BazaarThemes(),
+		"packages": model.BazaarThemes(keyword),
 	}
 }
 
@@ -335,8 +446,18 @@ func getInstalledTheme(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var keyword string
+	if keywordArg := arg["keyword"]; nil != keywordArg {
+		keyword = keywordArg.(string)
+	}
+
 	ret.Data = map[string]interface{}{
-		"packages": model.InstalledThemes(),
+		"packages": model.InstalledThemes(keyword),
 	}
 }
 
@@ -370,7 +491,7 @@ func installBazaarTheme(c *gin.Context) {
 
 	util.PushMsg(model.Conf.Language(69), 3000)
 	ret.Data = map[string]interface{}{
-		"packages":   model.BazaarThemes(),
+		"packages":   model.BazaarThemes(""),
 		"appearance": model.Conf.Appearance,
 	}
 }
@@ -393,7 +514,7 @@ func uninstallBazaarTheme(c *gin.Context) {
 	}
 
 	ret.Data = map[string]interface{}{
-		"packages":   model.BazaarThemes(),
+		"packages":   model.BazaarThemes(""),
 		"appearance": model.Conf.Appearance,
 	}
 }

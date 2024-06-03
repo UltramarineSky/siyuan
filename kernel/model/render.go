@@ -93,7 +93,11 @@ func renderOutline(heading *ast.Node, luteEngine *lute.Lute) (ret string) {
 }
 
 func renderBlockText(node *ast.Node, excludeTypes []string) (ret string) {
-	ret = treenode.NodeStaticContent(node, excludeTypes, false, false)
+	if nil == node {
+		return
+	}
+
+	ret = sql.NodeStaticContent(node, excludeTypes, false, false, false, GetBlockAttrsWithoutWaitWriting)
 	ret = strings.TrimSpace(ret)
 	ret = strings.ReplaceAll(ret, "\n", "")
 	ret = util.EscapeHTML(ret)
@@ -156,7 +160,7 @@ func renderBlockContentByNodes(nodes []*ast.Node) string {
 
 	buf := bytes.Buffer{}
 	for _, n := range subNodes {
-		buf.WriteString(treenode.NodeStaticContent(n, nil, false, false))
+		buf.WriteString(sql.NodeStaticContent(n, nil, false, false, false, GetBlockAttrsWithoutWaitWriting))
 	}
 	return buf.String()
 }
@@ -188,7 +192,7 @@ func renderBlockMarkdownR0(id string, rendered *[]string) (ret []*ast.Node) {
 
 	var err error
 	var t *parse.Tree
-	if t, err = loadTreeByBlockID(b.ID); nil != err {
+	if t, err = LoadTreeByBlockID(b.ID); nil != err {
 		return
 	}
 	node := treenode.GetNodeInTree(t, b.ID)

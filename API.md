@@ -28,6 +28,8 @@
     * [Update a block](#Update-a-block)
     * [Delete a block](#Delete-a-block)
     * [Move a block](#Move-a-block)
+    * [Fold a block](#Fold-a-block)
+    * [Unfold a block](#Unfold-a-block)
     * [Get a block kramdown](#Get-a-block-kramdown)
     * [Get child blocks](#get-child-blocks)
     * [Transfer block ref](#transfer-block-ref)
@@ -47,11 +49,14 @@
     * [List files](#List-files)
 * [Export](#Export)
     * [Export Markdown](#Export-Markdown)
+    * [Export Files and Folders](#Export-files-and-folders)
 * [Conversion](#Conversion)
     * [Pandoc](#Pandoc)
 * [Notification](#Notification)
     * [Push message](#Push-message)
     * [Push error message](#Push-error-message)
+* [Network](#Network)
+    * [Forward proxy](#Forward-proxy)
 * [System](#System)
     * [Get boot progress](#Get-boot-progress)
     * [Get system version](#Get-system-version)
@@ -412,7 +417,7 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
-### Get human readable path based on path
+### Get human-readable path based on path
 
 * `/api/filetree/getHPathByPath`
 * Parameters
@@ -436,7 +441,7 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
-### Get human readable path based on ID
+### Get human-readable path based on ID
 
 * `/api/filetree/getHPathByID`
 * Parameters
@@ -455,6 +460,32 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
     "code": 0,
     "msg": "",
     "data": "/foo/bar"
+  }
+  ```
+
+### Get IDs based on human-readable path
+
+* `/api/filetree/getIDsByHPath`
+* Parameters
+
+  ```json
+  {
+    "path": "/foo/bar",
+    "notebook": "20210808180117-czj9bvb"
+  }
+  ```
+
+  * `path`: Human-readable path
+  * `notebook`: Notebook ID
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": [
+        "20200813004931-q4cu8na"
+    ]
   }
   ```
 
@@ -754,6 +785,50 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
+### Fold a block
+
+* `/api/block/foldBlock`
+* Parameters
+
+  ```json
+  {
+    "id": "20231224160424-2f5680o"
+  }
+  ```
+
+  * `id`: Block ID to fold
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+### Unfold a block
+
+* `/api/block/unfoldBlock`
+* Parameters
+
+  ```json
+  {
+    "id": "20231224160424-2f5680o"
+  }
+  ```
+
+  * `id`: Block ID to unfold
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
 ### Get a block kramdown
 
 * `/api/block/getBlockKramdown`
@@ -989,7 +1064,25 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
     * `path`: the file path under the workspace path
 * Return value
 
-  File content
+    * Response status code `200`: File content
+    * Response status code `202`: Exception information
+
+      ```json
+      {
+        "code": 404,
+        "msg": "",
+        "data": null
+      }
+      ```
+
+        * `code`: non-zero for exceptions
+
+            * `-1`: Parameter parsing error
+            * `403`: Permission denied (file is not in the workspace)
+            * `404`: Not Found (file doesn't exist)
+            * `405`: Method Not Allowed (it's a directory)
+            * `500`: Server Error (stat file failed / read file failed)
+        * `msg`: a piece of text describing the error
 
 ### Put file
 
@@ -1061,10 +1154,10 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
 
   ```json
   {
-    "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy"
+    "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p"
   }
   ```
-    * `path`: the file path under the workspace path
+    * `path`: the dir path under the workspace path
 * Return value
 
   ```json
@@ -1072,14 +1165,18 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
     "code": 0,
     "msg": "",
     "data": [
-        {
-            "isDir": true,
-            "name": "20210808180320-abz7w6k"
-        },
-        {
-            "isDir": false,
-            "name": "20210808180320-abz7w6k.sy"
-        }
+      {
+        "isDir": true,
+        "isSymlink": false,
+        "name": "20210808180303-6yi0dv5",
+        "updated": 1691467624
+      },
+      {
+        "isDir": false,
+        "isSymlink": false,
+        "name": "20210808180303-6yi0dv5.sy",
+        "updated": 1663298365
+      }
     ]
   }
   ```
@@ -1113,6 +1210,45 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
 
     * `hPath`: human-readable path
     * `content`: Markdown content
+
+### Export files and folders
+
+* `/api/export/exportResources`
+* Parameters
+
+  ```json
+  {
+    "paths": [
+      "/conf/appearance/boot",
+      "/conf/appearance/langs",
+      "/conf/appearance/emojis/conf.json",
+      "/conf/appearance/icons/index.html"
+    ],
+    "name": "zip-file-name"
+  }
+  ```
+
+    * `paths`: A list of file or folder paths to be exported, the same filename/folder name will be overwritten
+    * `name`: (Optional) The exported file name, which defaults to `export-YYYY-MM-DD_hh-mm-ss.zip` when not set
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+      "path": "temp/export/zip-file-name.zip"
+    }
+  }
+  ```
+
+    * `path`: The path of `*.zip` file created
+        * The directory structure in `zip-file-name.zip` is as follows:
+            * `zip-file-name`
+                * `boot`
+                * `langs`
+                * `conf.json`
+                * `index.html`
 
 ## Conversion
 
@@ -1206,6 +1342,80 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
     * `id`: Message ID
+
+## Network
+
+### Forward proxy
+
+* `/api/network/forwardProxy`
+* Parameters
+
+  ```json
+  {
+    "url": "https://b3log.org/siyuan/",
+    "method": "GET",
+    "timeout": 7000,
+    "contentType": "text/html",
+    "headers": [
+        {
+            "Cookie": ""
+        }
+    ],
+    "payload": {},
+    "payloadEncoding": "text",
+    "responseEncoding": "text"
+  }
+  ```
+
+    * `url`: URL to forward
+    * `method`: HTTP method, default is `POST`
+    * `timeout`: timeout in milliseconds, default is `7000`
+    * `contentType`: Content-Type, default is `application/json`
+    * `headers`: HTTP headers
+    * `payload`: HTTP payload, object or string
+    * `payloadEncoding`: The encoding scheme used by `pyaload`, default is `text`, optional values are as follows
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
+    * `responseEncoding`: The encoding scheme used by `body` in response data, default is `text`, optional values are as follows
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+      "body": "",
+      "bodyEncoding": "text",
+      "contentType": "text/html",
+      "elapsed": 1976,
+      "headers": {
+      },
+      "status": 200,
+      "url": "https://b3log.org/siyuan"
+    }
+  }
+  ```
+
+    * `bodyEncoding`: The encoding scheme used by `body`, is consistent with field `responseEncoding` in request, default is `text`, optional values are as follows
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
 
 ## System
 

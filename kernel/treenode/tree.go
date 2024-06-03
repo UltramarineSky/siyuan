@@ -29,19 +29,9 @@ import (
 	"github.com/88250/lute"
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/parse"
+	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
-
-func StatTree(tree *parse.Tree) (ret *util.BlockStatResult) {
-	runeCnt, wordCnt, linkCnt, imgCnt, refCnt := tree.Root.Stat()
-	return &util.BlockStatResult{
-		RuneCount:  runeCnt,
-		WordCount:  wordCnt,
-		LinkCount:  linkCnt,
-		ImageCount: imgCnt,
-		RefCount:   refCnt,
-	}
-}
 
 func NodeHash(node *ast.Node, tree *parse.Tree, luteEngine *lute.Lute) string {
 	ialArray := node.KramdownIAL
@@ -86,6 +76,8 @@ func IALStr(n *ast.Node) string {
 	if 1 > len(n.KramdownIAL) {
 		return ""
 	}
+	// 这里不能进行转义，否则会导致从数据库中读取后转换为 IAL 时解析错误
+	// 所以 Some symbols should not be escaped to avoid inaccurate searches https://github.com/siyuan-note/siyuan/issues/10185 无法被修复了
 	return string(parse.IAL2Tokens(n.KramdownIAL))
 }
 
@@ -101,7 +93,7 @@ func RootChildIDs(rootID string) (ret []string) {
 	if !gulu.File.IsDir(subFolder) {
 		return
 	}
-	filepath.Walk(subFolder, func(path string, info fs.FileInfo, err error) error {
+	filelock.Walk(subFolder, func(path string, info fs.FileInfo, err error) error {
 		if strings.HasSuffix(path, ".sy") {
 			name := filepath.Base(path)
 			id := strings.TrimSuffix(name, ".sy")

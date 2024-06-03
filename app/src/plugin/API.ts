@@ -6,22 +6,47 @@ import {fetchGet, fetchPost, fetchSyncPost} from "../util/fetch";
 import {getBackend, getFrontend} from "../util/functions";
 /// #if !MOBILE
 import {openFile, openFileById} from "../editor/util";
+import {openNewWindow, openNewWindowById} from "../window/openNewWindow";
+import {Tab} from "../layout/Tab";
 /// #endif
 import {updateHotkeyTip} from "../protyle/util/compatibility";
-import {newCardModel} from "../card/newCardTab";
 import {App} from "../index";
 import {Constants} from "../constants";
-import {Model} from "../layout/Model";
 import {Setting} from "./Setting";
 import {Menu} from "./Menu";
-import { Protyle } from "../protyle";
+import {Protyle} from "../protyle";
+import {openMobileFileById} from "../mobile/editor";
+import {lockScreen} from "../dialog/processSystem";
 
 let openTab;
+let openWindow;
 /// #if MOBILE
 openTab = () => {
     // TODO: Mobile
 };
+openWindow = () => {
+    // TODO: Mobile
+};
 /// #else
+openWindow = (options: {
+    position?: IPosition,
+    height?: number,
+    width?: number,
+    tab?: Tab,
+    doc?: {
+        id: string,     // 块 id
+    },
+}) => {
+    if (options.doc && options.doc.id) {
+        openNewWindowById(options.doc.id, {position: options.position, width: options.width, height: options.height});
+        return;
+    }
+    if (options.tab) {
+        openNewWindow(options.tab, {position: options.position, width: options.width, height: options.height});
+        return;
+    }
+};
+
 openTab = (options: {
     app: App,
     doc?: {
@@ -37,7 +62,7 @@ openTab = (options: {
     asset?: {
         path: string,
     },
-    search?: ISearchOption
+    search?: Config.IUILayoutTabSearchConfig
     card?: {
         type: TCardType,
         id?: string, //  cardType 为 all 时不传，否则传文档或笔记本 id
@@ -47,7 +72,7 @@ openTab = (options: {
         title: string,
         icon: string,
         data?: any
-        fn?: () => Model,
+        id: string
     }
     position?: "right" | "bottom",
     keepCursor?: boolean // 是否跳转到新 tab 上
@@ -128,7 +153,7 @@ openTab = (options: {
                     id: options.card.id || "",
                     title: options.card.title,
                 },
-                fn: newCardModel
+                id: "siyuan-card"
             },
         });
     }
@@ -148,10 +173,14 @@ export const API = {
     fetchGet,
     getFrontend,
     getBackend,
+    lockScreen,
+    openMobileFileById,
     openTab,
+    openWindow,
     Protyle,
     Plugin,
     Dialog,
     Menu,
-    Setting
+    Setting,
+    Constants,
 };

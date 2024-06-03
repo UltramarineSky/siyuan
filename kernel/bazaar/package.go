@@ -19,7 +19,7 @@ package bazaar
 import (
 	"bytes"
 	"errors"
-	"golang.org/x/mod/semver"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,10 +30,12 @@ import (
 	"github.com/88250/lute"
 	"github.com/araddon/dateparse"
 	"github.com/imroc/req/v3"
+	gcache "github.com/patrickmn/go-cache"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/util"
+	"golang.org/x/mod/semver"
 	textUnicode "golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 )
@@ -77,6 +79,7 @@ type Package struct {
 	Description   *Description `json:"description"`
 	Readme        *Readme      `json:"readme"`
 	Funding       *Funding     `json:"funding"`
+	Keywords      []string     `json:"keywords"`
 
 	PreferredFunding string `json:"preferredFunding"`
 	PreferredName    string `json:"preferredName"`
@@ -118,11 +121,12 @@ type StagePackage struct {
 }
 
 type StageRepo struct {
-	URL        string `json:"url"`
-	Updated    string `json:"updated"`
-	Stars      int    `json:"stars"`
-	OpenIssues int    `json:"openIssues"`
-	Size       int64  `json:"size"`
+	URL         string `json:"url"`
+	Updated     string `json:"updated"`
+	Stars       int    `json:"stars"`
+	OpenIssues  int    `json:"openIssues"`
+	Size        int64  `json:"size"`
+	InstallSize int64  `json:"installSize"`
 
 	Package *StagePackage `json:"package"`
 }
@@ -160,7 +164,7 @@ func getPreferredReadme(readme *Readme) string {
 	return ret
 }
 
-func getPreferredName(pkg *Package) string {
+func GetPreferredName(pkg *Package) string {
 	if nil == pkg.DisplayName {
 		return pkg.Name
 	}
@@ -240,11 +244,11 @@ func getPreferredFunding(funding *Funding) string {
 
 func PluginJSON(pluginDirName string) (ret *Plugin, err error) {
 	p := filepath.Join(util.DataDir, "plugins", pluginDirName, "plugin.json")
-	if !gulu.File.IsExist(p) {
+	if !filelock.IsExist(p) {
 		err = os.ErrNotExist
 		return
 	}
-	data, err := os.ReadFile(p)
+	data, err := filelock.ReadFile(p)
 	if nil != err {
 		logging.LogErrorf("read plugin.json [%s] failed: %s", p, err)
 		return
@@ -260,11 +264,11 @@ func PluginJSON(pluginDirName string) (ret *Plugin, err error) {
 
 func WidgetJSON(widgetDirName string) (ret *Widget, err error) {
 	p := filepath.Join(util.DataDir, "widgets", widgetDirName, "widget.json")
-	if !gulu.File.IsExist(p) {
+	if !filelock.IsExist(p) {
 		err = os.ErrNotExist
 		return
 	}
-	data, err := os.ReadFile(p)
+	data, err := filelock.ReadFile(p)
 	if nil != err {
 		logging.LogErrorf("read widget.json [%s] failed: %s", p, err)
 		return
@@ -300,11 +304,11 @@ func IconJSON(iconDirName string) (ret *Icon, err error) {
 
 func TemplateJSON(templateDirName string) (ret *Template, err error) {
 	p := filepath.Join(util.DataDir, "templates", templateDirName, "template.json")
-	if !gulu.File.IsExist(p) {
+	if !filelock.IsExist(p) {
 		err = os.ErrNotExist
 		return
 	}
-	data, err := os.ReadFile(p)
+	data, err := filelock.ReadFile(p)
 	if nil != err {
 		logging.LogErrorf("read template.json [%s] failed: %s", p, err)
 		return
@@ -390,7 +394,7 @@ func isOutdatedTheme(theme *Theme, bazaarThemes []*Theme) bool {
 	}
 
 	for _, pkg := range bazaarThemes {
-		if theme.URL == pkg.URL && theme.Name == pkg.Name && theme.Author == pkg.Author && theme.Version < pkg.Version {
+		if theme.URL == pkg.URL && theme.Name == pkg.Name && theme.Author == pkg.Author && 0 > semver.Compare("v"+theme.Version, "v"+pkg.Version) {
 			theme.RepoHash = pkg.RepoHash
 			return true
 		}
@@ -410,7 +414,7 @@ func isOutdatedIcon(icon *Icon, bazaarIcons []*Icon) bool {
 	}
 
 	for _, pkg := range bazaarIcons {
-		if icon.URL == pkg.URL && icon.Name == pkg.Name && icon.Author == pkg.Author && icon.Version < pkg.Version {
+		if icon.URL == pkg.URL && icon.Name == pkg.Name && icon.Author == pkg.Author && 0 > semver.Compare("v"+icon.Version, "v"+pkg.Version) {
 			icon.RepoHash = pkg.RepoHash
 			return true
 		}
@@ -430,7 +434,7 @@ func isOutdatedPlugin(plugin *Plugin, bazaarPlugins []*Plugin) bool {
 	}
 
 	for _, pkg := range bazaarPlugins {
-		if plugin.URL == pkg.URL && plugin.Name == pkg.Name && plugin.Author == pkg.Author && plugin.Version < pkg.Version {
+		if plugin.URL == pkg.URL && plugin.Name == pkg.Name && plugin.Author == pkg.Author && 0 > semver.Compare("v"+plugin.Version, "v"+pkg.Version) {
 			plugin.RepoHash = pkg.RepoHash
 			return true
 		}
@@ -450,7 +454,7 @@ func isOutdatedWidget(widget *Widget, bazaarWidgets []*Widget) bool {
 	}
 
 	for _, pkg := range bazaarWidgets {
-		if widget.URL == pkg.URL && widget.Name == pkg.Name && widget.Author == pkg.Author && widget.Version < pkg.Version {
+		if widget.URL == pkg.URL && widget.Name == pkg.Name && widget.Author == pkg.Author && 0 > semver.Compare("v"+widget.Version, "v"+pkg.Version) {
 			widget.RepoHash = pkg.RepoHash
 			return true
 		}
@@ -470,7 +474,7 @@ func isOutdatedTemplate(template *Template, bazaarTemplates []*Template) bool {
 	}
 
 	for _, pkg := range bazaarTemplates {
-		if template.URL == pkg.URL && template.Name == pkg.Name && template.Author == pkg.Author && template.Version < pkg.Version {
+		if template.URL == pkg.URL && template.Name == pkg.Name && template.Author == pkg.Author && 0 > semver.Compare("v"+template.Version, "v"+pkg.Version) {
 			template.RepoHash = pkg.RepoHash
 			return true
 		}
@@ -502,14 +506,22 @@ func GetPackageREADME(repoURL, repoHash, packageType string) (ret string) {
 
 	data, err := downloadPackage(repoURLHash+"/"+readme, false, "")
 	if nil != err {
-		ret = "Load bazaar package's README.md failed: " + err.Error()
-		return
+		ret = fmt.Sprintf("Load bazaar package's README.md(%s) failed: %s", readme, err.Error())
+		if readme == repo.Package.Readme.Default || "" == strings.TrimSpace(repo.Package.Readme.Default) {
+			return
+		}
+		readme = repo.Package.Readme.Default
+		data, err = downloadPackage(repoURLHash+"/"+readme, false, "")
+		if nil != err {
+			ret += fmt.Sprintf("<br>Load bazaar package's README.md(%s) failed: %s", readme, err.Error())
+			return
+		}
 	}
 
 	if 2 < len(data) {
 		if 255 == data[0] && 254 == data[1] {
 			data, _, err = transform.Bytes(textUnicode.UTF16(textUnicode.LittleEndian, textUnicode.ExpectBOM).NewDecoder(), data)
-		} else if 254 == data[1] && 255 == data[0] {
+		} else if 254 == data[0] && 255 == data[1] {
 			data, _, err = transform.Bytes(textUnicode.UTF16(textUnicode.BigEndian, textUnicode.ExpectBOM).NewDecoder(), data)
 		}
 	}
@@ -529,17 +541,33 @@ func renderREADME(repoURL string, mdData []byte) (ret string, err error) {
 	return
 }
 
+var (
+	packageLocks     = map[string]*sync.Mutex{}
+	packageLocksLock = sync.Mutex{}
+)
+
 func downloadPackage(repoURLHash string, pushProgress bool, systemID string) (data []byte, err error) {
+	packageLocksLock.Lock()
+	defer packageLocksLock.Unlock()
+
 	// repoURLHash: https://github.com/88250/Comfortably-Numb@6286912c381ef3f83e455d06ba4d369c498238dc
-	pushID := repoURLHash[:strings.LastIndex(repoURLHash, "@")]
+	repoURL := repoURLHash[:strings.LastIndex(repoURLHash, "@")]
+	lock, ok := packageLocks[repoURLHash]
+	if !ok {
+		lock = &sync.Mutex{}
+		packageLocks[repoURLHash] = lock
+	}
+	lock.Lock()
+	defer lock.Unlock()
+
 	repoURLHash = strings.TrimPrefix(repoURLHash, "https://github.com/")
 	u := util.BazaarOSSServer + "/package/" + repoURLHash
 	buf := &bytes.Buffer{}
-	resp, err := httpclient.NewBrowserRequest().SetOutput(buf).SetDownloadCallback(func(info req.DownloadInfo) {
+	resp, err := httpclient.NewCloudFileRequest2m().SetOutput(buf).SetDownloadCallback(func(info req.DownloadInfo) {
 		if pushProgress {
 			progress := float32(info.DownloadedSize) / float32(info.Response.ContentLength)
 			//logging.LogDebugf("downloading bazaar package [%f]", progress)
-			util.PushDownloadProgress(pushID, progress)
+			util.PushDownloadProgress(repoURL, progress)
 		}
 	}).Get(u)
 	if nil != err {
@@ -570,7 +598,26 @@ func incPackageDownloads(repoURLHash, systemID string) {
 		}).Post(u)
 }
 
-func installPackage(data []byte, installPath string) (err error) {
+func uninstallPackage(installPath string) (err error) {
+	if err = os.RemoveAll(installPath); nil != err {
+		logging.LogErrorf("remove [%s] failed: %s", installPath, err)
+		return fmt.Errorf("remove community package [%s] failed", filepath.Base(installPath))
+	}
+	packageCache.Flush()
+	return
+}
+
+func installPackage(data []byte, installPath, repoURLHash string) (err error) {
+	err = installPackage0(data, installPath)
+	if nil != err {
+		return
+	}
+
+	packageCache.Delete(strings.TrimPrefix(repoURLHash, "https://github.com/"))
+	return
+}
+
+func installPackage0(data []byte, installPath string) (err error) {
 	tmpPackage := filepath.Join(util.TempDir, "bazaar", "package")
 	if err = os.MkdirAll(tmpPackage, 0755); nil != err {
 		return
@@ -655,16 +702,15 @@ func getBazaarIndex() map[string]*bazaarPackage {
 const defaultMinAppVersion = "2.9.0"
 
 func disallowDisplayBazaarPackage(pkg *Package) bool {
-	if "" == pkg.MinAppVersion { // 目前暂时放过所有不带 minAppVersion 的集市包，后续版本会使用 defaultMinAppVersion
+	if "" == pkg.MinAppVersion { // TODO: 目前暂时放过所有不带 minAppVersion 的集市包，后续版本会使用 defaultMinAppVersion
 		return false
 	}
 	if 0 < semver.Compare("v"+pkg.MinAppVersion, "v"+util.Ver) {
 		return true
 	}
-
-	if 0 < len(pkg.Backends) {
-
-	}
-
 	return false
 }
+
+var packageCache = gcache.New(6*time.Hour, 30*time.Minute) // [repoURL]*Package
+
+var packageInstallSizeCache = gcache.New(48*time.Hour, 6*time.Hour) // [repoURL]*int64

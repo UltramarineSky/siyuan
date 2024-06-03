@@ -44,7 +44,7 @@ export const rename = (options: {
     type: "notebook" | "file"
     range?: Range,
 }) => {
-    if (window.siyuan.config.editor.readOnly || window.siyuan.config.readonly) {
+    if (window.siyuan.config.readonly) {
         return;
     }
     const dialog = new Dialog({
@@ -61,6 +61,7 @@ export const rename = (options: {
             }
         }
     });
+    dialog.element.setAttribute("data-key", Constants.DIALOG_RENAME);
     const inputElement = dialog.element.querySelector("input") as HTMLInputElement;
     const btnsElement = dialog.element.querySelectorAll(".b3-button");
     dialog.bindInput(inputElement, () => {
@@ -81,7 +82,7 @@ export const rename = (options: {
             return false;
         }
         if (inputElement.value.trim() === "") {
-            inputElement.value = "Untitled";
+            inputElement.value = window.siyuan.languages.untitled;
         } else {
             inputElement.value = replaceFileName(inputElement.value);
         }
@@ -113,6 +114,7 @@ export const renameAsset = (assetPath: string) => {
 </div>`,
         width: isMobile() ? "92vw" : "520px",
     });
+    dialog.element.setAttribute("data-key", Constants.DIALOG_RENAMEASSETS);
     const inputElement = dialog.element.querySelector("input") as HTMLInputElement;
     const btnsElement = dialog.element.querySelectorAll(".b3-button");
     dialog.bindInput(inputElement, () => {

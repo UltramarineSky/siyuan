@@ -32,6 +32,26 @@ var (
 	sessions = sync.Map{} // {appId, {sessionId, session}}
 )
 
+func BroadcastByTypeAndApp(typ, app, cmd string, code int, msg string, data interface{}) {
+	appSessions, ok := sessions.Load(app)
+	if !ok {
+		return
+	}
+
+	appSessions.(*sync.Map).Range(func(key, value interface{}) bool {
+		session := value.(*melody.Session)
+		if t, ok := session.Get("type"); ok && typ == t {
+			event := NewResult()
+			event.Cmd = cmd
+			event.Code = code
+			event.Msg = msg
+			event.Data = data
+			session.Write(event.Bytes())
+		}
+		return true
+	})
+}
+
 // BroadcastByType 广播所有实例上 typ 类型的会话。
 func BroadcastByType(typ, cmd string, code int, msg string, data interface{}) {
 	typeSessions := SessionsByType(typ)
@@ -158,6 +178,10 @@ func PushBackgroundTask(data map[string]interface{}) {
 	BroadcastByType("main", "backgroundtask", 0, "", data)
 }
 
+func PushReloadFiletree() {
+	BroadcastByType("filetree", "reloadFiletree", 0, "", nil)
+}
+
 type BlockStatResult struct {
 	RuneCount  int `json:"runeCount"`
 	WordCount  int `json:"wordCount"`
@@ -168,6 +192,8 @@ type BlockStatResult struct {
 
 func ContextPushMsg(context map[string]interface{}, msg string) {
 	switch context[eventbus.CtxPushMsg].(int) {
+	case eventbus.CtxPushMsgToNone:
+		break
 	case eventbus.CtxPushMsgToProgress:
 		PushEndlessProgress(msg)
 	case eventbus.CtxPushMsgToStatusBar:
@@ -212,6 +238,24 @@ func PushClearMsg(msgId string) {
 // PushClearProgress 取消进度遮罩。
 func PushClearProgress() {
 	BroadcastByType("main", "cprogress", 0, "", nil)
+}
+
+func PushReloadAttrView(avID string) {
+	BroadcastByType("protyle", "refreshAttributeView", 0, "", map[string]interface{}{"id": avID})
+}
+
+func PushReloadDoc(rootID string) {
+	BroadcastByType("main", "reloaddoc", 0, "", rootID)
+}
+
+func PushSaveDoc(rootID, typ string, sources interface{}) {
+	evt := NewCmdResult("savedoc", 0, PushModeBroadcast)
+	evt.Data = map[string]interface{}{
+		"rootID":  rootID,
+		"type":    typ,
+		"sources": sources,
+	}
+	PushEvent(evt)
 }
 
 func PushProtyleReload(rootID string) {

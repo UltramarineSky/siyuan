@@ -63,6 +63,7 @@ func SetPetalEnabled(name string, enabled bool, frontend string) (ret *Petal, er
 
 	if incompatible {
 		err = fmt.Errorf(Conf.Language(205))
+		logging.LogInfof("plugin [%s] is incompatible [%s]", name, frontend)
 		return
 	}
 
@@ -78,8 +79,20 @@ func LoadPetals(frontend string) (ret []*Petal) {
 		return
 	}
 
+	if !Conf.Bazaar.Trust {
+		// 移动端没有集市模块，所以要默认开启，桌面端和 Docker 容器需要用户手动确认过信任后才能开启
+		if util.ContainerStd == util.Container || util.ContainerDocker == util.Container {
+			return
+		}
+	}
+
 	petals := getPetals()
 	for _, petal := range petals {
+		installPath := filepath.Join(util.DataDir, "plugins", petal.Name)
+		if !filelock.IsExist(installPath) {
+			continue
+		}
+
 		_, petal.DisplayName, petal.Incompatible = bazaar.ParseInstalledPlugin(petal.Name, frontend)
 		if !petal.Enabled || petal.Incompatible {
 			continue
@@ -94,7 +107,7 @@ func LoadPetals(frontend string) (ret []*Petal) {
 func loadCode(petal *Petal) {
 	pluginDir := filepath.Join(util.DataDir, "plugins", petal.Name)
 	jsPath := filepath.Join(pluginDir, "index.js")
-	if !gulu.File.IsExist(jsPath) {
+	if !filelock.IsExist(jsPath) {
 		logging.LogErrorf("plugin [%s] js not found", petal.Name)
 		return
 	}
@@ -107,7 +120,7 @@ func loadCode(petal *Petal) {
 	petal.JS = string(data)
 
 	cssPath := filepath.Join(pluginDir, "index.css")
-	if gulu.File.IsExist(cssPath) {
+	if filelock.IsExist(cssPath) {
 		data, err = filelock.ReadFile(cssPath)
 		if nil != err {
 			logging.LogErrorf("read plugin [%s] css failed: %s", petal.Name, err)
@@ -197,7 +210,7 @@ func getPetals() (ret []*Petal) {
 	}
 
 	confPath := filepath.Join(petalDir, "petals.json")
-	if !gulu.File.IsExist(confPath) {
+	if !filelock.IsExist(confPath) {
 		data, err := gulu.JSON.MarshalIndentJSON(ret, "", "\t")
 		if nil != err {
 			logging.LogErrorf("marshal petals failed: %s", err)

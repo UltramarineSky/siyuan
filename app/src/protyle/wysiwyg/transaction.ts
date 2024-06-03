@@ -6,8 +6,8 @@ import {blockRender} from "../render/blockRender";
 import {processRender} from "../util/processCode";
 import {highlightRender} from "../render/highlightRender";
 import {hasClosestBlock, hasClosestByAttribute} from "../util/hasClosest";
-import {setFold} from "../../menus/protyle";
-import {onGet} from "../util/onGet";
+import {setFold, zoomOut} from "../../menus/protyle";
+import {disabledProtyle, enableProtyle, onGet} from "../util/onGet";
 /// #if !MOBILE
 import {getAllModels} from "../../layout/getAll";
 /// #endif
@@ -17,7 +17,8 @@ import {genEmptyElement, genSBElement} from "../../block/util";
 import {hideElements} from "../ui/hideElements";
 import {reloadProtyle} from "../util/reload";
 import {countBlockWord} from "../../layout/status";
-import {needSubscribe} from "../../util/needSubscribe";
+import {isPaidUser, needSubscribe} from "../../util/needSubscribe";
+import {resize} from "../util/resize";
 
 const removeTopElement = (updateElement: Element, protyle: IProtyle) => {
     // 移动到其他文档中，该块需移除
@@ -48,7 +49,7 @@ const removeTopElement = (updateElement: Element, protyle: IProtyle) => {
     }
 };
 
-// 用于执行操作，外加处理当前编辑器中引用块、嵌入块的更新
+// 用于执行操作，外加处理当前编辑器中块引用、嵌入块的更新
 const promiseTransaction = () => {
     if (window.siyuan.transactions.length === 0) {
         return;
@@ -73,7 +74,8 @@ const promiseTransaction = () => {
             promiseTransaction();
         }
         /// #if MOBILE
-        if ((0 !== window.siyuan.config.sync.provider || (0 === window.siyuan.config.sync.provider && !needSubscribe(""))) &&
+        if (((0 !== window.siyuan.config.sync.provider && isPaidUser()) ||
+                (0 === window.siyuan.config.sync.provider && !needSubscribe(""))) &&
             window.siyuan.config.repo.key && window.siyuan.config.sync.enabled) {
             document.getElementById("toolbarSync").classList.remove("fn__none");
         }
@@ -120,9 +122,12 @@ const promiseTransaction = () => {
                             item.remove();
                         }
                     });
+                    if (protyle.disabled) {
+                        disabledProtyle(protyle);
+                    }
                     processRender(protyle.wysiwyg.element);
                     highlightRender(protyle.wysiwyg.element);
-                    avRender(protyle.wysiwyg.element);
+                    avRender(protyle.wysiwyg.element, protyle);
                     blockRender(protyle, protyle.wysiwyg.element);
                     protyle.contentElement.scrollTop = scrollTop;
                     protyle.scroll.lastScrollTop = scrollTop;
@@ -162,12 +167,12 @@ const promiseTransaction = () => {
                     });
                     processRender(protyle.wysiwyg.element);
                     highlightRender(protyle.wysiwyg.element);
-                    avRender(protyle.wysiwyg.element);
+                    avRender(protyle.wysiwyg.element, protyle);
                     blockRender(protyle, protyle.wysiwyg.element);
                 }
                 // 当前编辑器中更新嵌入块
                 updateEmbed(protyle, operation);
-                // 更新引用块
+                // 更新块引用
                 updateRef(protyle, operation.id);
                 return;
             }
@@ -186,6 +191,7 @@ const promiseTransaction = () => {
                         blockRender(protyle, item);
                     }
                 });
+                hideElements(["gutter"], protyle);
                 return;
             }
             if (operation.action === "move") {
@@ -272,7 +278,7 @@ const promiseTransaction = () => {
                     cursorElements.forEach(item => {
                         processRender(item);
                         highlightRender(item);
-                        avRender(item);
+                        avRender(item, protyle);
                         blockRender(protyle, item);
                         const wbrElement = item.querySelector("wbr");
                         if (wbrElement) {
@@ -287,10 +293,25 @@ const promiseTransaction = () => {
                 //         blockRender(protyle, item);
                 //     }
                 // });
-                // 更新引用块
+                // 更新块引用
                 updateRef(protyle, operation.id);
             }
         });
+
+        // 删除仅有的折叠标题后展开内容为空
+        if (protyle.wysiwyg.element.childElementCount === 0) {
+            const newID = Lute.NewNodeID();
+            const emptyElement = genEmptyElement(false, true, newID);
+            protyle.wysiwyg.element.insertAdjacentElement("afterbegin", emptyElement);
+            transaction(protyle, [{
+                action: "insert",
+                data: emptyElement.outerHTML,
+                id: newID,
+                parentID: protyle.block.parentID
+            }]);
+            // 不能撤销，否则就无限循环了
+            focusByWbr(emptyElement, range);
+        }
     });
 };
 
@@ -312,12 +333,65 @@ const updateEmbed = (protyle: IProtyle, operation: IOperation) => {
     if (updatedEmbed) {
         processRender(protyle.wysiwyg.element);
         highlightRender(protyle.wysiwyg.element);
-        avRender(protyle.wysiwyg.element);
+        avRender(protyle.wysiwyg.element, protyle);
     }
 };
 
+const deleteBlock = (updateElements: Element[], id: string, protyle: IProtyle, isUndo: boolean) => {
+    if (isUndo) {
+        focusSideBlock(updateElements[0]);
+    }
+    updateElements.forEach(item => {
+        item.remove();
+    });
+    // 更新 ws 嵌入块
+    protyle.wysiwyg.element.querySelectorAll('[data-type="NodeBlockQueryEmbed"]').forEach((item) => {
+        if (item.querySelector(`[data-node-id="${id}"]`)) {
+            item.removeAttribute("data-render");
+            blockRender(protyle, item);
+        }
+    });
+};
+
+const updateBlock = (updateElements: Element[], protyle: IProtyle, operation: IOperation, isUndo: boolean) => {
+    updateElements.forEach(item => {
+        // 图标撤销后无法渲染
+        if (item.getAttribute("data-subtype") === "echarts") {
+            item.outerHTML = protyle.lute.SpinBlockDOM(operation.data);
+        } else {
+            item.outerHTML = operation.data;
+        }
+    });
+    Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`)).find(item => {
+        if (item.getAttribute("data-type") === "NodeBlockQueryEmbed" // 引用转换为块嵌入，undo、redo 后也需要更新 updateElement
+            || !hasClosestByAttribute(item, "data-type", "NodeBlockQueryEmbed")) {
+            updateElements[0] = item;
+            return true;
+        }
+    });
+    const wbrElement = updateElements[0].querySelector("wbr");
+    if (isUndo) {
+        const range = getEditorRange(updateElements[0]);
+        if (wbrElement) {
+            focusByWbr(updateElements[0], range);
+        } else {
+            focusBlock(updateElements[0]);
+        }
+    } else if (wbrElement) {
+        wbrElement.remove();
+    }
+    processRender(updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
+    highlightRender(updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
+    avRender(updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element, protyle);
+    blockRender(protyle, updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
+    // 更新 ws 嵌入块
+    updateEmbed(protyle, operation);
+    // 更新 ws 块引用
+    updateRef(protyle, operation.id);
+};
+
 // 用于推送和撤销
-export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: boolean) => {
+export const onTransaction = (protyle: IProtyle, operation: IOperation, isUndo: boolean) => {
     const updateElements: Element[] = [];
     Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`)).forEach(item => {
         if (!hasClosestByAttribute(item.parentElement, "data-type", "NodeBlockQueryEmbed")) {
@@ -347,9 +421,12 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
             }
         });
         if (operation.retData) {
+            if (protyle.disabled) {
+                disabledProtyle(protyle);
+            }
             processRender(protyle.wysiwyg.element);
             highlightRender(protyle.wysiwyg.element);
-            avRender(protyle.wysiwyg.element);
+            avRender(protyle.wysiwyg.element, protyle);
             blockRender(protyle, protyle.wysiwyg.element);
             protyle.contentElement.scrollTop = scrollTop;
             protyle.scroll.lastScrollTop = scrollTop;
@@ -374,54 +451,49 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
     }
     if (operation.action === "delete") {
         if (updateElements.length > 0) {
-            if (focus) {
-                focusSideBlock(updateElements[0]);
-            }
-            updateElements.forEach(item => {
-                item.remove();
+            deleteBlock(updateElements, operation.id, protyle, isUndo);
+        } else if (isUndo) {
+            zoomOut({
+                protyle,
+                id: protyle.block.rootID,
+                isPushBack: false,
+                focusId: operation.id,
+                callback() {
+                    Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`)).forEach(item => {
+                        if (!hasClosestByAttribute(item.parentElement, "data-type", "NodeBlockQueryEmbed")) {
+                            updateElements.push(item);
+                        }
+                    });
+                    deleteBlock(updateElements, operation.id, protyle, isUndo);
+                }
             });
         }
-        // 更新 ws 嵌入块
-        protyle.wysiwyg.element.querySelectorAll('[data-type="NodeBlockQueryEmbed"]').forEach((item) => {
-            if (item.querySelector(`[data-node-id="${operation.id}"]`)) {
-                item.removeAttribute("data-render");
-                blockRender(protyle, item);
-            }
-        });
         return;
     }
     if (operation.action === "update") {
         if (updateElements.length > 0) {
-            updateElements.forEach(item => {
-                item.outerHTML = operation.data;
-            });
-            Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`)).find(item => {
-                if (item.getAttribute("data-type") === "NodeBlockQueryEmbed" // 引用转换为块嵌入，undo、redo 后也需要更新 updateElement
-                    || !hasClosestByAttribute(item, "data-type", "NodeBlockQueryEmbed")) {
-                    updateElements[0] = item;
-                    return true;
+            updateBlock(updateElements, protyle, operation, isUndo);
+        } else if (isUndo) {
+            zoomOut({
+                protyle,
+                id: protyle.block.rootID,
+                isPushBack: false,
+                focusId: operation.id,
+                callback() {
+                    Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`)).forEach(item => {
+                        if (!hasClosestByAttribute(item.parentElement, "data-type", "NodeBlockQueryEmbed")) {
+                            updateElements.push(item);
+                        }
+                    });
+                    updateBlock(updateElements, protyle, operation, isUndo);
                 }
             });
-            const wbrElement = updateElements[0].querySelector("wbr");
-            if (focus) {
-                const range = getEditorRange(updateElements[0]);
-                if (wbrElement) {
-                    focusByWbr(updateElements[0], range);
-                } else {
-                    focusBlock(updateElements[0]);
-                }
-            } else if (wbrElement) {
-                wbrElement.remove();
-            }
-            processRender(updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
-            highlightRender(updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
-            avRender(updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
-            blockRender(protyle, updateElements.length === 1 ? updateElements[0] : protyle.wysiwyg.element);
+        } else { // updateElements 没有包含嵌入块，在悬浮层编辑嵌入块时，嵌入块也需要更新
+            // 更新 ws 嵌入块
+            updateEmbed(protyle, operation);
+            // 更新 ws 块引用
+            updateRef(protyle, operation.id);
         }
-        // 更新 ws 嵌入块
-        updateEmbed(protyle, operation);
-        // 更新 ws 引用块
-        updateRef(protyle, operation.id);
         return;
     }
     if (operation.action === "updateAttrs") { // 调用接口才推送
@@ -431,6 +503,7 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
         let nameHTML = "";
         let aliasHTML = "";
         let memoHTML = "";
+        let avHTML = "";
         Object.keys(data.new).forEach(key => {
             attrsResult[key] = data.new[key];
             const escapeHTML = Lute.EscapeHTMLStr(data.new[key]);
@@ -442,28 +515,47 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
                 aliasHTML = `<div class="protyle-attr--alias"><svg><use xlink:href="#iconA"></use></svg>${escapeHTML}</div>`;
             } else if (key === "memo") {
                 memoHTML = `<div class="protyle-attr--memo b3-tooltips b3-tooltips__sw" aria-label="${escapeHTML}"><svg><use xlink:href="#iconM"></use></svg></div>`;
+            } else if (key === "custom-avs" && data.new["av-names"]) {
+                avHTML = `<div class="protyle-attr--av"><svg><use xlink:href="#iconDatabase"></use></svg>${data.new["av-names"]}</div>`;
             }
         });
-        let nodeAttrHTML = bookmarkHTML + nameHTML + aliasHTML + memoHTML;
+        let nodeAttrHTML = bookmarkHTML + nameHTML + aliasHTML + memoHTML + avHTML;
         if (protyle.block.rootID === operation.id) {
             // 文档
             if (protyle.title) {
+                if (data.new["custom-avs"] && !data.new["av-names"]) {
+                    nodeAttrHTML += protyle.title.element.querySelector(".protyle-attr--av")?.outerHTML || "";
+                }
                 const refElement = protyle.title.element.querySelector(".protyle-attr--refcount");
                 if (refElement) {
                     nodeAttrHTML += refElement.outerHTML;
                 }
-                if (data.new["custom-riff-decks"]) {
+                if (data.new[Constants.CUSTOM_RIFF_DECKS] && data.new[Constants.CUSTOM_RIFF_DECKS] !== data.old[Constants.CUSTOM_RIFF_DECKS]) {
                     protyle.title.element.style.animation = "addCard 450ms linear";
-                    protyle.title.element.setAttribute("custom-riff-decks", data.new["custom-riff-decks"]);
+                    protyle.title.element.setAttribute(Constants.CUSTOM_RIFF_DECKS, data.new[Constants.CUSTOM_RIFF_DECKS]);
                     setTimeout(() => {
                         protyle.title.element.style.animation = "";
                     }, 450);
-                } else {
-                    protyle.title.element.removeAttribute("custom-riff-decks");
+                } else if (!data.new[Constants.CUSTOM_RIFF_DECKS]) {
+                    protyle.title.element.removeAttribute(Constants.CUSTOM_RIFF_DECKS);
                 }
                 protyle.title.element.querySelector(".protyle-attr").innerHTML = nodeAttrHTML;
             }
             protyle.wysiwyg.renderCustom(attrsResult);
+            if (data.new[Constants.CUSTOM_SY_FULLWIDTH] !== data.old[Constants.CUSTOM_SY_FULLWIDTH]) {
+                resize(protyle);
+            }
+            if (data.new[Constants.CUSTOM_SY_READONLY] !== data.old[Constants.CUSTOM_SY_READONLY]) {
+                let customReadOnly = data.new[Constants.CUSTOM_SY_READONLY];
+                if (!customReadOnly) {
+                    customReadOnly = window.siyuan.config.editor.readOnly ? "true" : "false";
+                }
+                if (customReadOnly === "true") {
+                    disabledProtyle(protyle);
+                } else {
+                    enableProtyle(protyle);
+                }
+            }
             if (data.new.icon !== data.old.icon) {
                 /// #if MOBILE
                 if (window.siyuan.mobile.editor.protyle.background.ial.icon !== data.new.icon) {
@@ -471,7 +563,7 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
                     window.siyuan.mobile.editor.protyle.background.render(window.siyuan.mobile.editor.protyle.background.ial, window.siyuan.mobile.editor.protyle.block.rootID);
                 }
                 /// #else
-                if (protyle.background.ial.icon !== data.new.icon) {
+                if (protyle.background && protyle.background.ial.icon !== data.new.icon) {
                     protyle.background.ial.icon = data.new.icon;
                     protyle.background.render(protyle.background.ial, protyle.block.rootID);
                     protyle.model?.parent.setDocIcon(data.new.icon);
@@ -487,18 +579,27 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
             Object.keys(data.old).forEach(key => {
                 item.removeAttribute(key);
             });
-            if (data.new.style && data.new["custom-riff-decks"]) {
+            if (data.new.style && data.new[Constants.CUSTOM_RIFF_DECKS] && data.new[Constants.CUSTOM_RIFF_DECKS] !== data.old[Constants.CUSTOM_RIFF_DECKS]) {
                 data.new.style += ";animation:addCard 450ms linear";
             }
             Object.keys(data.new).forEach(key => {
                 item.setAttribute(key, data.new[key]);
-                if (key === "custom-riff-decks") {
+                if (key === Constants.CUSTOM_RIFF_DECKS && data.new[Constants.CUSTOM_RIFF_DECKS] !== data.old[Constants.CUSTOM_RIFF_DECKS]) {
                     item.style.animation = "addCard 450ms linear";
                     setTimeout(() => {
-                        item.style.animation = "";
+                        if (item.parentElement) {
+                            item.style.animation = "";
+                        } else {
+                            protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`).forEach((realItem: HTMLElement) => {
+                                realItem.style.animation = "";
+                            });
+                        }
                     }, 450);
                 }
             });
+            if (data.new["custom-avs"] && !data.new["av-names"]) {
+                nodeAttrHTML += item.lastElementChild.querySelector(".protyle-attr--av")?.outerHTML || "";
+            }
             const refElement = item.lastElementChild.querySelector(".protyle-attr--refcount");
             if (refElement) {
                 nodeAttrHTML += refElement.outerHTML;
@@ -509,7 +610,7 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
     }
     if (operation.action === "move") {
         let range;
-        if (focus && getSelection().rangeCount > 0) {
+        if (isUndo && getSelection().rangeCount > 0) {
             range = getSelection().getRangeAt(0);
             range.insertNode(document.createElement("wbr"));
         }
@@ -566,7 +667,7 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
                 removeTopElement(item, protyle);
             }
         });
-        if (focus && range) {
+        if (isUndo && range) {
             if (operation.data === "focus") {
                 // 标记需要 focus，https://ld246.com/article/1650018446988/comment/1650081404993?r=Vanessa#comments
                 Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${operation.id}"]`)).find(item => {
@@ -575,6 +676,7 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
                         return true;
                     }
                 });
+                document.querySelector("wbr")?.remove();
             } else {
                 focusByWbr(protyle.wysiwyg.element, range);
             }
@@ -633,10 +735,10 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
         cursorElements.forEach(item => {
             processRender(item);
             highlightRender(item);
-            avRender(item);
+            avRender(item, protyle);
             blockRender(protyle, item);
             const wbrElement = item.querySelector("wbr");
-            if (focus) {
+            if (isUndo) {
                 const range = getEditorRange(item);
                 if (wbrElement) {
                     focusByWbr(item, range);
@@ -647,20 +749,40 @@ export const onTransaction = (protyle: IProtyle, operation: IOperation, focus: b
                 wbrElement.remove();
             }
         });
-        // 更新 ws 引用块
+        // 更新 ws 块引用
         updateRef(protyle, operation.id);
-    } else if (operation.action === "append") {
-        reloadProtyle(protyle, false);
-    } else if (["addAttrViewCol", "insertAttrViewBlock"].includes(operation.action)) {
+        return;
+    }
+    if (operation.action === "append") {
+        // 目前只有移动块的时候会调用，反连面板就自己点击刷新处理。
+        if (!protyle.options.backlinkData) {
+            reloadProtyle(protyle, false);
+        }
+        return;
+    }
+    if (["addAttrViewCol", "insertAttrViewBlock", "updateAttrViewCol", "updateAttrViewColOptions",
+        "updateAttrViewColOption", "updateAttrViewCell", "sortAttrViewRow", "sortAttrViewCol", "setAttrViewColHidden",
+        "setAttrViewColWrap", "setAttrViewColWidth", "removeAttrViewColOption", "setAttrViewName", "setAttrViewFilters",
+        "setAttrViewSorts", "setAttrViewColCalc", "removeAttrViewCol", "updateAttrViewColNumberFormat", "removeAttrViewBlock",
+        "replaceAttrViewBlock", "updateAttrViewColTemplate", "setAttrViewColPin", "addAttrViewView", "setAttrViewColIcon",
+        "removeAttrViewView", "setAttrViewViewName", "setAttrViewViewIcon", "duplicateAttrViewView", "sortAttrViewView",
+        "updateAttrViewColRelation", "setAttrViewPageSize", "updateAttrViewColRollup", "sortAttrViewKey"].includes(operation.action)) {
         refreshAV(protyle, operation);
+        return;
+    }
+    if (operation.action === "doUpdateUpdated") {
+        updateElements.forEach(item => {
+            item.setAttribute("updated", operation.data);
+        });
+        return;
     }
 };
 
 export const turnsIntoOneTransaction = (options: {
     protyle: IProtyle,
     selectsElement: Element[],
-    type: string,
-    level?: string
+    type: TTurnIntoOne,
+    level?: TTurnIntoOneSub
 }) => {
     let parentElement: Element;
     const id = Lute.NewNodeID();
@@ -770,9 +892,10 @@ export const turnsIntoTransaction = (options: {
     protyle: IProtyle,
     selectsElement?: Element[],
     nodeElement?: Element,
-    type: string,
-    level?: number | string,
+    type: TTurnInto,
+    level?: number,
     isContinue?: boolean,
+    range?: Range
 }) => {
     let selectsElement: Element[] = options.selectsElement;
     let range: Range;
@@ -818,6 +941,7 @@ export const turnsIntoTransaction = (options: {
     let html = "";
     const doOperations: IOperation[] = [];
     const undoOperations: IOperation[] = [];
+    const tempElement = document.createElement("div");
     selectsElement.forEach((item, index) => {
         if ((options.type === "Blocks2Ps" || options.type === "Blocks2Hs") &&
             item.getAttribute("data-type") === "NodeHeading" && item.getAttribute("fold") === "1") {
@@ -831,15 +955,16 @@ export const turnsIntoTransaction = (options: {
         undoOperations.push({
             action: "update",
             id,
-            data: item.outerHTML
+            data: item.outerHTML,
+            parentID: item.parentElement?.getAttribute("data-node-id") || options.protyle.block.parentID || options.protyle.block.rootID,
+            previousID: undoOperations[undoOperations.length - 1]?.id || item.previousElementSibling?.getAttribute("data-node-id")
         });
 
-        if ((options.type === "Blocks2Ps" || options.type === "Blocks2Hs") && !options.isContinue) {
+        if (!options.isContinue) {
             // @ts-ignore
             item.outerHTML = options.protyle.lute[options.type](item.outerHTML, options.level);
         } else {
             if (index === selectsElement.length - 1) {
-                const tempElement = document.createElement("div");
                 // @ts-ignore
                 tempElement.innerHTML = options.protyle.lute[options.type](html, options.level);
                 item.outerHTML = tempElement.innerHTML;
@@ -850,19 +975,50 @@ export const turnsIntoTransaction = (options: {
     });
     undoOperations.forEach(item => {
         const nodeElement = options.protyle.wysiwyg.element.querySelector(`[data-node-id="${item.id}"]`);
-        doOperations.push({
-            action: "update",
-            id: item.id,
-            data: nodeElement.outerHTML
+        if (!nodeElement) {
+            item.action = "insert";
+            doOperations.push({
+                action: "delete",
+                id: item.id,
+            });
+        } else {
+            doOperations.push({
+                action: "update",
+                id: item.id,
+                data: nodeElement.outerHTML
+            });
+        }
+    });
+    Array.from(tempElement.children).forEach(item => {
+        const itemId = item.getAttribute("data-node-id");
+        let find = false;
+        undoOperations.find(undoItem => {
+            if (itemId === undoItem.id) {
+                find = true;
+                return true;
+            }
         });
+        if (!find) {
+            doOperations.push({
+                action: "insert",
+                id: itemId,
+                previousID: item.previousElementSibling?.getAttribute("data-node-id") || undoOperations[0].previousID,
+                data: item.outerHTML,
+                parentID: item.parentElement?.getAttribute("data-node-id") || options.protyle.block.parentID || options.protyle.block.rootID,
+            });
+            undoOperations.splice(0, 0, {
+                action: "delete",
+                id: itemId,
+            });
+        }
     });
     transaction(options.protyle, doOperations, undoOperations);
     processRender(options.protyle.wysiwyg.element);
     highlightRender(options.protyle.wysiwyg.element);
-    avRender(options.protyle.wysiwyg.element);
+    avRender(options.protyle.wysiwyg.element, options.protyle);
     blockRender(options.protyle, options.protyle.wysiwyg.element);
-    if (range) {
-        focusByWbr(options.protyle.wysiwyg.element, range);
+    if (range || options.range) {
+        focusByWbr(options.protyle.wysiwyg.element, range || options.range);
     } else {
         focusBlock(options.protyle.wysiwyg.element.querySelector(`[data-node-id="${selectsElement[0].getAttribute("data-node-id")}"]`));
     }
@@ -888,6 +1044,21 @@ const updateRef = (protyle: IProtyle, id: string, index = 0) => {
 
 let transactionsTimeout: number;
 export const transaction = (protyle: IProtyle, doOperations: IOperation[], undoOperations?: IOperation[]) => {
+    if (doOperations.length === 0) {
+        return;
+    }
+    if (!protyle) {
+        // 文档树中点开属性->数据库后的变更操作 & 文档树添加到数据库
+        fetchPost("/api/transactions", {
+            session: Constants.SIYUAN_APPID,
+            app: Constants.SIYUAN_APPID,
+            transactions: [{
+                doOperations
+            }]
+        });
+        return;
+    }
+
     const lastTransaction = window.siyuan.transactions[window.siyuan.transactions.length - 1];
     let needDebounce = false;
     const time = new Date().getTime();
@@ -905,9 +1076,9 @@ export const transaction = (protyle: IProtyle, doOperations: IOperation[], undoO
         protyle.updated = true;
 
         if (needDebounce) {
-            protyle.undo.replace(doOperations);
+            protyle.undo.replace(doOperations, protyle);
         } else {
-            protyle.undo.add(doOperations, undoOperations);
+            protyle.undo.add(doOperations, undoOperations, protyle);
         }
     }
     if (needDebounce) {

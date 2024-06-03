@@ -19,8 +19,45 @@ import {activeBlur, hideKeyboardToolbar, initKeyboardToolbar} from "./keyboardTo
 import {syncGuide} from "../../sync/syncGuide";
 import {Inbox} from "../../layout/dock/Inbox";
 import {App} from "../../index";
+import {setTitle} from "../../dialog/processSystem";
+import {checkFold} from "../../util/noRelyPCFunction";
+import {MobileCustom} from "../dock/MobileCustom";
+import {Menu} from "../../plugin/Menu";
+import {showMessage} from "../../dialog/message";
 
-export const initFramework = (app: App) => {
+let custom: MobileCustom;
+const openDockMenu = (app: App) => {
+    const menu = new Menu("dockMobileMenu");
+    if (menu.isOpen) {
+        return;
+    }
+    app.plugins.forEach((plugin) => {
+        Object.keys(plugin.docks).forEach((dockId) => {
+            menu.addItem({
+                label: plugin.docks[dockId].config.title,
+                icon: plugin.docks[dockId].config.icon,
+                click() {
+                    if (custom?.type === dockId) {
+                        return;
+                    } else {
+                        if (custom) {
+                            if (custom.destroy) {
+                                custom.destroy();
+                            }
+                        }
+                        custom = plugin.docks[dockId].mobileModel(document.querySelector('#sidebar [data-type="sidebar-plugin"]'));
+                    }
+                }
+            });
+        });
+    });
+    menu.fullscreen("bottom");
+    if (menu.element.lastElementChild.innerHTML === "") {
+        showMessage(window.siyuan.languages._kernel[122]);
+    }
+};
+
+export const initFramework = (app: App, isStart: boolean) => {
     setInlineStyle();
     renderSnippet();
     initKeyboardToolbar();
@@ -32,14 +69,24 @@ export const initFramework = (app: App) => {
     let tag: MobileTags;
     // 不能使用 getEventName，否则点击返回会展开右侧栏
     const firstToolbarElement = sidebarElement.querySelector(".toolbar--border");
-    firstToolbarElement.addEventListener("click", (event: Event & {
-        target: Element
-    }) => {
-        const svgElement = hasTopClosestByTag(event.target, "svg");
-        if (!svgElement || svgElement.classList.contains("toolbar__icon--active")) {
+    firstToolbarElement.addEventListener("click", (event: MouseEvent) => {
+        const target = event.target as HTMLElement;
+        let svgElement: HTMLElement;
+        if (typeof event.detail === "string") {
+            svgElement = firstToolbarElement.querySelector(`svg[data-type="sidebar-${event.detail}-tab"]`) as HTMLElement;
+        } else {
+            svgElement = hasTopClosestByTag(target, "svg") as HTMLElement;
+        }
+        if (!svgElement) {
             return;
         }
         const type = svgElement.getAttribute("data-type");
+        if (svgElement.classList.contains("toolbar__icon--active")) {
+            if (type === "sidebar-plugin-tab") {
+                openDockMenu(app);
+            }
+            return;
+        }
         if (!type) {
             closePanel();
             return;
@@ -49,6 +96,7 @@ export const initFramework = (app: App) => {
             if (!itemType) {
                 return;
             }
+            const tabPanelElement = sidebarElement.lastElementChild.querySelector(`[data-type="${itemType.replace("-tab", "")}"]`);
             if (itemType === type) {
                 if (type === "sidebar-outline-tab") {
                     if (!outline) {
@@ -76,12 +124,19 @@ export const initFramework = (app: App) => {
                     }
                 } else if (type === "sidebar-inbox-tab" && !inbox) {
                     inbox = new Inbox(app, document.querySelector('#sidebar [data-type="sidebar-inbox"]'));
+                } else if (type === "sidebar-plugin-tab") {
+                    if (!custom) {
+                        tabPanelElement.innerHTML = `<div class="b3-list--empty">${window.siyuan.languages.emptyContent}</div>`;
+                        openDockMenu(app);
+                    } else if (custom.update) {
+                        custom.update();
+                    }
                 }
                 svgElement.classList.add("toolbar__icon--active");
-                sidebarElement.lastElementChild.querySelector(`[data-type="${itemType.replace("-tab", "")}"]`).classList.remove("fn__none");
+                tabPanelElement.classList.remove("fn__none");
             } else {
                 item.classList.remove("toolbar__icon--active");
-                sidebarElement.lastElementChild.querySelector(`[data-type="${itemType.replace("-tab", "")}"]`).classList.add("fn__none");
+                tabPanelElement.classList.add("fn__none");
             }
         });
     });
@@ -105,35 +160,9 @@ export const initFramework = (app: App) => {
     document.getElementById("toolbarMore").addEventListener("click", () => {
         popMenu();
     });
-    const editElement = document.getElementById("toolbarEdit");
-    if (window.siyuan.config.readonly) {
-        editElement.classList.add("fn__none");
-    }
-    const inputElement = document.getElementById("toolbarName") as HTMLInputElement;
-    const editIconElement = editElement.querySelector("use");
-    if (window.siyuan.config.readonly || window.siyuan.config.editor.readOnly) {
-        inputElement.readOnly = true;
-        editIconElement.setAttribute("xlink:href", "#iconPreview");
-    } else {
-        inputElement.readOnly = false;
-        editIconElement.setAttribute("xlink:href", "#iconEdit");
-    }
-    editElement.addEventListener(getEventName(), () => {
-        window.siyuan.config.editor.readOnly = !window.siyuan.config.editor.readOnly;
-        fetchPost("/api/setting/setEditor", window.siyuan.config.editor);
-    });
     document.getElementById("toolbarSync").addEventListener(getEventName(), () => {
         syncGuide(app);
     });
-    if (navigator.userAgent.indexOf("iPhone") > -1 && !window.siyuan.config.readonly && !window.siyuan.config.editor.readOnly) {
-        // 不知道为什么 iPhone 中如果是编辑状态，点击文档后无法点击标题
-        setTimeout(() => {
-            editElement.dispatchEvent(new CustomEvent(getEventName()));
-            setTimeout(() => {
-                editElement.dispatchEvent(new CustomEvent(getEventName()));
-            }, Constants.TIMEOUT_INPUT);
-        }, Constants.TIMEOUT_INPUT);
-    }
     document.getElementById("modelClose").addEventListener("click", () => {
         closeModel();
     });
@@ -145,17 +174,23 @@ export const initFramework = (app: App) => {
         const idZoomIn = getIdZoomInByPath();
         if (idZoomIn.id) {
             openMobileFileById(app, idZoomIn.id,
-                idZoomIn.isZoomIn ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT]);
+                idZoomIn.isZoomIn ? [Constants.CB_GET_ALL, Constants.CB_GET_HL] : [Constants.CB_GET_HL, Constants.CB_GET_CONTEXT, Constants.CB_GET_ROOTSCROLL]);
+            return;
+        }
+        if (window.siyuan.config.fileTree.closeTabsOnStart && isStart) {
+            setEmpty(app);
             return;
         }
         const localDoc = window.siyuan.storage[Constants.LOCAL_DOCINFO];
         fetchPost("/api/block/checkBlockExist", {id: localDoc.id}, existResponse => {
             if (existResponse.data) {
-                openMobileFileById(app, localDoc.id, localDoc.action);
+                openMobileFileById(app, localDoc.id, [Constants.CB_GET_SCROLL, Constants.CB_GET_HL]);
             } else {
                 fetchPost("/api/block/getRecentUpdatedBlocks", {}, (response) => {
                     if (response.data.length !== 0) {
-                        openMobileFileById(app, response.data[0].id, [Constants.CB_GET_HL, Constants.CB_GET_CONTEXT]);
+                        checkFold(response.data[0].id, (zoomIn) => {
+                            openMobileFileById(app, response.data[0].id, zoomIn ? [Constants.CB_GET_ALL, Constants.CB_GET_HL] : [Constants.CB_GET_HL, Constants.CB_GET_CONTEXT, Constants.CB_GET_ROOTSCROLL]);
+                        });
                     } else {
                         setEmpty(app);
                     }
@@ -171,7 +206,7 @@ const initEditorName = () => {
     const inputElement = document.getElementById("toolbarName") as HTMLInputElement;
     inputElement.setAttribute("placeholder", window.siyuan.languages._kernel[16]);
     inputElement.addEventListener("blur", () => {
-        if (window.siyuan.config.readonly || window.siyuan.config.editor.readOnly || window.siyuan.mobile.editor.protyle.disabled) {
+        if (inputElement.getAttribute("readonly") === "readonly") {
             return;
         }
         if (!validateName(inputElement.value)) {
@@ -184,5 +219,6 @@ const initEditorName = () => {
             path: window.siyuan.mobile.editor.protyle.path,
             title: inputElement.value,
         });
+        setTitle(inputElement.value);
     });
 };

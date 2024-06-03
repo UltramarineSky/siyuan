@@ -18,6 +18,10 @@ export const fetchPost = (url: string, data?: any, cb?: (response: IWebSocketDat
                 data.reqId = window.siyuan.reqIds[url];
             }
         }
+        // 并发导出后端接受顺序不一致
+        if (url === "/api/transactions") {
+            data.reqId = new Date().getTime();
+        }
         if (data instanceof FormData) {
             init.body = data;
         } else {
@@ -81,7 +85,11 @@ export const fetchSyncPost = async (url: string, data?: any) => {
         method: "POST",
     };
     if (data) {
-        init.body = JSON.stringify(data);
+        if (data instanceof FormData) {
+            init.body = data;
+        } else {
+            init.body = JSON.stringify(data);
+        }
     }
     const res = await fetch(url, init);
     const res2 = await res.json() as IWebSocketData;
@@ -89,11 +97,14 @@ export const fetchSyncPost = async (url: string, data?: any) => {
     return res2;
 };
 
-export const fetchGet = (url: string, cb: (response: IWebSocketData | IEmoji[]) => void) => {
+export const fetchGet = (url: string, cb: (response: IWebSocketData | IObject | string) => void) => {
     fetch(url).then((response) => {
-        return response.json();
-    }).then((response: IWebSocketData) => {
+        if (response.headers.get("content-type")?.indexOf("application/json") > -1) {
+            return response.json();
+        } else {
+            return response.text();
+        }
+    }).then((response) => {
         cb(response);
     });
 };
-

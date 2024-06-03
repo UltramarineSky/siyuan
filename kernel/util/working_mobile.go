@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/88250/gulu"
@@ -35,7 +36,7 @@ func BootMobile(container, appDir, workspaceBaseDir, lang string) {
 	initHttpClient()
 	ServerPort = FixedPort
 	Container = container
-	UserAgent = UserAgent + " " + Container
+	UserAgent = UserAgent + " " + Container + "/" + runtime.GOOS
 	httpclient.SetUserAgent(UserAgent)
 	Lang = lang
 
@@ -49,7 +50,6 @@ func BootMobile(container, appDir, workspaceBaseDir, lang string) {
 			logging.LogErrorf("create user home conf folder [%s] failed: %s", userHomeConfDir, err)
 			os.Exit(logging.ExitCodeInitWorkspaceErr)
 		}
-
 	}
 
 	defaultWorkspaceDir := filepath.Join(workspaceBaseDir, "siyuan")
@@ -158,6 +158,7 @@ func initWorkspaceDirMobile(workspaceBaseDir string) {
 	os.Setenv("TMP", osTmpDir)
 	DBPath = filepath.Join(TempDir, DBName)
 	HistoryDBPath = filepath.Join(TempDir, "history.db")
+	AssetContentDBPath = filepath.Join(TempDir, "asset_content.db")
 	BlockTreePath = filepath.Join(TempDir, "blocktree")
 	SnippetsPath = filepath.Join(DataDir, "snippets")
 

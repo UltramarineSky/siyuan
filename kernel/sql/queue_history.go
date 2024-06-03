@@ -33,16 +33,15 @@ import (
 var (
 	historyOperationQueue []*historyDBQueueOperation
 	historyDBQueueLock    = sync.Mutex{}
-
-	historyTxLock = sync.Mutex{}
+	historyTxLock         = sync.Mutex{}
 )
 
 type historyDBQueueOperation struct {
 	inQueueTime time.Time
-	action      string // index/deletePathPrefix
+	action      string // index/deleteOutdated
 
-	histories  []*History // index
-	pathPrefix string     // deletePathPrefix
+	histories []*History // index
+	before    string     // deleteOutdated
 }
 
 func FlushHistoryTxJob() {
@@ -51,12 +50,13 @@ func FlushHistoryTxJob() {
 
 func FlushHistoryQueue() {
 	ops := getHistoryOperations()
-	if 1 > len(ops) {
+	total := len(ops)
+	if 1 > total {
 		return
 	}
 
-	txLock.Lock()
-	defer txLock.Unlock()
+	historyTxLock.Lock()
+	defer historyTxLock.Unlock()
 	start := time.Now()
 
 	groupOpsTotal := map[string]int{}
@@ -67,7 +67,7 @@ func FlushHistoryQueue() {
 	context := map[string]interface{}{eventbus.CtxPushMsg: eventbus.CtxPushMsgToStatusBar}
 	groupOpsCurrent := map[string]int{}
 	for i, op := range ops {
-		if util.IsExiting {
+		if util.IsExiting.Load() {
 			return
 		}
 
@@ -97,7 +97,7 @@ func FlushHistoryQueue() {
 		}
 	}
 
-	if 128 < len(ops) {
+	if 128 < total {
 		debug.FreeOSMemory()
 	}
 
@@ -111,8 +111,8 @@ func execHistoryOp(op *historyDBQueueOperation, tx *sql.Tx, context map[string]i
 	switch op.action {
 	case "index":
 		err = insertHistories(tx, op.histories, context)
-	case "deletePathPrefix":
-		err = deleteHistoriesByPathPrefix(tx, op.pathPrefix, context)
+	case "deleteOutdated":
+		err = deleteOutdatedHistories(tx, op.before, context)
 	default:
 		msg := fmt.Sprintf("unknown history operation [%s]", op.action)
 		logging.LogErrorf(msg)
@@ -121,11 +121,11 @@ func execHistoryOp(op *historyDBQueueOperation, tx *sql.Tx, context map[string]i
 	return
 }
 
-func DeleteHistoriesByPathPrefixQueue(pathPrefix string) {
+func DeleteOutdatedHistories(before string) {
 	historyDBQueueLock.Lock()
 	defer historyDBQueueLock.Unlock()
 
-	newOp := &historyDBQueueOperation{inQueueTime: time.Now(), action: "deletePathPrefix", pathPrefix: pathPrefix}
+	newOp := &historyDBQueueOperation{inQueueTime: time.Now(), action: "deleteOutdated", before: before}
 	historyOperationQueue = append(historyOperationQueue, newOp)
 }
 
@@ -144,28 +144,4 @@ func getHistoryOperations() (ops []*historyDBQueueOperation) {
 	ops = historyOperationQueue
 	historyOperationQueue = nil
 	return
-}
-
-func WaitForWritingHistoryDatabase() {
-	var printLog bool
-	var lastPrintLog bool
-	for i := 0; isWritingHistoryDatabase(); i++ {
-		time.Sleep(50 * time.Millisecond)
-		if 200 < i && !printLog { // 10s 后打日志
-			logging.LogWarnf("history database is writing: \n%s", logging.ShortStack())
-			printLog = true
-		}
-		if 1200 < i && !lastPrintLog { // 60s 后打日志
-			logging.LogWarnf("history database is still writing")
-			lastPrintLog = true
-		}
-	}
-}
-
-func isWritingHistoryDatabase() bool {
-	time.Sleep(util.SQLFlushInterval + 50*time.Millisecond)
-	if 0 < len(historyOperationQueue) || util.IsMutexLocked(&historyTxLock) {
-		return true
-	}
-	return false
 }

@@ -1,12 +1,18 @@
-// Lute - 一款结构化的 Markdown 引擎，支持 Go 和 JavaScript
-// Copyright (c) 2019-present, b3log.org
+// SiYuan - Refactor your thinking
+// Copyright (c) 2020-present, b3log.org
 //
-// Lute is licensed under Mulan PSL v2.
-// You can use this software according to the terms and conditions of the Mulan PSL v2.
-// You may obtain a copy of Mulan PSL v2 at:
-//         http://license.coscl.org.cn/MulanPSL2
-// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-// See the Mulan PSL v2 for more details.
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 package filesys
 
@@ -14,23 +20,23 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/editor"
 	"github.com/88250/lute/parse"
-	"github.com/88250/lute/util"
-	"github.com/goccy/go-json"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 )
 
 func ParseJSONWithoutFix(jsonData []byte, options *parse.Options) (ret *parse.Tree, err error) {
 	root := &ast.Node{}
-	err = json.Unmarshal(jsonData, root)
+	err = unmarshalJSON(jsonData, root)
 	if nil != err {
 		return
 	}
 
 	ret = &parse.Tree{Name: "", ID: root.ID, Root: &ast.Node{Type: ast.NodeDocument, ID: root.ID, Spec: root.Spec}, Context: &parse.Context{ParseOption: options}}
 	ret.Root.KramdownIAL = parse.Map2IAL(root.Properties)
+	ret.Root.SetIALAttr("type", "doc")
 	ret.Context.Tip = ret.Root
 	if nil == root.Children {
 		return
@@ -45,13 +51,14 @@ func ParseJSONWithoutFix(jsonData []byte, options *parse.Options) (ret *parse.Tr
 
 func ParseJSON(jsonData []byte, options *parse.Options) (ret *parse.Tree, needFix bool, err error) {
 	root := &ast.Node{}
-	err = json.Unmarshal(jsonData, root)
+	err = unmarshalJSON(jsonData, root)
 	if nil != err {
 		return
 	}
 
 	ret = &parse.Tree{Name: "", ID: root.ID, Root: &ast.Node{Type: ast.NodeDocument, ID: root.ID, Spec: root.Spec}, Context: &parse.Context{ParseOption: options}}
 	ret.Root.KramdownIAL = parse.Map2IAL(root.Properties)
+	ret.Root.SetIALAttr("type", "doc")
 	for _, kv := range ret.Root.KramdownIAL {
 		if strings.Contains(kv[1], "\n") {
 			val := kv[1]
@@ -84,14 +91,14 @@ func ParseJSON(jsonData []byte, options *parse.Options) (ret *parse.Tree, needFi
 	}
 
 	if needMigrate2Spec1 {
-		parse.NestedInlines2FlattedSpans(ret)
+		parse.NestedInlines2FlattedSpans(ret, false)
 		needFix = true
 	}
 	return
 }
 
 func genTreeByJSON(node *ast.Node, tree *parse.Tree, idMap *map[string]bool, needFix, needMigrate2Spec1 *bool, ignoreFix bool) {
-	node.Tokens, node.Type = util.StrToBytes(node.Data), ast.Str2NodeType(node.TypeStr)
+	node.Tokens, node.Type = gulu.Str.ToBytes(node.Data), ast.Str2NodeType(node.TypeStr)
 	node.Data, node.TypeStr = "", ""
 	node.KramdownIAL = parse.Map2IAL(node.Properties)
 	node.Properties = nil
@@ -137,6 +144,21 @@ func genTreeByJSON(node *ast.Node, tree *parse.Tree, idMap *map[string]bool, nee
 				*needFix = true
 				return // 忽略空查询嵌入块
 			}
+		case ast.NodeCodeBlock:
+			if 4 > len(node.Children) {
+				// https://ld246.com/article/1713689223067
+				existCode := false
+				for _, child := range node.Children {
+					if ast.NodeCodeBlockCode.String() == child.TypeStr {
+						existCode = true
+						break
+					}
+				}
+				if !existCode {
+					*needFix = true
+					return // 忽略空代码块
+				}
+			}
 		}
 
 		fixLegacyData(tree.Context.Tip, node, idMap, needFix, needMigrate2Spec1)
@@ -166,6 +188,15 @@ func fixLegacyData(tip, node *ast.Node, idMap *map[string]bool, needFix, needMig
 			node.Children = node.Children[:len(node.Children)-1]
 			*needFix = true
 		}
+
+		for _, kv := range node.KramdownIAL {
+			if strings.Contains(kv[0], "custom-av-key-") {
+				// TODO: 数据库正式上线以后移除这里的修复
+				// 删除数据库属性键值对 https://github.com/siyuan-note/siyuan/issues/9293
+				node.RemoveIALAttr(kv[0])
+				*needFix = true
+			}
+		}
 	}
 	if "" != node.ID {
 		if _, ok := (*idMap)[node.ID]; ok {
@@ -178,14 +209,14 @@ func fixLegacyData(tip, node *ast.Node, idMap *map[string]bool, needFix, needMig
 
 	switch node.Type {
 	case ast.NodeIFrame:
-		if bytes.Contains(node.Tokens, util.StrToBytes("iframe-content")) {
-			start := bytes.Index(node.Tokens, util.StrToBytes("<iframe"))
-			end := bytes.Index(node.Tokens, util.StrToBytes("</iframe>"))
+		if bytes.Contains(node.Tokens, gulu.Str.ToBytes("iframe-content")) {
+			start := bytes.Index(node.Tokens, gulu.Str.ToBytes("<iframe"))
+			end := bytes.Index(node.Tokens, gulu.Str.ToBytes("</iframe>"))
 			node.Tokens = node.Tokens[start : end+9]
 			*needFix = true
 		}
 	case ast.NodeWidget:
-		if bytes.Contains(node.Tokens, util.StrToBytes("http://127.0.0.1:6806")) {
+		if bytes.Contains(node.Tokens, gulu.Str.ToBytes("http://127.0.0.1:6806")) {
 			node.Tokens = bytes.ReplaceAll(node.Tokens, []byte("http://127.0.0.1:6806"), nil)
 			*needFix = true
 		}
@@ -232,6 +263,9 @@ func fixLegacyData(tip, node *ast.Node, idMap *map[string]bool, needFix, needMig
 		// 建立索引时无法解析 `v2.2.0-` 版本的块引用 https://github.com/siyuan-note/siyuan/issues/6889
 		// 早先的迁移程序有缺陷，漏迁移了块引用节点，这里检测到块引用节点后标识需要迁移
 		*needMigrate2Spec1 = true
+	case ast.NodeInlineHTML:
+		*needFix = true
+		node.Type = ast.NodeHTMLBlock
 	}
 
 	for _, kv := range node.KramdownIAL {

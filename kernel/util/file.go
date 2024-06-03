@@ -20,16 +20,83 @@ import (
 	"bytes"
 	"io"
 	"io/fs"
+	"mime"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
+	"github.com/gabriel-vasile/mimetype"
+	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 )
+
+func GetFilePathsByExts(dirPath string, exts []string) (ret []string) {
+	filelock.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if nil != err {
+			logging.LogErrorf("get file paths by ext failed: %s", err)
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		for _, ext := range exts {
+			if strings.HasSuffix(path, ext) {
+				ret = append(ret, path)
+				break
+			}
+		}
+		return nil
+	})
+	return
+}
+
+func GetUniqueFilename(filePath string) string {
+	if !gulu.File.IsExist(filePath) {
+		return filePath
+	}
+
+	ext := filepath.Ext(filePath)
+	base := strings.TrimSuffix(filepath.Base(filePath), ext)
+	dir := filepath.Dir(filePath)
+	i := 1
+	for {
+		newPath := filepath.Join(dir, base+" ("+strconv.Itoa(i)+")"+ext)
+		if !gulu.File.IsExist(newPath) {
+			return newPath
+		}
+		i++
+	}
+}
+
+func GetMimeTypeByExt(filePath string) (ret string) {
+	ret = mime.TypeByExtension(filepath.Ext(filePath))
+	if "" == ret {
+		m, err := mimetype.DetectFile(filePath)
+		if nil != err {
+			logging.LogErrorf("detect mime type of [%s] failed: %s", filePath, err)
+			return
+		}
+		if nil != m {
+			ret = m.String()
+		}
+	}
+	return
+}
+
+func IsSymlinkPath(absPath string) bool {
+	fi, err := os.Lstat(absPath)
+	if nil != err {
+		return false
+	}
+	return 0 != fi.Mode()&os.ModeSymlink
+}
 
 func IsEmptyDir(p string) bool {
 	if !gulu.File.IsDir(p) {
@@ -43,8 +110,12 @@ func IsEmptyDir(p string) bool {
 	return 1 > len(files)
 }
 
+func IsSymlink(dir fs.DirEntry) bool {
+	return dir.Type() == fs.ModeSymlink
+}
+
 func IsDirRegularOrSymlink(dir fs.DirEntry) bool {
-	return dir.IsDir() || dir.Type() == fs.ModeSymlink
+	return dir.IsDir() || IsSymlink(dir)
 }
 
 func IsPathRegularDirOrSymlinkDir(path string) bool {
@@ -64,7 +135,9 @@ func RemoveID(name string) string {
 	ext := path.Ext(name)
 	name = strings.TrimSuffix(name, ext)
 	if 23 < len(name) {
-		name = name[:len(name)-23]
+		if id := name[len(name)-22:]; ast.IsNodeIDPattern(id) {
+			name = name[:len(name)-23]
+		}
 	}
 	return name + ext
 }
@@ -128,14 +201,20 @@ func FilterUploadFileName(name string) string {
 
 func TruncateLenFileName(name string) (ret string) {
 	// 插入资源文件时文件名长度最大限制 189 字节 https://github.com/siyuan-note/siyuan/issues/7099
+	ext := filepath.Ext(name)
 	var byteCount int
+	truncated := false
 	buf := bytes.Buffer{}
 	for _, r := range name {
 		byteCount += utf8.RuneLen(r)
-		if 189 < byteCount {
+		if 189-len(ext) < byteCount {
+			truncated = true
 			break
 		}
 		buf.WriteRune(r)
+	}
+	if truncated {
+		buf.WriteString(ext)
 	}
 	ret = buf.String()
 	return
@@ -170,6 +249,10 @@ func IsSubPath(absPath, toCheckPath string) bool {
 	if 1 > len(absPath) || 1 > len(toCheckPath) {
 		return false
 	}
+	if absPath == toCheckPath { // 相同路径时不认为是子路径
+		return false
+	}
+
 	if gulu.OS.IsWindows() {
 		if filepath.IsAbs(absPath) && filepath.IsAbs(toCheckPath) {
 			if strings.ToLower(absPath)[0] != strings.ToLower(toCheckPath)[0] {
@@ -191,7 +274,7 @@ func IsSubPath(absPath, toCheckPath string) bool {
 }
 
 func SizeOfDirectory(path string) (size int64, err error) {
-	err = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+	err = filelock.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if nil != err {
 			return err
 		}
@@ -210,7 +293,7 @@ func SizeOfDirectory(path string) (size int64, err error) {
 }
 
 func DataSize() (dataSize, assetsSize int64) {
-	filepath.Walk(DataDir, func(path string, info os.FileInfo, err error) error {
+	filelock.Walk(DataDir, func(path string, info os.FileInfo, err error) error {
 		if nil != err {
 			if os.IsNotExist(err) {
 				return nil
@@ -259,7 +342,7 @@ func WalkWithSymlinks(root string, fn filepath.WalkFunc) error {
 	}
 
 	visitedDirs := make(map[string]struct{})
-	return filepath.Walk(rr, getWalkFn(visitedDirs, fn))
+	return filelock.Walk(rr, getWalkFn(visitedDirs, fn))
 }
 
 func getWalkFn(visitedDirs map[string]struct{}, fn filepath.WalkFunc) filepath.WalkFunc {
@@ -295,7 +378,7 @@ func getWalkFn(visitedDirs map[string]struct{}, fn filepath.WalkFunc) filepath.W
 		}
 
 		if ri.IsDir() {
-			return filepath.Walk(rp, getWalkFn(visitedDirs, fn))
+			return filelock.Walk(rp, getWalkFn(visitedDirs, fn))
 		}
 
 		return nil

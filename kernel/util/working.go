@@ -24,9 +24,11 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/88250/gulu"
@@ -41,17 +43,31 @@ import (
 var Mode = "prod"
 
 const (
-	Ver       = "2.9.3"
+	Ver       = "3.0.17"
 	IsInsider = false
 )
 
 var (
-	bootProgress float64 // 启动进度，从 0 到 100
-	bootDetails  string  // 启动细节描述
-	HttpServing  = false // 是否 HTTP 伺服已经可用
+	RunInContainer             = false // 是否运行在容器中
+	SiyuanAccessAuthCodeBypass = false // 是否跳过空访问授权码检查
+)
+
+func initEnvVars() {
+	RunInContainer = isRunningInDockerContainer()
+	var err error
+	if SiyuanAccessAuthCodeBypass, err = strconv.ParseBool(os.Getenv("SIYUAN_ACCESS_AUTH_CODE_BYPASS")); nil != err {
+		SiyuanAccessAuthCodeBypass = false
+	}
+}
+
+var (
+	bootProgress = atomic.Int32{} // 启动进度，从 0 到 100
+	bootDetails  string           // 启动细节描述
+	HttpServing  = false          // 是否 HTTP 伺服已经可用
 )
 
 func Boot() {
+	initEnvVars()
 	IncBootProgress(3, "Booting kernel...")
 	rand.Seed(time.Now().UTC().UnixNano())
 	initMime()
@@ -63,7 +79,7 @@ func Boot() {
 	readOnly := flag.String("readonly", "false", "read-only mode")
 	accessAuthCode := flag.String("accessAuthCode", "", "access auth code")
 	ssl := flag.Bool("ssl", false, "for https and wss")
-	lang := flag.String("lang", "", "zh_CN/zh_CHT/en_US/fr_FR/es_ES")
+	lang := flag.String("lang", "", "zh_CN/zh_CHT/en_US/fr_FR/es_ES/ja_JP")
 	mode := flag.String("mode", "prod", "dev/prod")
 	flag.Parse()
 
@@ -78,8 +94,23 @@ func Boot() {
 	ReadOnly, _ = strconv.ParseBool(*readOnly)
 	AccessAuthCode = *accessAuthCode
 	Container = ContainerStd
-	if isRunningInDockerContainer() {
+	if RunInContainer {
 		Container = ContainerDocker
+		if "" == AccessAuthCode {
+			interruptBoot := true
+
+			// Set the env `SIYUAN_ACCESS_AUTH_CODE_BYPASS=true` to skip checking empty access auth code https://github.com/siyuan-note/siyuan/issues/9709
+			if SiyuanAccessAuthCodeBypass {
+				interruptBoot = false
+				fmt.Println("bypass access auth code check since the env [SIYUAN_ACCESS_AUTH_CODE_BYPASS] is set to [true]")
+			}
+
+			if interruptBoot {
+				// The access authorization code command line parameter must be set when deploying via Docker https://github.com/siyuan-note/siyuan/issues/9328
+				fmt.Printf("the access authorization code command line parameter (--accessAuthCode) must be set when deploying via Docker")
+				os.Exit(1)
+			}
+		}
 	}
 	if ContainerStd != Container {
 		ServerPort = FixedPort
@@ -88,7 +119,7 @@ func Boot() {
 	msStoreFilePath := filepath.Join(WorkingDir, "ms-store")
 	ISMicrosoftStore = gulu.File.IsExist(msStoreFilePath)
 
-	UserAgent = UserAgent + " " + Container
+	UserAgent = UserAgent + " " + Container + "/" + runtime.GOOS
 	httpclient.SetUserAgent(UserAgent)
 
 	initWorkspaceDir(*workspacePath)
@@ -116,40 +147,48 @@ func Boot() {
 	logBootInfo()
 }
 
+var bootDetailsLock = sync.Mutex{}
+
 func setBootDetails(details string) {
+	bootDetailsLock.Lock()
 	bootDetails = "v" + Ver + " " + details
+	bootDetailsLock.Unlock()
 }
 
 func SetBootDetails(details string) {
-	if 100 <= bootProgress {
+	if 100 <= bootProgress.Load() {
 		return
 	}
 	setBootDetails(details)
 }
 
-func IncBootProgress(progress float64, details string) {
-	if 100 <= bootProgress {
+func IncBootProgress(progress int32, details string) {
+	if 100 <= bootProgress.Load() {
 		return
 	}
-	bootProgress += progress
+	bootProgress.Add(progress)
 	setBootDetails(details)
 }
 
 func IsBooted() bool {
-	return 100 <= bootProgress
+	return 100 <= bootProgress.Load()
 }
 
-func GetBootProgressDetails() (float64, string) {
-	return bootProgress, bootDetails
+func GetBootProgressDetails() (progress int32, details string) {
+	progress = bootProgress.Load()
+	bootDetailsLock.Lock()
+	details = bootDetails
+	bootDetailsLock.Unlock()
+	return
 }
 
-func GetBootProgress() float64 {
-	return bootProgress
+func GetBootProgress() int32 {
+	return bootProgress.Load()
 }
 
 func SetBooted() {
 	setBootDetails("Finishing boot...")
-	bootProgress = 100
+	bootProgress.Store(100)
 	logging.LogInfof("kernel booted")
 }
 
@@ -157,22 +196,23 @@ var (
 	HomeDir, _    = gulu.OS.Home()
 	WorkingDir, _ = os.Getwd()
 
-	WorkspaceDir   string        // 工作空间目录路径
-	WorkspaceLock  *flock.Flock  // 工作空间锁
-	ConfDir        string        // 配置目录路径
-	DataDir        string        // 数据目录路径
-	RepoDir        string        // 仓库目录路径
-	HistoryDir     string        // 数据历史目录路径
-	TempDir        string        // 临时目录路径
-	LogPath        string        // 配置目录下的日志文件 siyuan.log 路径
-	DBName         = "siyuan.db" // SQLite 数据库文件名
-	DBPath         string        // SQLite 数据库文件路径
-	HistoryDBPath  string        // SQLite 历史数据库文件路径
-	BlockTreePath  string        // 区块树文件路径
-	AppearancePath string        // 配置目录下的外观目录 appearance/ 路径
-	ThemesPath     string        // 配置目录下的外观目录下的 themes/ 路径
-	IconsPath      string        // 配置目录下的外观目录下的 icons/ 路径
-	SnippetsPath   string        // 数据目录下的 snippets/ 路径
+	WorkspaceDir       string        // 工作空间目录路径
+	WorkspaceLock      *flock.Flock  // 工作空间锁
+	ConfDir            string        // 配置目录路径
+	DataDir            string        // 数据目录路径
+	RepoDir            string        // 仓库目录路径
+	HistoryDir         string        // 数据历史目录路径
+	TempDir            string        // 临时目录路径
+	LogPath            string        // 配置目录下的日志文件 siyuan.log 路径
+	DBName             = "siyuan.db" // SQLite 数据库文件名
+	DBPath             string        // SQLite 数据库文件路径
+	HistoryDBPath      string        // SQLite 历史数据库文件路径
+	AssetContentDBPath string        // SQLite 资源文件内容数据库文件路径
+	BlockTreePath      string        // 区块树文件路径
+	AppearancePath     string        // 配置目录下的外观目录 appearance/ 路径
+	ThemesPath         string        // 配置目录下的外观目录下的 themes/ 路径
+	IconsPath          string        // 配置目录下的外观目录下的 icons/ 路径
+	SnippetsPath       string        // 数据目录下的 snippets/ 路径
 
 	UIProcessIDs = sync.Map{} // UI 进程 ID
 )
@@ -203,7 +243,6 @@ func initWorkspaceDir(workspaceArg string) {
 	} else {
 		workspacePaths, _ = ReadWorkspacePaths()
 		if 0 < len(workspacePaths) {
-			// 取最后一个（也就是最近打开的）工作空间
 			WorkspaceDir = workspacePaths[len(workspacePaths)-1]
 		} else {
 			WorkspaceDir = defaultWorkspaceDir
@@ -215,7 +254,7 @@ func initWorkspaceDir(workspaceArg string) {
 	}
 
 	if !gulu.File.IsDir(WorkspaceDir) {
-		logging.LogWarnf("use the default workspace [%s] since the specified workspace [%s] is not a dir", WorkspaceDir, defaultWorkspaceDir)
+		logging.LogWarnf("use the default workspace [%s] since the specified workspace [%s] is not a dir", defaultWorkspaceDir, WorkspaceDir)
 		if err := os.MkdirAll(defaultWorkspaceDir, 0755); nil != err && !os.IsExist(err) {
 			logging.LogErrorf("create default workspace folder [%s] failed: %s", defaultWorkspaceDir, err)
 			os.Exit(logging.ExitCodeInitWorkspaceErr)
@@ -246,6 +285,7 @@ func initWorkspaceDir(workspaceArg string) {
 	os.Setenv("TMP", osTmpDir)
 	DBPath = filepath.Join(TempDir, DBName)
 	HistoryDBPath = filepath.Join(TempDir, "history.db")
+	AssetContentDBPath = filepath.Join(TempDir, "asset_content.db")
 	BlockTreePath = filepath.Join(TempDir, "blocktree")
 	SnippetsPath = filepath.Join(DataDir, "snippets")
 }
@@ -372,8 +412,7 @@ func initMime() {
 	mime.AddExtensionType(".json", "application/json")
 	mime.AddExtensionType(".html", "text/html")
 
-	// 某些系统上下载资源文件后打开是 zip
-	// https://github.com/siyuan-note/siyuan/issues/6347
+	// 某些系统上下载资源文件后打开是 zip https://github.com/siyuan-note/siyuan/issues/6347
 	mime.AddExtensionType(".doc", "application/msword")
 	mime.AddExtensionType(".docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 	mime.AddExtensionType(".xls", "application/vnd.ms-excel")
@@ -383,21 +422,19 @@ func initMime() {
 	mime.AddExtensionType(".dwf", "drawing/x-dwf")
 	mime.AddExtensionType(".pdf", "application/pdf")
 
+	// 某些系统上无法显示 SVG 图片 SVG images cannot be displayed on some systems https://github.com/siyuan-note/siyuan/issues/9413
+	mime.AddExtensionType(".svg", "image/svg+xml")
+
 	// 文档数据文件
 	mime.AddExtensionType(".sy", "application/json")
 }
 
 func GetDataAssetsAbsPath() (ret string) {
 	ret = filepath.Join(DataDir, "assets")
-	var err error
-	stat, err := os.Lstat(ret)
-	if nil != err {
-		logging.LogErrorf("stat assets failed: %s", err)
-		return
-	}
-	if 0 != stat.Mode()&os.ModeSymlink {
+	if IsSymlinkPath(ret) {
 		// 跟随符号链接 https://github.com/siyuan-note/siyuan/issues/5480
-		ret, err = os.Readlink(ret)
+		var err error
+		ret, err = filepath.EvalSymlinks(ret)
 		if nil != err {
 			logging.LogErrorf("read assets link failed: %s", err)
 		}

@@ -34,6 +34,57 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func checkWorkspaceDir(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	path := arg["path"].(string)
+	if isInvalidWorkspacePath(path) {
+		ret.Code = -1
+		ret.Msg = "This workspace name is not allowed, please use another name"
+		return
+	}
+
+	if !gulu.File.IsExist(path) {
+		ret.Code = -1
+		ret.Msg = "This workspace does not exist"
+		return
+	}
+
+	entries, err := os.ReadDir(path)
+	if nil != err {
+		ret.Code = -1
+		ret.Msg = fmt.Sprintf("read workspace dir [%s] failed: %s", path, err)
+	}
+
+	var existsConf, existsData bool
+	for _, entry := range entries {
+		if !existsConf {
+			existsConf = "conf" == entry.Name() && entry.IsDir()
+		}
+		if !existsData {
+			existsData = "data" == entry.Name() && entry.IsDir()
+		}
+
+		if existsConf && existsData {
+			break
+		}
+	}
+
+	if existsConf {
+		existsConf = gulu.File.IsExist(filepath.Join(path, "conf", "conf.json"))
+	}
+
+	ret.Data = map[string]interface{}{
+		"isWorkspace": existsConf && existsData,
+	}
+}
+
 func createWorkspaceDir(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -87,8 +138,11 @@ func removeWorkspaceDir(c *gin.Context) {
 
 	path := arg["path"].(string)
 
-	if util.IsWorkspaceLocked(path) {
-		logging.LogWarnf("skip remove workspace [%s] because it is locked", path)
+	if util.IsWorkspaceLocked(path) || util.WorkspaceDir == path {
+		msg := "Cannot remove current workspace"
+		ret.Code = -1
+		ret.Msg = msg
+		ret.Data = map[string]interface{}{"closeTimeout": 3000}
 		return
 	}
 
@@ -106,8 +160,29 @@ func removeWorkspaceDir(c *gin.Context) {
 		ret.Msg = err.Error()
 		return
 	}
+}
 
-	if util.WorkspaceDir == path && (util.ContainerIOS == util.Container || util.ContainerAndroid == util.Container) {
+func removeWorkspaceDirPhysically(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	path := arg["path"].(string)
+	if gulu.File.IsDir(path) {
+		err := os.RemoveAll(path)
+		if nil != err {
+			ret.Code = -1
+			ret.Msg = err.Error()
+			return
+		}
+	}
+
+	logging.LogInfof("removed workspace [%s] physically", path)
+	if util.WorkspaceDir == path {
 		os.Exit(logging.ExitCodeOk)
 	}
 }
@@ -170,10 +245,10 @@ func getWorkspaces(c *gin.Context) {
 		}
 	}
 	sort.Slice(openedWorkspaces, func(i, j int) bool {
-		return natsort.Compare(util.RemoveEmoji(filepath.Base(openedWorkspaces[i].Path)), util.RemoveEmoji(filepath.Base(openedWorkspaces[j].Path)))
+		return natsort.Compare(util.RemoveEmojiInvisible(filepath.Base(openedWorkspaces[i].Path)), util.RemoveEmojiInvisible(filepath.Base(openedWorkspaces[j].Path)))
 	})
 	sort.Slice(closedWorkspaces, func(i, j int) bool {
-		return natsort.Compare(util.RemoveEmoji(filepath.Base(closedWorkspaces[i].Path)), util.RemoveEmoji(filepath.Base(closedWorkspaces[j].Path)))
+		return natsort.Compare(util.RemoveEmojiInvisible(filepath.Base(closedWorkspaces[i].Path)), util.RemoveEmojiInvisible(filepath.Base(closedWorkspaces[j].Path)))
 	})
 	workspaces = append(workspaces, openedWorkspaces...)
 	workspaces = append(workspaces, closedWorkspaces...)
@@ -236,8 +311,9 @@ func setWorkspaceDir(c *gin.Context) {
 
 	if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
 		util.PushMsg(model.Conf.Language(42), 1000*15)
-		time.Sleep(time.Second * 2)
-		model.Close(false, 1)
+		time.Sleep(time.Second * 1)
+		model.Close(false, false, 1)
+		time.Sleep(time.Second * 1)
 	}
 }
 
@@ -255,7 +331,8 @@ func isInvalidWorkspacePath(absPath string) bool {
 	if !gulu.File.IsValidFilename(name) {
 		return true
 	}
-	if 16 < utf8.RuneCountInString(name) {
+	if 32 < utf8.RuneCountInString(name) {
+		// Adjust workspace name length limit to 32 runes https://github.com/siyuan-note/siyuan/issues/9440
 		return true
 	}
 	toLower := strings.ToLower(name)

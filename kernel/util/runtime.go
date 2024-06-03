@@ -23,11 +23,11 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/88250/gulu"
@@ -37,6 +37,9 @@ import (
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
 )
+
+// UseSingleLineSave 是否使用单行保存 .sy 和数据库 .json 文件。
+var UseSingleLineSave = true
 
 // IsUILoaded 是否已经加载了 UI。
 var IsUILoaded = false
@@ -58,7 +61,7 @@ func HookUILoaded() {
 }
 
 // IsExiting 是否正在退出程序。
-var IsExiting = false
+var IsExiting = atomic.Bool{}
 
 // MobileOSVer 移动端操作系统版本。
 var MobileOSVer string
@@ -80,11 +83,6 @@ func logBootInfo() {
 		"    * database [ver=%s]\n"+
 		"    * workspace directory [%s]",
 		Ver, runtime.GOARCH, plat, os.Getpid(), Mode, WorkingDir, ReadOnly, Container, DatabaseVer, WorkspaceDir)
-}
-
-func IsMutexLocked(m *sync.Mutex) bool {
-	state := reflect.ValueOf(m).Elem().FieldByName("state")
-	return state.Int()&1 == 1
 }
 
 func RandomSleep(minMills, maxMills int) {
@@ -140,6 +138,8 @@ var (
 	Langs           = map[string]map[int]string{}
 	TimeLangs       = map[string]map[string]interface{}{}
 	TaskActionLangs = map[string]map[string]interface{}{}
+	TrayMenuLangs   = map[string]map[string]interface{}{}
+	AttrViewLangs   = map[string]map[string]interface{}{}
 )
 
 var (
@@ -173,12 +173,10 @@ func CheckFileSysStatus() {
 func checkFileSysStatus() {
 	defer logging.Recover()
 
-	if IsMutexLocked(&checkFileSysStatusLock) {
+	if !checkFileSysStatusLock.TryLock() {
 		logging.LogWarnf("check file system status is locked, skip")
 		return
 	}
-
-	checkFileSysStatusLock.Lock()
 	defer checkFileSysStatusLock.Unlock()
 
 	const fileSysStatusCheckFile = ".siyuan/filesys_status_check"
@@ -312,6 +310,7 @@ func isICloudPath(workspaceAbsPath string) (ret bool) {
 
 		if strings.HasPrefix(workspaceAbsPathLower, strings.ToLower(path)) {
 			ret = true
+			logging.LogWarnf("workspace [%s] is in iCloud path [%s]", workspaceAbsPath, path)
 			return io.EOF
 		}
 		return nil
@@ -405,5 +404,6 @@ func existAvailabilityStatus(workspaceAbsPath string) bool {
 const (
 	EvtConfPandocInitialized = "conf.pandoc.initialized"
 
-	EvtSQLHistoryRebuild = "sql.history.rebuild"
+	EvtSQLHistoryRebuild      = "sql.history.rebuild"
+	EvtSQLAssetContentRebuild = "sql.assetContent.rebuild"
 )

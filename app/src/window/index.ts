@@ -19,17 +19,20 @@ import {initMessage} from "../dialog/message";
 import {getAllTabs} from "../layout/getAll";
 import {getLocalStorage} from "../protyle/util/compatibility";
 import {init} from "../window/init";
-import {positionPDF, switchTabById} from "./global/function";
-import {loadPlugins} from "../plugin/loader";
+import {loadPlugins, reloadPlugin} from "../plugin/loader";
+import {hideAllElements} from "../protyle/ui/hideElements";
 
 class App {
     public plugins: import("../plugin").Plugin[] = [];
+    public appId: string;
 
     constructor() {
         addScriptSync(`${Constants.PROTYLE_CDN}/js/lute/lute.min.js?v=${Constants.SIYUAN_VERSION}`, "protyleLuteScript");
         addScript(`${Constants.PROTYLE_CDN}/js/protyle-html.js?v=${Constants.SIYUAN_VERSION}`, "protyleWcHtmlScript");
         addBaseURL();
+        this.appId = Constants.SIYUAN_APPID;
         window.siyuan = {
+            zIndex: 10,
             transactions: [],
             reqIds: {},
             backStack: [],
@@ -48,8 +51,18 @@ class App {
                     });
                     if (data) {
                         switch (data.cmd) {
+                            case "reloadPlugin":
+                                reloadPlugin(this, data.data);
+                                break;
                             case "syncMergeResult":
                                 reloadSync(this, data.data);
+                                break;
+                            case "readonly":
+                                window.siyuan.config.editor.readOnly = data.data;
+                                hideAllElements(["util"]);
+                                break;
+                            case "setConf":
+                                window.siyuan.config = data.data;
                                 break;
                             case "progress":
                                 progressLoading(data);
@@ -103,7 +116,7 @@ class App {
                                 transactionError();
                                 break;
                             case "syncing":
-                                processSync(data);
+                                processSync(data, this.plugins);
                                 break;
                             case "backgroundtask":
                                 progressBackgroundTask(data.data.tasks);
@@ -114,9 +127,6 @@ class App {
                                 } else {
                                     (document.getElementById("themeDefaultStyle") as HTMLLinkElement).href = data.data.theme;
                                 }
-                                break;
-                            case "createdailynote":
-                                openFileById({app: this, id: data.data.id, action: [Constants.CB_GET_FOCUS]});
                                 break;
                             case "openFileById":
                                 openFileById({app: this, id: data.data.id, action: [Constants.CB_GET_FOCUS]});
@@ -130,7 +140,7 @@ class App {
             window.siyuan.config = response.data.conf;
             await loadPlugins(this);
             getLocalStorage(() => {
-                fetchGet(`/appearance/langs/${window.siyuan.config.appearance.lang}.json?v=${Constants.SIYUAN_VERSION}`, (lauguages) => {
+                fetchGet(`/appearance/langs/${window.siyuan.config.appearance.lang}.json?v=${Constants.SIYUAN_VERSION}`, (lauguages: IObject) => {
                     window.siyuan.languages = lauguages;
                     window.siyuan.menus = new Menus(this);
                     fetchPost("/api/setting/getCloudUser", {}, userResponse => {
@@ -148,9 +158,3 @@ class App {
 }
 
 new App();
-
-// 再次点击新窗口已打开的 PDF 时，需进行定位
-window.newWindow = {
-    positionPDF: positionPDF,
-    switchTabById: switchTabById
-};

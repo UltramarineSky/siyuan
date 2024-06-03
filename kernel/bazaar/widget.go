@@ -17,14 +17,13 @@
 package bazaar
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/dustin/go-humanize"
+	"github.com/88250/go-humanize"
 	ants "github.com/panjf2000/ants/v2"
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
@@ -52,6 +51,13 @@ func Widgets() (widgets []*Widget) {
 		repo := arg.(*StageRepo)
 		repoURL := repo.URL
 
+		if pkg, found := packageCache.Get(repoURL); found {
+			lock.Lock()
+			widgets = append(widgets, pkg.(*Widget))
+			lock.Unlock()
+			return
+		}
+
 		widget := &Widget{}
 		innerU := util.BazaarOSSServer + "/package/" + repoURL + "/widget.json"
 		innerResp, innerErr := httpclient.NewBrowserRequest().SetSuccessResult(widget).Get(innerU)
@@ -77,13 +83,16 @@ func Widgets() (widgets []*Widget) {
 		widget.IconURL = util.BazaarOSSServer + "/package/" + repoURL + "/icon.png"
 		widget.Funding = repo.Package.Funding
 		widget.PreferredFunding = getPreferredFunding(widget.Funding)
-		widget.PreferredName = getPreferredName(widget.Package)
+		widget.PreferredName = GetPreferredName(widget.Package)
 		widget.PreferredDesc = getPreferredDesc(widget.Description)
 		widget.Updated = repo.Updated
 		widget.Stars = repo.Stars
 		widget.OpenIssues = repo.OpenIssues
 		widget.Size = repo.Size
-		widget.HSize = humanize.Bytes(uint64(widget.Size))
+		widget.HSize = humanize.BytesCustomCeil(uint64(widget.Size), 2)
+		widget.InstallSize = repo.InstallSize
+		widget.HInstallSize = humanize.BytesCustomCeil(uint64(widget.InstallSize), 2)
+		packageInstallSizeCache.SetDefault(widget.RepoURL, widget.InstallSize)
 		widget.HUpdated = formatUpdated(widget.Updated)
 		pkg := bazaarIndex[strings.Split(repoURL, "@")[0]]
 		if nil != pkg {
@@ -92,6 +101,8 @@ func Widgets() (widgets []*Widget) {
 		lock.Lock()
 		widgets = append(widgets, widget)
 		lock.Unlock()
+
+		packageCache.SetDefault(repoURL, widget)
 	})
 	for _, repo := range stageIndex.Repos {
 		waitGroup.Add(1)
@@ -139,7 +150,7 @@ func InstalledWidgets() (ret []*Widget) {
 		widget.PreviewURLThumb = "/widgets/" + dirName + "/preview.png"
 		widget.IconURL = "/widgets/" + dirName + "/icon.png"
 		widget.PreferredFunding = getPreferredFunding(widget.Funding)
-		widget.PreferredName = getPreferredName(widget.Package)
+		widget.PreferredName = GetPreferredName(widget.Package)
 		widget.PreferredDesc = getPreferredDesc(widget.Description)
 		info, statErr := os.Stat(filepath.Join(installPath, "README.md"))
 		if nil != statErr {
@@ -147,9 +158,14 @@ func InstalledWidgets() (ret []*Widget) {
 			continue
 		}
 		widget.HInstallDate = info.ModTime().Format("2006-01-02")
-		installSize, _ := util.SizeOfDirectory(installPath)
-		widget.InstallSize = installSize
-		widget.HInstallSize = humanize.Bytes(uint64(installSize))
+		if installSize, ok := packageInstallSizeCache.Get(widget.RepoURL); ok {
+			widget.InstallSize = installSize.(int64)
+		} else {
+			is, _ := util.SizeOfDirectory(installPath)
+			widget.InstallSize = is
+			packageInstallSizeCache.SetDefault(widget.RepoURL, is)
+		}
+		widget.HInstallSize = humanize.BytesCustomCeil(uint64(widget.InstallSize), 2)
 		readmeFilename := getPreferredReadme(widget.Readme)
 		readme, readErr := os.ReadFile(filepath.Join(installPath, readmeFilename))
 		if nil != readErr {
@@ -170,14 +186,9 @@ func InstallWidget(repoURL, repoHash, installPath string, systemID string) error
 	if nil != err {
 		return err
 	}
-	return installPackage(data, installPath)
+	return installPackage(data, installPath, repoURLHash)
 }
 
 func UninstallWidget(installPath string) error {
-	if err := os.RemoveAll(installPath); nil != err {
-		logging.LogErrorf("remove widget [%s] failed: %s", installPath, err)
-		return errors.New("remove community widget failed")
-	}
-	//logging.Logger.Infof("uninstalled widget [%s]", installPath)
-	return nil
+	return uninstallPackage(installPath)
 }

@@ -23,10 +23,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/88250/gulu"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/util"
 	"github.com/steambap/captcha"
@@ -69,18 +71,21 @@ func LoginAuth(c *gin.Context) {
 		if nil == captchaArg {
 			ret.Code = 1
 			ret.Msg = Conf.Language(21)
+			logging.LogWarnf("invalid captcha")
 			return
 		}
 		inputCaptcha = captchaArg.(string)
 		if "" == inputCaptcha {
 			ret.Code = 1
 			ret.Msg = Conf.Language(21)
+			logging.LogWarnf("invalid captcha")
 			return
 		}
 
 		if strings.ToLower(workspaceSession.Captcha) != strings.ToLower(inputCaptcha) {
 			ret.Code = 1
 			ret.Msg = Conf.Language(22)
+			logging.LogWarnf("invalid captcha")
 			return
 		}
 	}
@@ -89,6 +94,7 @@ func LoginAuth(c *gin.Context) {
 	if Conf.AccessAuthCode != authCode {
 		ret.Code = -1
 		ret.Msg = Conf.Language(83)
+		logging.LogWarnf("invalid auth code [ip=%s]", util.GetRemoteAddr(c.Request))
 
 		util.WrongAuthCount++
 		workspaceSession.Captcha = gulu.Rand.String(7)
@@ -98,7 +104,7 @@ func LoginAuth(c *gin.Context) {
 
 		if err := session.Save(c); nil != err {
 			logging.LogErrorf("save session failed: " + err.Error())
-			c.Status(500)
+			c.Status(http.StatusInternalServerError)
 			return
 		}
 		return
@@ -107,9 +113,10 @@ func LoginAuth(c *gin.Context) {
 	workspaceSession.AccessAuthCode = authCode
 	util.WrongAuthCount = 0
 	workspaceSession.Captcha = gulu.Rand.String(7)
+	logging.LogInfof("auth success [ip=%s]", util.GetRemoteAddr(c.Request))
 	if err := session.Save(c); nil != err {
 		logging.LogErrorf("save session failed: " + err.Error())
-		c.Status(500)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 }
@@ -123,7 +130,7 @@ func GetCaptcha(c *gin.Context) {
 	})
 	if nil != err {
 		logging.LogErrorf("generates captcha failed: " + err.Error())
-		c.Status(500)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 
@@ -132,16 +139,16 @@ func GetCaptcha(c *gin.Context) {
 	workspaceSession.Captcha = img.Text
 	if err = session.Save(c); nil != err {
 		logging.LogErrorf("save session failed: " + err.Error())
-		c.Status(500)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 
 	if err = img.WriteImage(c.Writer); nil != err {
 		logging.LogErrorf("writes captcha image failed: " + err.Error())
-		c.Status(500)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
-	c.Status(200)
+	c.Status(http.StatusOK)
 }
 
 func CheckReadonly(c *gin.Context) {
@@ -150,7 +157,7 @@ func CheckReadonly(c *gin.Context) {
 		result.Code = -1
 		result.Msg = Conf.Language(34)
 		result.Data = map[string]interface{}{"closeTimeout": 5000}
-		c.JSON(200, result)
+		c.JSON(http.StatusOK, result)
 		c.Abort()
 		return
 	}
@@ -158,8 +165,31 @@ func CheckReadonly(c *gin.Context) {
 
 func CheckAuth(c *gin.Context) {
 	//logging.LogInfof("check auth for [%s]", c.Request.RequestURI)
+	localhost := util.IsLocalHost(c.Request.RemoteAddr)
 
+	// 未设置访问授权码
 	if "" == Conf.AccessAuthCode {
+		// Skip the empty access authorization code check https://github.com/siyuan-note/siyuan/issues/9709
+		if util.SiyuanAccessAuthCodeBypass {
+			c.Next()
+			return
+		}
+
+		// Authenticate requests with the Origin header other than 127.0.0.1 https://github.com/siyuan-note/siyuan/issues/9180
+		clientIP := c.ClientIP()
+		host := c.GetHeader("Host")
+		origin := c.GetHeader("Origin")
+		forwardedHost := c.GetHeader("X-Forwarded-Host")
+		if !localhost ||
+			("" != clientIP && !util.IsLocalHostname(clientIP)) ||
+			("" != host && !util.IsLocalHost(host)) ||
+			("" != origin && !util.IsLocalOrigin(origin) && !strings.HasPrefix(origin, "chrome-extension://")) ||
+			("" != forwardedHost && !util.IsLocalHost(forwardedHost)) {
+			c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": "Auth failed: for security reasons, please set [Access authorization code] when using non-127.0.0.1 access\n\n为安全起见，使用非 127.0.0.1 访问时请设置 [访问授权码]"})
+			c.Abort()
+			return
+		}
+
 		c.Next()
 		return
 	}
@@ -174,9 +204,7 @@ func CheckAuth(c *gin.Context) {
 	}
 
 	// 放过来自本机的某些请求
-	if strings.HasPrefix(c.Request.RemoteAddr, util.LocalHost) ||
-		strings.HasPrefix(c.Request.RemoteAddr, "127.0.0.1") ||
-		strings.HasPrefix(c.Request.RemoteAddr, "[::1]") {
+	if localhost {
 		if strings.HasPrefix(c.Request.RequestURI, "/assets/") {
 			c.Next()
 			return
@@ -184,6 +212,16 @@ func CheckAuth(c *gin.Context) {
 		if strings.HasPrefix(c.Request.RequestURI, "/api/system/exit") {
 			c.Next()
 			return
+		}
+		if strings.HasPrefix(c.Request.RequestURI, "/api/system/getNetwork") {
+			c.Next()
+			return
+		}
+		if strings.HasPrefix(c.Request.RequestURI, "/api/sync/performSync") {
+			if util.ContainerIOS == util.Container || util.ContainerAndroid == util.Container {
+				c.Next()
+				return
+			}
 		}
 	}
 
@@ -195,19 +233,41 @@ func CheckAuth(c *gin.Context) {
 		return
 	}
 
-	// 通过 API token
+	// 通过 API token (header: Authorization)
 	if authHeader := c.GetHeader("Authorization"); "" != authHeader {
+		var token string
 		if strings.HasPrefix(authHeader, "Token ") {
-			token := strings.TrimPrefix(authHeader, "Token ")
+			token = strings.TrimPrefix(authHeader, "Token ")
+		} else if strings.HasPrefix(authHeader, "token ") {
+			token = strings.TrimPrefix(authHeader, "token ")
+		} else if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if strings.HasPrefix(authHeader, "bearer ") {
+			token = strings.TrimPrefix(authHeader, "bearer ")
+		}
+
+		if "" != token {
 			if Conf.Api.Token == token {
 				c.Next()
 				return
 			}
 
-			c.JSON(401, map[string]interface{}{"code": -1, "msg": "Auth failed"})
+			c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": "Auth failed [header: Authorization]"})
 			c.Abort()
 			return
 		}
+	}
+
+	// 通过 API token (query-params: token)
+	if token := c.Query("token"); "" != token {
+		if Conf.Api.Token == token {
+			c.Next()
+			return
+		}
+
+		c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": "Auth failed [query: token]"})
+		c.Abort()
+		return
 	}
 
 	if "/check-auth" == c.Request.URL.Path { // 跳过访问授权页
@@ -218,8 +278,8 @@ func CheckAuth(c *gin.Context) {
 	if workspaceSession.AccessAuthCode != Conf.AccessAuthCode {
 		userAgentHeader := c.GetHeader("User-Agent")
 		if strings.HasPrefix(userAgentHeader, "SiYuan/") || strings.HasPrefix(userAgentHeader, "Mozilla/") {
-			if "GET" != c.Request.Method {
-				c.JSON(401, map[string]interface{}{"code": -1, "msg": Conf.Language(156)})
+			if "GET" != c.Request.Method || c.IsWebsocket() {
+				c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": Conf.Language(156)})
 				c.Abort()
 				return
 			}
@@ -229,12 +289,13 @@ func CheckAuth(c *gin.Context) {
 			queryParams.Set("to", c.Request.URL.String())
 			location.RawQuery = queryParams.Encode()
 			location.Path = "/check-auth"
-			c.Redirect(302, location.String())
+
+			c.Redirect(http.StatusFound, location.String())
 			c.Abort()
 			return
 		}
 
-		c.JSON(401, map[string]interface{}{"code": -1, "msg": "Auth failed"})
+		c.JSON(http.StatusUnauthorized, map[string]interface{}{"code": -1, "msg": "Auth failed [session]"})
 		c.Abort()
 		return
 	}
@@ -274,8 +335,52 @@ func Timing(c *gin.Context) {
 func Recover(c *gin.Context) {
 	defer func() {
 		logging.Recover()
-		c.Status(500)
+		c.Status(http.StatusInternalServerError)
 	}()
 
+	c.Next()
+}
+
+var (
+	requestingLock = sync.Mutex{}
+	requesting     = map[string]*sync.Mutex{}
+)
+
+func ControlConcurrency(c *gin.Context) {
+	if websocket.IsWebSocketUpgrade(c.Request) {
+		c.Next()
+		return
+	}
+
+	reqPath := c.Request.URL.Path
+
+	// Improve the concurrency of the kernel data reading interfaces https://github.com/siyuan-note/siyuan/issues/10149
+	if strings.HasPrefix(reqPath, "/stage/") || strings.HasPrefix(reqPath, "/assets/") || strings.HasPrefix(reqPath, "/appearance/") {
+		c.Next()
+		return
+	}
+
+	parts := strings.Split(reqPath, "/")
+	function := parts[len(parts)-1]
+	if strings.HasPrefix(function, "get") || strings.HasPrefix(function, "list") ||
+		strings.HasPrefix(function, "search") || strings.HasPrefix(function, "render") || strings.HasPrefix(function, "ls") {
+		c.Next()
+		return
+	}
+	if strings.HasPrefix(function, "/api/query/") || strings.HasPrefix(function, "/api/search/") {
+		c.Next()
+		return
+	}
+
+	requestingLock.Lock()
+	mutex := requesting[reqPath]
+	if nil == mutex {
+		mutex = &sync.Mutex{}
+		requesting[reqPath] = mutex
+	}
+	requestingLock.Unlock()
+
+	mutex.Lock()
+	defer mutex.Unlock()
 	c.Next()
 }

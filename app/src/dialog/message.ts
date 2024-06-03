@@ -22,7 +22,9 @@ export const initMessage = () => {
             } else if (target.tagName === "A" || target.tagName === "BUTTON") {
                 break;
             } else if (target.classList.contains("b3-snackbar")) {
-                hideMessage(target.getAttribute("data-id"));
+                if (getSelection().rangeCount === 0 || !getSelection().getRangeAt(0).toString()) {
+                    hideMessage(target.getAttribute("data-id"));
+                }
                 event.preventDefault();
                 event.stopPropagation();
                 break;
@@ -34,13 +36,17 @@ export const initMessage = () => {
 
 // type: info/error; timeout: 0 手动关闭；-1 用不关闭
 export const showMessage = (message: string, timeout = 6000, type = "info", messageId?: string) => {
-    const messageVersion = message + (type === "error" ? " v" + Constants.SIYUAN_VERSION : "");
-    const id = messageId || genUUID();
     const messagesElement = document.getElementById("message").firstElementChild;
+    if (!messagesElement) {
+        alert(message);
+        return ;
+    }
+    const id = messageId || genUUID();
     const existElement = messagesElement.querySelector(`.b3-snackbar[data-id="${id}"]`);
+    const messageVersion = message + (type === "error" ? " v" + Constants.SIYUAN_VERSION : "");
     if (existElement) {
         window.clearTimeout(parseInt(existElement.getAttribute("data-timeoutid")));
-        existElement.innerHTML = `<div class="b3-snackbar__content${timeout === 0 ? " b3-snackbar__content--close" : ""}">${messageVersion}</div>${timeout === 0 ? '<svg class="b3-snackbar__close"><use xlink:href="#iconCloseRound"></use></svg>' : ""}`;
+        existElement.innerHTML = `<div data-type="textMenu" class="b3-snackbar__content${timeout === 0 ? " b3-snackbar__content--close" : ""}">${messageVersion}</div>${timeout === 0 ? '<svg class="b3-snackbar__close"><use xlink:href="#iconCloseRound"></use></svg>' : ""}`;
         if (type === "error") {
             existElement.classList.add("b3-snackbar--error");
         } else {
@@ -54,7 +60,7 @@ export const showMessage = (message: string, timeout = 6000, type = "info", mess
         }
         return;
     }
-    let messageHTML = `<div data-id="${id}" class="b3-snackbar--hide b3-snackbar${type === "error" ? " b3-snackbar--error" : ""}"><div class="b3-snackbar__content${timeout === 0 ? " b3-snackbar__content--close" : ""}">${messageVersion}</div>`;
+    let messageHTML = `<div data-id="${id}" class="b3-snackbar--hide b3-snackbar${type === "error" ? " b3-snackbar--error" : ""}"><div data-type="textMenu" class="b3-snackbar__content${timeout === 0 ? " b3-snackbar__content--close" : ""}">${messageVersion}</div>`;
     if (timeout === 0) {
         messageHTML += '<svg class="b3-snackbar__close"><use xlink:href="#iconCloseRound"></use></svg>';
     } else if (timeout !== -1) { // -1 时需等待请求完成后手动关闭
@@ -64,6 +70,7 @@ export const showMessage = (message: string, timeout = 6000, type = "info", mess
         messageHTML = messageHTML.replace("<div data-id", `<div data-timeoutid="${timeoutId}" data-id`);
     }
     messagesElement.parentElement.classList.add("b3-snackbars--show");
+    messagesElement.parentElement.style.zIndex = (++window.siyuan.zIndex).toString();
     messagesElement.insertAdjacentHTML("afterbegin", messageHTML + "</div>");
     setTimeout(() => {
         messagesElement.querySelectorAll(".b3-snackbar--hide").forEach(item => {
@@ -83,6 +90,9 @@ export const showMessage = (message: string, timeout = 6000, type = "info", mess
 
 export const hideMessage = (id?: string) => {
     const messagesElement = document.getElementById("message").firstElementChild;
+    if (!messagesElement) {
+        return;
+    }
     if (id) {
         const messageElement = messagesElement.querySelector(`[data-id="${id}"]`);
         if (messageElement) {

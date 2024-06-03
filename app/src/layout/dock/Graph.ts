@@ -1,5 +1,6 @@
 import {Tab} from "../Tab";
-import {getDockByType, setPanelFocus} from "../util";
+import {setPanelFocus} from "../util";
+import {getDockByType} from "../tabUtil";
 import {Model} from "../Model";
 import {Constants} from "../../constants";
 import {addScript} from "../../protyle/util/addScript";
@@ -10,6 +11,7 @@ import {isCurrentEditor, openFileById} from "../../editor/util";
 import {updateHotkeyTip} from "../../protyle/util/compatibility";
 import {openGlobalSearch} from "../../search/util";
 import {App} from "../../index";
+import {checkFold} from "../../util/noRelyPCFunction";
 
 declare const vis: any;
 
@@ -256,13 +258,12 @@ export class Graph extends Model {
         this.element.innerHTML = `
 <div class="block__icons"> 
     <div class="block__logo">
-        <svg><use xlink:href="#icon${this.type === "global" ? "GlobalGraph" : "Graph"}"></use></svg>
-        ${this.type === "global" ? window.siyuan.languages.globalGraph : window.siyuan.languages.graphView}
+        <svg class="block__logoicon"><use xlink:href="#icon${this.type === "global" ? "GlobalGraph" : "Graph"}"></use></svg>${this.type === "global" ? window.siyuan.languages.globalGraph : window.siyuan.languages.graphView}
     </div>
-    <label class="b3-form__icon b3-form__icon--small search__label">
-        <svg class="b3-form__icon-icon"><use xlink:href="#iconSearch"></use></svg>
-        <input class="b3-form__icon-input b3-text-field b3-text-field--small" placeholder="${window.siyuan.languages.search}" />
-    </label>
+    <span class="fn__flex-1"></span>
+    <span class="fn__space"></span>
+    <input class="b3-text-field search__label fn__size200 fn__none" placeholder="${window.siyuan.languages.search}" />
+    <span data-type="search" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="${window.siyuan.languages.search}"><svg><use xlink:href='#iconFilter'></use></svg></span>
     <span class="fn__space"></span>
     <span data-type="refresh" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="${window.siyuan.languages.refresh}"><svg><use xlink:href='#iconRefresh'></use></svg></span>
     <div class="fn__space"></div>
@@ -314,8 +315,11 @@ export class Graph extends Model {
                             target.classList.add("ft__primary");
                             this.panelElement.style.right = "0";
                         }
+                    } else if (dataType === "search") {
+                        target.previousElementSibling.classList.remove("fn__none");
+                        (target.previousElementSibling as HTMLInputElement).select();
                     } else if (dataType === "refresh") {
-                        this.searchGraph(false);
+                        this.searchGraph(false, undefined, true);
                     } else if (dataType === "fullscreen") {
                         fullscreen(this.element, target);
                     }
@@ -333,6 +337,10 @@ export class Graph extends Model {
         this.inputElement.addEventListener("compositionend", () => {
             this.searchGraph(false);
             this.inputElement.classList.add("search__input--block");
+        });
+        this.inputElement.addEventListener("blur", (event: InputEvent) => {
+            const inputElement = event.target as HTMLInputElement;
+            inputElement.classList.add("fn__none");
         });
         this.inputElement.addEventListener("input", (event: InputEvent) => {
             if (event.isComposing) {
@@ -398,7 +406,7 @@ export class Graph extends Model {
         this.searchGraph(false);
     }
 
-    public searchGraph(focus: boolean, id?: string) {
+    public searchGraph(focus: boolean, id?: string, refresh = false) {
         const element = this.element.querySelector('.block__icon[data-type="refresh"] svg');
         if (element.classList.contains("fn__rotate") && !id) {
             return;
@@ -457,7 +465,7 @@ export class Graph extends Model {
                 if (id) {
                     this.blockId = id;
                 }
-                if (!isCurrentEditor(this.blockId)) {
+                if (!refresh && this.type === "pin" && this.blockId && !isCurrentEditor(this.blockId)) {
                     return;
                 }
                 this.graphData = response.data;
@@ -541,6 +549,13 @@ export class Graph extends Model {
         clearTimeout(this.timeout);
         addScript(`${Constants.PROTYLE_CDN}/js/vis/vis-network.min.js?v=9.1.2`, "protyleVisScript").then(() => {
             this.timeout = window.setTimeout(() => {
+                if (!this.graphData || !this.graphData.nodes || this.graphData.nodes.length === 0) {
+                    if (this.network) {
+                        this.network.destroy();
+                    }
+                    this.graphElement.firstElementChild.classList.add("fn__none");
+                    return;
+                }
                 this.graphElement.firstElementChild.classList.remove("fn__none");
                 this.graphElement.firstElementChild.firstElementChild.setAttribute("style", "width:3%");
                 const config = window.siyuan.config.graph[this.type === "global" ? "global" : "local"];
@@ -642,18 +657,24 @@ export class Graph extends Model {
                         return;
                     }
                     if (window.siyuan.shiftIsPressed) {
-                        openFileById({
-                            app: this.app,
-                            id: node.id,
-                            position: "bottom",
-                            action: [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT]
+                        checkFold(node.id, (zoomIn, action: string[]) => {
+                            openFileById({
+                                app: this.app,
+                                id: node.id,
+                                position: "bottom",
+                                action,
+                                zoomIn
+                            });
                         });
                     } else if (window.siyuan.altIsPressed) {
-                        openFileById({
-                            app: this.app,
-                            id: node.id,
-                            position: "right",
-                            action: [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT]
+                        checkFold(node.id, (zoomIn, action: string[]) => {
+                            openFileById({
+                                app: this.app,
+                                id: node.id,
+                                position: "right",
+                                action,
+                                zoomIn
+                            });
                         });
                     } else if (window.siyuan.ctrlIsPressed) {
                         window.siyuan.blockPanels.push(new BlockPanel({
@@ -664,10 +685,13 @@ export class Graph extends Model {
                             nodeIds: [node.id],
                         }));
                     } else {
-                        openFileById({
-                            app: this.app,
-                            id: node.id,
-                            action: [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT]
+                        checkFold(node.id, (zoomIn, action: string[]) => {
+                            openFileById({
+                                app: this.app,
+                                id: node.id,
+                                action,
+                                zoomIn
+                            });
                         });
                     }
                 });

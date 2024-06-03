@@ -3,10 +3,13 @@ import {Menu as SiyuanMenu} from "../menus/Menu";
 export class Menu {
     private menu: SiyuanMenu;
     public isOpen: boolean;
+    public element: HTMLElement;
 
     constructor(id?: string, closeCB?: () => void) {
         this.menu = window.siyuan.menus.menu;
         this.isOpen = false;
+        this.element = this.menu.element;
+
         if (id) {
             const dataName = this.menu.element.getAttribute("data-name");
             if (dataName && dataName === id) {
@@ -15,7 +18,7 @@ export class Menu {
         }
         this.menu.remove();
         if (!this.isOpen) {
-            this.menu.element.setAttribute("data-name", id);
+            this.menu.element.setAttribute("data-name", id || "");
             this.menu.removeCB = closeCB;
         }
     }
@@ -35,14 +38,14 @@ export class Menu {
         if (this.isOpen) {
             return;
         }
-        this.menu.addSeparator(index);
+        return this.menu.addSeparator(index);
     }
 
-    open(options: { x: number, y: number, h?: number, w?: number, isLeft?: boolean }) {
+    open(options: IPosition) {
         if (this.isOpen) {
             return;
         }
-        this.menu.popup(options, options.isLeft);
+        this.menu.popup(options);
     }
 
     fullscreen(position: "bottom" | "all" = "all") {
@@ -50,7 +53,6 @@ export class Menu {
             return;
         }
         this.menu.fullscreen(position);
-        this.menu.element.style.zIndex = "310";
     }
 
     close() {

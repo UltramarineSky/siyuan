@@ -5,17 +5,27 @@ import * as dayjs from "dayjs";
 import {transaction, updateTransaction} from "./transaction";
 import {mathRender} from "../render/mathRender";
 import {highlightRender} from "../render/highlightRender";
-import {getContenteditableElement, getNextBlock, isNotEditBlock} from "./getBlock";
+import {getContenteditableElement, getNextBlock, hasNextSibling, isNotEditBlock} from "./getBlock";
 import {genEmptyBlock} from "../../block/util";
 import {blockRender} from "../render/blockRender";
 import {hideElements} from "../ui/hideElements";
-import {hasClosestByAttribute} from "../util/hasClosest";
+import {hasClosestByAttribute, hasClosestByClassName} from "../util/hasClosest";
 import {fetchPost, fetchSyncPost} from "../../util/fetch";
 import {headingTurnIntoList, turnIntoTaskList} from "./turnIntoList";
+import {updateAVName} from "../render/av/action";
 
-export const input = async (protyle: IProtyle, blockElement: HTMLElement, range: Range, needRender = true) => {
+export const input = async (protyle: IProtyle, blockElement: HTMLElement, range: Range, needRender = true, event?: InputEvent) => {
     if (!blockElement.parentElement) {
         // 不同 windows 版本下输入法会多次触发 input，导致 outerhtml 赋值的块丢失
+        return;
+    }
+    if (blockElement.classList.contains("av")) {
+        const avCursorElement = hasClosestByClassName(range.startContainer, "av__cursor");
+        if (avCursorElement) {
+            range.startContainer.textContent = Constants.ZWSP;
+        } else {
+            updateAVName(protyle, blockElement);
+        }
         return;
     }
     const editElement = getContenteditableElement(blockElement) as HTMLElement;
@@ -40,12 +50,22 @@ export const input = async (protyle: IProtyle, blockElement: HTMLElement, range:
         focusByWbr(blockElement, range);
         return;
     }
-    const wbrElement = document.createElement("wbr");
+    blockElement.setAttribute("updated", dayjs().format("YYYYMMDDHHmmss"));
+    const wbrElement: HTMLElement = document.createElement("wbr");
     range.insertNode(wbrElement);
+    if (event && event.inputType === "deleteContentForward") {
+        const wbrNextElement = hasNextSibling(wbrElement) as HTMLElement;
+        if (wbrNextElement && wbrNextElement.nodeType === 1 && !wbrNextElement.textContent.startsWith(Constants.ZWSP)) {
+            const nextType = (wbrNextElement.getAttribute("data-type") || "").split(" ");
+            if (nextType.includes("code") || nextType.includes("kbd") || nextType.includes("tag")) {
+                wbrNextElement.insertAdjacentElement("afterbegin", wbrElement);
+            }
+        }
+    }
     const id = blockElement.getAttribute("data-node-id");
     if (type !== "NodeCodeBlock" && (editElement.innerHTML.endsWith("\n<wbr>") || editElement.innerHTML.endsWith("\n<wbr>\n"))) {
         // 软换行
-        updateTransaction(protyle, id, blockElement.outerHTML, blockElement.outerHTML.replace("\n<wbr>", "<wbr>"));
+        updateTransaction(protyle, id, blockElement.outerHTML, protyle.wysiwyg.lastHTMLs[id] || blockElement.outerHTML.replace("\n<wbr>", "<wbr>"));
         wbrElement.remove();
         return;
     }
@@ -64,7 +84,6 @@ export const input = async (protyle: IProtyle, blockElement: HTMLElement, range:
         brElement.remove();
     }
 
-    blockElement.setAttribute("updated", dayjs().format("YYYYMMDDHHmmss"));
     if (editElement.innerHTML === "》<wbr>" || editElement.innerHTML.indexOf("\n》<wbr>") > -1) {
         editElement.innerHTML = editElement.innerHTML.replace("》<wbr>", "><wbr>");
     }
@@ -78,6 +97,10 @@ export const input = async (protyle: IProtyle, blockElement: HTMLElement, range:
         updateTransaction(protyle, id, blockElement.outerHTML, protyle.wysiwyg.lastHTMLs[id]);
         wbrElement.remove();
         return;
+    }
+    // https://github.com/siyuan-note/siyuan/issues/9015
+    if (trimStartText === "¥¥<wbr>" || trimStartText === "￥￥<wbr>") {
+        editElement.innerHTML = "$$<wbr>";
     }
     const refElement = hasClosestByAttribute(range.startContainer, "data-type", "block-ref");
     if (refElement && refElement.getAttribute("data-subtype") === "d") {
@@ -134,9 +157,9 @@ export const input = async (protyle: IProtyle, blockElement: HTMLElement, range:
         log("SpinBlockDOM", html, "result", protyle.options.debugger);
         let scrollLeft: number;
         if (blockElement.classList.contains("table")) {
-            scrollLeft = getContenteditableElement(blockElement).scrollLeft;
+            scrollLeft = blockElement.firstElementChild.scrollLeft;
         }
-        if (/<span data-type="backslash"><span>\\<\/span>.<\/span><wbr>/.test(html)) {
+        if (/<span data-type="backslash">.+<\/span><wbr>/.test(html)) {
             // 转义不需要添加 zwsp
             blockElement.outerHTML = html;
         } else {
@@ -149,6 +172,16 @@ export const input = async (protyle: IProtyle, blockElement: HTMLElement, range:
                 blockElement = item;
             }
         });
+        // https://github.com/siyuan-note/siyuan/issues/8972
+        if (html.split('<span data-type="inline-math" data-subtype="math"').length > 1) {
+            Array.from(blockElement.querySelectorAll('[data-type="inline-math"]')).find((item: HTMLElement) => {
+                if (item.dataset.content.indexOf("<wbr>") > -1) {
+                    item.setAttribute("data-content", item.dataset.content.replace("<wbr>", ""));
+                    protyle.toolbar.showRender(protyle, item);
+                    return true;
+                }
+            });
+        }
         Array.from(tempElement.content.children).forEach((item, index) => {
             const tempId = item.getAttribute("data-node-id");
             let realElement;
@@ -190,11 +223,19 @@ export const input = async (protyle: IProtyle, blockElement: HTMLElement, range:
                 });
                 mathRender(realElement);
                 if (index === tempElement.content.childElementCount - 1) {
+                    // https://github.com/siyuan-note/siyuan/issues/11156
+                    const currentWbrElement = blockElement.querySelector("wbr");
+                    if (currentWbrElement && currentWbrElement.parentElement.tagName === "SPAN" && currentWbrElement.parentElement.innerHTML === "<wbr>") {
+                        const types = currentWbrElement.parentElement.getAttribute("data-type") || "";
+                        if (types.includes("sup") || types.includes("u") || types.includes("sub")) {
+                            currentWbrElement.insertAdjacentText("beforebegin", Constants.ZWSP);
+                        }
+                    }
                     focusByWbr(protyle.wysiwyg.element, range);
                     protyle.hint.render(protyle);
                     // 表格出现滚动条，输入数字会向前滚 https://github.com/siyuan-note/siyuan/issues/3650
                     if (scrollLeft > 0) {
-                        getContenteditableElement(realElement).scrollLeft = scrollLeft;
+                        blockElement.firstElementChild.scrollLeft = scrollLeft;
                     }
                 }
             }

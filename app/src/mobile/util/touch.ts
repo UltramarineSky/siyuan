@@ -1,9 +1,10 @@
-import {hasClosestByAttribute, hasClosestByClassName, hasTopClosestByClassName} from "../../protyle/util/hasClosest";
-import {closePanel} from "./closePanel";
+import {hasClosestByAttribute, hasClosestByClassName, hasTopClosestByClassName,} from "../../protyle/util/hasClosest";
+import {closeModel, closePanel} from "./closePanel";
 import {popMenu} from "../menu";
 import {activeBlur, hideKeyboardToolbar} from "./keyboardToolbar";
-import {getCurrentEditor} from "../editor";
-import {fileAnnotationRefMenu, linkMenu, refMenu, tagMenu} from "../../menus/protyle";
+import {isIPhone} from "../../protyle/util/compatibility";
+import {App} from "../../index";
+import {globalTouchEnd, globalTouchStart} from "../../boot/globalEvent/touch";
 
 let clientX: number;
 let clientY: number;
@@ -11,7 +12,10 @@ let xDiff: number;
 let yDiff: number;
 let time: number;
 let firstDirection: "toLeft" | "toRight";
+let firstXY: "x" | "y";
 let lastClientX: number;    // 和起始方向不一致时，记录最后一次的 clientX
+let scrollBlock: boolean;
+let isFirstMove = true;
 
 const popSide = (render = true) => {
     if (render) {
@@ -23,45 +27,21 @@ const popSide = (render = true) => {
     }
 };
 
-export const handleTouchEnd = (event: TouchEvent) => {
-    const editor = getCurrentEditor();
-    if (editor) {
-        document.querySelectorAll(".protyle-breadcrumb__bar--hide").forEach(item => {
-            item.classList.remove("protyle-breadcrumb__bar--hide");
-        });
-        window.siyuan.hideBreadcrumb = false;
-    }
-    const target = event.target as HTMLElement;
-    if (editor && typeof yDiff === "undefined" && new Date().getTime() - time > 900 &&
-        target.tagName === "SPAN" && window.webkit?.messageHandlers &&
-        !hasClosestByAttribute(target, "data-type", "NodeBlockQueryEmbed")) {
-        // ios 长按行内元素弹出菜单
-        const types = (target.getAttribute("data-type") || "").split(" ");
-        if (types.includes("inline-memo")) {
-            editor.protyle.toolbar.showRender(editor.protyle, target);
-        }
-        if (editor.protyle.disabled) {
-            return;
-        }
-        if (types.includes("block-ref")) {
-            refMenu(editor.protyle, target);
-        } else if (types.includes("file-annotation-ref")) {
-           fileAnnotationRefMenu(editor.protyle, target);
-        } else if (types.includes("tag")) {
-            tagMenu(editor.protyle, target);
-        } else if (types.includes("a")) {
-            linkMenu(editor.protyle, target);
-        }
+export const handleTouchEnd = (event: TouchEvent, app: App) => {
+    if (isIPhone() && globalTouchEnd(event, yDiff, time, app)) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
         return;
     }
-    if (!clientX || !clientY || typeof yDiff === "undefined" ||
+    isFirstMove = true;
+    const target = event.target as HTMLElement;
+    if (!clientY || typeof yDiff === "undefined" ||
         target.tagName === "AUDIO" ||
         hasClosestByClassName(target, "b3-dialog", true) ||
         (window.siyuan.mobile.editor && !window.siyuan.mobile.editor.protyle.toolbar.subElement.classList.contains("fn__none")) ||
         hasClosestByClassName(target, "viewer-container") ||
         hasClosestByClassName(target, "keyboard") ||
-        hasClosestByAttribute(target, "id", "commonMenu") ||
-        hasClosestByAttribute(target, "id", "model", true)
+        hasClosestByAttribute(target, "id", "commonMenu")
     ) {
         return;
     }
@@ -73,21 +53,9 @@ export const handleTouchEnd = (event: TouchEvent) => {
     clientX = null;
     // 有些事件不经过 touchmove
 
-    let scrollElement = hasClosestByAttribute(target, "data-type", "NodeCodeBlock") ||
-        hasClosestByAttribute(target, "data-type", "NodeTable") ||
-        hasTopClosestByClassName(target, "list");
-    if (scrollElement) {
-        if (scrollElement.classList.contains("table")) {
-            scrollElement = scrollElement.firstElementChild as HTMLElement;
-        } else if (scrollElement.classList.contains("code-block")) {
-            scrollElement = scrollElement.firstElementChild.nextElementSibling as HTMLElement;
-        }
-        if ((xDiff <= 0 && scrollElement.scrollLeft > 0) ||
-            (xDiff >= 0 && scrollElement.clientWidth + scrollElement.scrollLeft < scrollElement.scrollWidth)) {
-            // 左滑拉出菜单后右滑至代码块右侧有空间时，需关闭菜单
-            closePanel();
-            return;
-        }
+    if (scrollBlock) {
+        closePanel();
+        return;
     }
 
     let scrollEnable = false;
@@ -98,6 +66,13 @@ export const handleTouchEnd = (event: TouchEvent) => {
     }
 
     const isXScroll = Math.abs(xDiff) > Math.abs(yDiff);
+    const modelElement = hasClosestByAttribute(target, "id", "model");
+    if (modelElement) {
+        if (isXScroll && firstDirection === "toRight" && !lastClientX) {
+            closeModel();
+        }
+        return;
+    }
     const menuElement = hasClosestByAttribute(target, "id", "menu");
     if (menuElement) {
         if (isXScroll) {
@@ -161,11 +136,15 @@ export const handleTouchEnd = (event: TouchEvent) => {
 };
 
 export const handleTouchStart = (event: TouchEvent) => {
+    if (globalTouchStart(event)) {
+        return;
+    }
     firstDirection = null;
     xDiff = undefined;
     yDiff = undefined;
     lastClientX = undefined;
-    if (navigator.userAgent.indexOf("iPhone") > -1 ||
+    firstXY = undefined;
+    if (isIPhone() ||
         (event.touches[0].clientX > 8 && event.touches[0].clientX < window.innerWidth - 8)) {
         clientX = event.touches[0].clientX;
         clientY = event.touches[0].clientY;
@@ -176,10 +155,12 @@ export const handleTouchStart = (event: TouchEvent) => {
         time = 0;
         event.stopImmediatePropagation();
     }
+    isFirstMove = true;
+    scrollBlock = false;
 };
 
-
 let previousClientX: number;
+const sideMaskElement = document.querySelector(".side-mask") as HTMLElement;
 export const handleTouchMove = (event: TouchEvent) => {
     const target = event.target as HTMLElement;
     if (!clientX || !clientY ||
@@ -188,8 +169,8 @@ export const handleTouchMove = (event: TouchEvent) => {
         (window.siyuan.mobile.editor && !window.siyuan.mobile.editor.protyle.toolbar.subElement.classList.contains("fn__none")) ||
         hasClosestByClassName(target, "keyboard") ||
         hasClosestByClassName(target, "viewer-container") ||
-        hasClosestByAttribute(target, "id", "commonMenu") ||
-        hasClosestByAttribute(target, "id", "model", true)) {
+        hasClosestByAttribute(target, "id", "commonMenu") || firstXY === "y"
+    ) {
         return;
     }
     if (getSelection().rangeCount > 0) {
@@ -204,6 +185,21 @@ export const handleTouchMove = (event: TouchEvent) => {
     yDiff = Math.floor(clientY - event.touches[0].clientY);
     if (!firstDirection) {
         firstDirection = xDiff > 0 ? "toLeft" : "toRight";
+    }
+    // 上下滚动防止左右滑动
+    if (!firstXY) {
+        if (Math.abs(xDiff) > Math.abs(yDiff)) {
+            firstXY = "x";
+        } else {
+            firstXY = "y";
+        }
+        if (firstXY === "x") {
+            if ((hasClosestByAttribute(target, "id", "menu") && firstDirection === "toLeft") ||
+                (hasClosestByAttribute(target, "id", "sidebar") && firstDirection === "toRight")) {
+                firstXY = "y";
+                yDiff = undefined;
+            }
+        }
     }
     if (previousClientX) {
         if (firstDirection === "toRight") {
@@ -222,7 +218,12 @@ export const handleTouchMove = (event: TouchEvent) => {
     }
     previousClientX = event.touches[0].clientX;
     if (Math.abs(xDiff) > Math.abs(yDiff)) {
+        if (hasClosestByAttribute(target, "id", "model", true)) {
+            return;
+        }
         let scrollElement = hasClosestByAttribute(target, "data-type", "NodeCodeBlock") ||
+            hasClosestByAttribute(target, "data-type", "NodeAttributeView") ||
+            hasClosestByAttribute(target, "data-type", "NodeMathBlock") ||
             hasClosestByAttribute(target, "data-type", "NodeTable") ||
             hasTopClosestByClassName(target, "list");
         if (scrollElement) {
@@ -230,13 +231,35 @@ export const handleTouchMove = (event: TouchEvent) => {
                 scrollElement = scrollElement.firstElementChild as HTMLElement;
             } else if (scrollElement.classList.contains("code-block")) {
                 scrollElement = scrollElement.firstElementChild.nextElementSibling as HTMLElement;
+            } else if (scrollElement.classList.contains("av")) {
+                scrollElement = hasClosestByClassName(target, "layout-tab-bar") || hasClosestByClassName(target, "av__scroll");
+            } else if (scrollElement.dataset.type === "NodeMathBlock") {
+                scrollElement = target;
+                while (scrollElement && scrollElement.dataset.type !== "NodeMathBlock") {
+                    if (scrollElement.nodeType === 1 && scrollElement.scrollLeft > 0) {
+                        break;
+                    }
+                    scrollElement = scrollElement.parentElement;
+                }
             }
-            if ((xDiff < 0 && scrollElement.scrollLeft > 0) ||
-                (xDiff > 0 && scrollElement.clientWidth + scrollElement.scrollLeft < scrollElement.scrollWidth)) {
+
+            if (scrollElement && (
+                (xDiff < 0 && scrollElement.scrollLeft > 0) ||
+                (xDiff > 0 && scrollElement.clientWidth + scrollElement.scrollLeft < scrollElement.scrollWidth)
+            )) {
+                scrollBlock = true;
+                return;
+            }
+            if (scrollBlock) {
                 return;
             }
         }
-
+        if (isFirstMove) {
+            sideMaskElement.style.zIndex = (++window.siyuan.zIndex).toString();
+            document.getElementById("sidebar").style.zIndex = (++window.siyuan.zIndex).toString();
+            document.getElementById("menu").style.zIndex = (++window.siyuan.zIndex).toString();
+            isFirstMove = false;
+        }
         const windowWidth = window.innerWidth;
         const menuElement = hasClosestByAttribute(target, "id", "menu");
         if (menuElement) {
@@ -260,11 +283,12 @@ export const handleTouchMove = (event: TouchEvent) => {
             }
             return;
         }
+
         if (firstDirection === "toRight") {
-            document.getElementById("sidebar").style.transform = `translateX(${-xDiff - windowWidth}px)`;
+            document.getElementById("sidebar").style.transform = `translateX(${Math.min(-xDiff - windowWidth, 0)}px)`;
             transformMask((windowWidth + xDiff) / windowWidth);
         } else {
-            document.getElementById("menu").style.transform = `translateX(${windowWidth - xDiff}px)`;
+            document.getElementById("menu").style.transform = `translateX(${Math.max(windowWidth - xDiff, 0)}px)`;
             transformMask((windowWidth - xDiff) / windowWidth);
         }
         activeBlur();
@@ -276,7 +300,6 @@ export const handleTouchMove = (event: TouchEvent) => {
 };
 
 const transformMask = (opacity: number) => {
-    const maskElement = document.querySelector(".side-mask") as HTMLElement;
-    maskElement.classList.remove("fn__none");
-    maskElement.style.opacity = Math.min((1 - opacity), 0.68).toString();
+    sideMaskElement.classList.remove("fn__none");
+    sideMaskElement.style.opacity = Math.min((1 - opacity), 0.68).toString();
 };

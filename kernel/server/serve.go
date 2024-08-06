@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"mime"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/http/pprof"
 	"net/url"
 	"os"
@@ -42,19 +42,25 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/api"
 	"github.com/siyuan-note/siyuan/kernel/cmd"
 	"github.com/siyuan-note/siyuan/kernel/model"
+	"github.com/siyuan-note/siyuan/kernel/server/proxy"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
-var cookieStore = cookie.NewStore([]byte("ATN51UlxVq1Gcvdf"))
+var (
+	cookieStore = cookie.NewStore([]byte("ATN51UlxVq1Gcvdf"))
+)
 
 func Serve(fastMode bool) {
 	gin.SetMode(gin.ReleaseMode)
 	ginServer := gin.New()
+	ginServer.UseH2C = true
 	ginServer.MaxMultipartMemory = 1024 * 1024 * 32 // 插入较大的资源文件时内存占用较大 https://github.com/siyuan-note/siyuan/issues/5023
 	ginServer.Use(
+		model.ControlConcurrency, // 请求串行化 Concurrency control when requesting the kernel API https://github.com/siyuan-note/siyuan/issues/9939
 		model.Timing,
 		model.Recover,
 		corsMiddleware(), // 后端服务支持 CORS 预检请求验证 https://github.com/siyuan-note/siyuan/pull/5593
+		jwtMiddleware,    // 解析 JWT https://github.com/siyuan-note/siyuan/issues/11364
 		gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedExtensions([]string{".pdf", ".mp3", ".wav", ".ogg", ".mov", ".weba", ".mkv", ".mp4", ".webm"})),
 	)
 
@@ -76,7 +82,10 @@ func Serve(fastMode bool) {
 	serveEmojis(ginServer)
 	serveTemplates(ginServer)
 	servePublic(ginServer)
+	serveSnippets(ginServer)
 	serveRepoDiff(ginServer)
+	serveCheckAuth(ginServer)
+	serveFixedStaticFiles(ginServer)
 	api.ServeAPI(ginServer)
 
 	var host string
@@ -106,35 +115,28 @@ func Serve(fastMode bool) {
 	}
 	util.ServerPort = port
 
+	util.ServerURL, err = url.Parse("http://127.0.0.1:" + port)
+	if err != nil {
+		logging.LogErrorf("parse server url failed: %s", err)
+	}
+
 	pid := fmt.Sprintf("%d", os.Getpid())
 	if !fastMode {
 		rewritePortJSON(pid, port)
 	}
-
 	logging.LogInfof("kernel [pid=%s] http server [%s] is booting", pid, host+":"+port)
 	util.HttpServing = true
 
-	go func() {
-		time.Sleep(1 * time.Second)
-		if util.FixedPort != port {
-			if isPortOpen(util.FixedPort) {
-				return
-			}
-
-			// 启动一个 6806 端口的反向代理服务器，这样浏览器扩展才能直接使用 127.0.0.1:6806，不用配置端口
-			serverURL, _ := url.Parse("http://127.0.0.1:" + port)
-			proxy := httputil.NewSingleHostReverseProxy(serverURL)
-			logging.LogInfof("reverse proxy server [%s] is booting", host+":"+util.FixedPort)
-			if proxyErr := http.ListenAndServe(host+":"+util.FixedPort, proxy); nil != proxyErr {
-				logging.LogWarnf("boot reverse proxy server [%s] failed: %s", serverURL, proxyErr)
-			}
-			// 反代服务器启动失败不影响核心服务器启动
-		}
-	}()
-
 	go util.HookUILoaded()
 
-	if err = http.Serve(ln, ginServer); nil != err {
+	go func() {
+		time.Sleep(1 * time.Second)
+		go proxy.InitFixedPortService(host)
+		go proxy.InitPublishService()
+		// 反代服务器启动失败不影响核心服务器启动
+	}()
+
+	if err = http.Serve(ln, ginServer.Handler()); nil != err {
 		if !fastMode {
 			logging.LogErrorf("boot kernel failed: %s", err)
 			os.Exit(logging.ExitCodeUnavailablePort)
@@ -194,17 +196,40 @@ func servePublic(ginServer *gin.Engine) {
 	ginServer.Static("/public/", filepath.Join(util.DataDir, "public"))
 }
 
-func serveAppearance(ginServer *gin.Engine) {
-	ginServer.StaticFile("favicon.ico", filepath.Join(util.WorkingDir, "stage", "icon.png"))
-	ginServer.StaticFile("manifest.json", filepath.Join(util.WorkingDir, "stage", "manifest.webmanifest"))
-	ginServer.StaticFile("manifest.webmanifest", filepath.Join(util.WorkingDir, "stage", "manifest.webmanifest"))
+func serveSnippets(ginServer *gin.Engine) {
+	ginServer.Handle("GET", "/snippets/*filepath", func(c *gin.Context) {
+		filePath := strings.TrimPrefix(c.Request.URL.Path, "/snippets/")
+		ext := filepath.Ext(filePath)
+		name := strings.TrimSuffix(filePath, ext)
+		confSnippets, err := model.LoadSnippets()
+		if nil != err {
+			logging.LogErrorf("load snippets failed: %s", err)
+			c.Status(http.StatusNotFound)
+			return
+		}
 
+		for _, s := range confSnippets {
+			if s.Name == name && ("" != ext && s.Type == ext[1:]) {
+				c.Header("Content-Type", mime.TypeByExtension(ext))
+				c.String(http.StatusOK, s.Content)
+				return
+			}
+		}
+
+		// 没有在配置文件中命中时在文件系统上查找
+		filePath = filepath.Join(util.SnippetsPath, filePath)
+		c.File(filePath)
+	})
+}
+
+func serveAppearance(ginServer *gin.Engine) {
 	siyuan := ginServer.Group("", model.CheckAuth)
 
 	siyuan.Handle("GET", "/", func(c *gin.Context) {
 		userAgentHeader := c.GetHeader("User-Agent")
+		logging.LogInfof("serving [/] for user-agent [%s]", userAgentHeader)
 
-		/* Carry query parameters when redirecting */
+		// Carry query parameters when redirecting
 		location := url.URL{}
 		queryParams := c.Request.URL.Query()
 		queryParams.Set("r", gulu.Rand.String(7))
@@ -292,12 +317,13 @@ func serveAppearance(ginServer *gin.Engine) {
 	})
 
 	siyuan.Static("/stage/", filepath.Join(util.WorkingDir, "stage"))
-	ginServer.StaticFile("service-worker.js", filepath.Join(util.WorkingDir, "stage", "service-worker.js"))
-
-	siyuan.GET("/check-auth", serveCheckAuth)
 }
 
-func serveCheckAuth(c *gin.Context) {
+func serveCheckAuth(ginServer *gin.Engine) {
+	ginServer.GET("/check-auth", serveAuthPage)
+}
+
+func serveAuthPage(c *gin.Context) {
 	data, err := os.ReadFile(filepath.Join(util.WorkingDir, "stage/auth.html"))
 	if nil != err {
 		logging.LogErrorf("load auth page failed: %s", err)
@@ -312,19 +338,42 @@ func serveCheckAuth(c *gin.Context) {
 		return
 	}
 
+	keymapHideWindow := "⌥M"
+	if nil != (*model.Conf.Keymap)["general"] {
+		switch (*model.Conf.Keymap)["general"].(type) {
+		case map[string]interface{}:
+			keymapGeneral := (*model.Conf.Keymap)["general"].(map[string]interface{})
+			if nil != keymapGeneral["toggleWin"] {
+				switch keymapGeneral["toggleWin"].(type) {
+				case map[string]interface{}:
+					toggleWin := keymapGeneral["toggleWin"].(map[string]interface{})
+					if nil != toggleWin["custom"] {
+						keymapHideWindow = toggleWin["custom"].(string)
+					}
+				}
+			}
+		}
+		if "" == keymapHideWindow {
+			keymapHideWindow = "⌥M"
+		}
+	}
 	model := map[string]interface{}{
-		"l0":               model.Conf.Language(173),
-		"l1":               model.Conf.Language(174),
-		"l2":               template.HTML(model.Conf.Language(172)),
-		"l3":               model.Conf.Language(175),
-		"l4":               model.Conf.Language(176),
-		"l5":               model.Conf.Language(177),
-		"l6":               model.Conf.Language(178),
-		"l7":               template.HTML(model.Conf.Language(184)),
-		"appearanceMode":   model.Conf.Appearance.Mode,
-		"appearanceModeOS": model.Conf.Appearance.ModeOS,
-		"workspace":        filepath.Base(util.WorkspaceDir),
-		"workspacePath":    util.WorkspaceDir,
+		"l0":                     model.Conf.Language(173),
+		"l1":                     model.Conf.Language(174),
+		"l2":                     template.HTML(model.Conf.Language(172)),
+		"l3":                     model.Conf.Language(175),
+		"l4":                     model.Conf.Language(176),
+		"l5":                     model.Conf.Language(177),
+		"l6":                     model.Conf.Language(178),
+		"l7":                     template.HTML(model.Conf.Language(184)),
+		"l8":                     model.Conf.Language(95),
+		"appearanceMode":         model.Conf.Appearance.Mode,
+		"appearanceModeOS":       model.Conf.Appearance.ModeOS,
+		"workspace":              filepath.Base(util.WorkspaceDir),
+		"workspacePath":          util.WorkspaceDir,
+		"keymapGeneralToggleWin": keymapHideWindow,
+		"trayMenuLangs":          util.TrayMenuLangs[util.Lang],
+		"workspaceDir":           util.WorkspaceDir,
 	}
 	buf := &bytes.Buffer{}
 	if err = tpl.Execute(buf, model); nil != err {
@@ -337,20 +386,30 @@ func serveCheckAuth(c *gin.Context) {
 }
 
 func serveAssets(ginServer *gin.Engine) {
-	ginServer.POST("/upload", model.CheckAuth, model.Upload)
+	ginServer.POST("/upload", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, model.Upload)
 
 	ginServer.GET("/assets/*path", model.CheckAuth, func(context *gin.Context) {
 		requestPath := context.Param("path")
 		relativePath := path.Join("assets", requestPath)
 		p, err := model.GetAssetAbsPath(relativePath)
 		if nil != err {
-			context.Status(404)
-			return
+			if strings.Contains(strings.TrimPrefix(requestPath, "/"), "/") {
+				// 再使用编码过的路径解析一次 https://github.com/siyuan-note/siyuan/issues/11823
+				dest := url.PathEscape(strings.TrimPrefix(requestPath, "/"))
+				dest = strings.ReplaceAll(dest, ":", "%3A")
+				relativePath = path.Join("assets", dest)
+				p, err = model.GetAssetAbsPath(relativePath)
+			}
+
+			if nil != err {
+				context.Status(http.StatusNotFound)
+				return
+			}
 		}
 		http.ServeFile(context.Writer, context.Request, p)
 		return
 	})
-	ginServer.GET("/history/*path", model.CheckAuth, func(context *gin.Context) {
+	ginServer.GET("/history/*path", model.CheckAuth, model.CheckAdminRole, func(context *gin.Context) {
 		p := filepath.Join(util.HistoryDir, context.Param("path"))
 		http.ServeFile(context.Writer, context.Request, p)
 		return
@@ -358,7 +417,7 @@ func serveAssets(ginServer *gin.Engine) {
 }
 
 func serveRepoDiff(ginServer *gin.Engine) {
-	ginServer.GET("/repo/diff/*path", model.CheckAuth, func(context *gin.Context) {
+	ginServer.GET("/repo/diff/*path", model.CheckAuth, model.CheckAdminRole, func(context *gin.Context) {
 		requestPath := context.Param("path")
 		p := filepath.Join(util.TempDir, "repo", "diff", requestPath)
 		http.ServeFile(context.Writer, context.Request, p)
@@ -367,6 +426,11 @@ func serveRepoDiff(ginServer *gin.Engine) {
 }
 
 func serveDebug(ginServer *gin.Engine) {
+	if "prod" == util.Mode {
+		// The production environment will no longer register `/debug/pprof/` https://github.com/siyuan-note/siyuan/issues/10152
+		return
+	}
+
 	ginServer.GET("/debug/pprof/", gin.WrapF(pprof.Index))
 	ginServer.GET("/debug/pprof/allocs", gin.WrapF(pprof.Index))
 	ginServer.GET("/debug/pprof/block", gin.WrapF(pprof.Index))
@@ -420,6 +484,17 @@ func serveWebSocket(ginServer *gin.Engine) {
 			}
 		}
 
+		// REF: https://github.com/siyuan-note/siyuan/issues/11364
+		if !authOk {
+			if token := model.ParseXAuthToken(s.Request); token != nil {
+				authOk = token.Valid && model.IsValidRole(model.GetClaimRole(model.GetTokenClaims(token)), []model.Role{
+					model.RoleAdministrator,
+					model.RoleEditor,
+					model.RoleReader,
+				})
+			}
+		}
+
 		if !authOk {
 			// 用于授权页保持连接，避免非常驻内存内核自动退出 https://github.com/siyuan-note/insider/issues/1099
 			authOk = strings.Contains(s.Request.RequestURI, "/ws?app=siyuan&id=auth")
@@ -427,7 +502,7 @@ func serveWebSocket(ginServer *gin.Engine) {
 
 		if !authOk {
 			s.CloseWithMsg([]byte("  unauthenticated"))
-			logging.LogWarnf("closed an unauthenticated session [%s]", util.GetRemoteAddr(s))
+			logging.LogWarnf("closed an unauthenticated session [%s]", util.GetRemoteAddr(s.Request))
 			return
 		}
 
@@ -485,12 +560,24 @@ func serveWebSocket(ginServer *gin.Engine) {
 			s.Write(result.Bytes())
 			return
 		}
-		if util.ReadOnly && !command.IsRead() {
-			result := util.NewResult()
-			result.Code = -1
-			result.Msg = model.Conf.Language(34)
-			s.Write(result.Bytes())
-			return
+		if !command.IsRead() {
+			readonly := util.ReadOnly
+			if !readonly {
+				if token := model.ParseXAuthToken(s.Request); token != nil {
+					readonly = token.Valid && model.IsValidRole(model.GetClaimRole(model.GetTokenClaims(token)), []model.Role{
+						model.RoleReader,
+						model.RoleVisitor,
+					})
+				}
+			}
+
+			if readonly {
+				result := util.NewResult()
+				result.Code = -1
+				result.Msg = model.Conf.Language(34)
+				s.Write(result.Bytes())
+				return
+			}
 		}
 
 		end := time.Now()
@@ -525,10 +612,38 @@ func corsMiddleware() gin.HandlerFunc {
 		c.Header("Access-Control-Allow-Private-Network", "true")
 
 		if c.Request.Method == "OPTIONS" {
+			c.Header("Access-Control-Max-Age", "600")
 			c.AbortWithStatus(204)
 			return
 		}
 
 		c.Next()
 	}
+}
+
+// jwtMiddleware is a middleware to check jwt token
+// REF: https://github.com/siyuan-note/siyuan/issues/11364
+func jwtMiddleware(c *gin.Context) {
+	if token := model.ParseXAuthToken(c.Request); token != nil {
+		// c.Request.Header.Del(model.XAuthTokenKey)
+		if token.Valid {
+			claims := model.GetTokenClaims(token)
+			c.Set(model.ClaimsContextKey, claims)
+			c.Set(model.RoleContextKey, model.GetClaimRole(claims))
+			c.Next()
+			return
+		}
+	}
+	c.Set(model.RoleContextKey, model.RoleVisitor)
+	c.Next()
+	return
+}
+
+func serveFixedStaticFiles(ginServer *gin.Engine) {
+	ginServer.StaticFile("favicon.ico", filepath.Join(util.WorkingDir, "stage", "icon.png"))
+
+	ginServer.StaticFile("manifest.json", filepath.Join(util.WorkingDir, "stage", "manifest.webmanifest"))
+	ginServer.StaticFile("manifest.webmanifest", filepath.Join(util.WorkingDir, "stage", "manifest.webmanifest"))
+
+	ginServer.StaticFile("service-worker.js", filepath.Join(util.WorkingDir, "stage", "service-worker.js"))
 }

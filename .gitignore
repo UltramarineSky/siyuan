@@ -24,6 +24,7 @@ electron/dist
 
 # IDE
 .idea/
+.vscode/
 
 # Log
 logs
@@ -37,3 +38,6 @@ lerna-debug.log*
 # NPM Package
 package-lock.json
 yarn.lock
+
+# Workflows
+**/__pycache__

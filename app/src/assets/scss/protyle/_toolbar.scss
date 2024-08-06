@@ -1,7 +1,7 @@
 .protyle {
   &-toolbar {
     background-color: var(--b3-theme-background);
-    z-index: 3;
+    z-index: 4; // https://ld246.com/article/1697096086017
     position: fixed;
     box-shadow: var(--b3-point-shadow);
     border-radius: var(--b3-border-radius);
@@ -14,7 +14,8 @@
       background-color: transparent;
       height: 29px;
       box-sizing: border-box;
-      font-size: 0;
+      font-size: 10px;
+      white-space: nowrap;
       padding: 1px 6px;
 
       &:focus {
@@ -37,6 +38,14 @@
       &:hover {
         background-color: var(--b3-theme-surface-lighter);
       }
+
+      &:first-child {
+        border-radius: var(--b3-border-radius) 0 0 var(--b3-border-radius);
+      }
+
+      &:last-child {
+        border-radius: 0 var(--b3-border-radius) var(--b3-border-radius) 0;
+      }
     }
 
     &__divider {
@@ -51,11 +60,13 @@
     box-shadow: var(--b3-dialog-shadow);
     border: 1px solid var(--b3-theme-surface-lighter);
     background-color: var(--b3-menu-background);
-    z-index: 201;
+    z-index: 5;
     overflow: auto;
     max-height: 402px;
-    box-sizing: border-box;
+    // 不能使用，否则 hint emoji 出现双滚动条 box-sizing: border-box;
     padding: 8px 0;
+    display: flex;
+    flex-direction: column;
   }
 
   &-util {
@@ -64,7 +75,7 @@
     box-shadow: var(--b3-dialog-shadow);
     border: 1px solid var(--b3-theme-surface-lighter);
     background-color: var(--b3-menu-background);
-    padding: 8px;
+    padding: 8px 0;
     max-height: 80vh;
     z-index: 4;
     box-sizing: border-box;

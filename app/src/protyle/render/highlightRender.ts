@@ -2,7 +2,6 @@ import {addScript} from "../util/addScript";
 import {Constants} from "../../constants";
 import {focusByOffset} from "../util/selection";
 import {setCodeTheme} from "../../util/assets";
-import {hasClosestByClassName} from "../util/hasClosest";
 
 export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
     let codeElements: NodeListOf<Element>;
@@ -34,6 +33,11 @@ export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) =
     addScript(`${cdn}/js/highlight.js/highlight.min.js?v=11.7.0`, "protyleHljsScript").then(() => {
         addScript(`${cdn}/js/highlight.js/third-languages.js?v=1.0.1`, "protyleHljsThirdScript").then(() => {
             codeElements.forEach((block: HTMLElement) => {
+                const iconElements = block.parentElement.querySelectorAll(".protyle-icon");
+                if (iconElements.length === 2) {
+                    iconElements[0].setAttribute("aria-label", window.siyuan.languages.copy);
+                    iconElements[1].setAttribute("aria-label", window.siyuan.languages.more);
+                }
                 if (block.getAttribute("data-render") === "true") {
                     return;
                 }
@@ -61,7 +65,7 @@ export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) =
                     // bazaar readme
                     language = block.className.replace("language-", "");
                 }
-                if (!hljs.getLanguage(language)) {
+                if (!window.hljs.getLanguage(language)) {
                     language = "plaintext";
                 }
                 block.classList.add("hljs");
@@ -71,7 +75,7 @@ export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) =
                 const lineNumber = block.parentElement.getAttribute("linenumber");
                 if (autoEnter === "true" || (autoEnter !== "false" && window.siyuan.config.editor.codeLineWrap)) {
                     block.style.setProperty("white-space", "pre-wrap");
-                    block.style.setProperty("word-break", "break-all");
+                    block.style.setProperty("word-break", "break-word");
                 } else {
                     // https://ld246.com/article/1684031600711 该属性会导致有 tab 后光标跳至末尾，目前无解
                     block.style.setProperty("white-space", "pre");
@@ -86,10 +90,7 @@ export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) =
                 if (!isPreview && (lineNumber === "true" || (lineNumber !== "false" && window.siyuan.config.editor.codeSyntaxHighlightLineNum))) {
                     // 需要先添加 class 以防止抖动 https://ld246.com/article/1648116585443
                     block.classList.add("protyle-linenumber");
-                    setTimeout(() => {
-                        // windows 需等待字体下载完成再计算，否则导致不换行，高度计算错误
-                        lineNumberRender(block);
-                    }, 20);
+                    lineNumberRender(block);
                     if (languageElement) {
                         languageElement.style.marginLeft = "3.6em";
                     }
@@ -100,15 +101,7 @@ export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) =
                         languageElement.style.marginLeft = "";
                     }
                 }
-                // 搜索定位
-                const layoutElement = hasClosestByClassName(block, "search__layout", true);
-                if (layoutElement && block.parentElement.getAttribute("data-node-id") === layoutElement.querySelector("#searchList > .b3-list-item--focus")?.getAttribute("data-node-id")) {
-                    const matchElement = block.querySelector('span[data-type="search-mark"]');
-                    if (matchElement) {
-                        matchElement.scrollIntoView();
-                    }
-                }
-                block.innerHTML = hljs.highlight(
+                block.innerHTML = window.hljs.highlight(
                     block.textContent + (block.textContent.endsWith("\n") ? "" : "\n"), // https://github.com/siyuan-note/siyuan/issues/4609
                     {
                         language,
@@ -123,16 +116,19 @@ export const highlightRender = (element: Element, cdn = Constants.PROTYLE_CDN) =
 };
 
 export const lineNumberRender = (block: HTMLElement) => {
-    if (block.parentElement.getAttribute("lineNumber") === "false") {
+    const lineNumber = block.parentElement.getAttribute("lineNumber");
+    if (lineNumber === "false") {
         return;
     }
-    if (block.nextElementSibling && block.nextElementSibling.clientHeight === block.clientHeight) {
+    if (!window.siyuan.config.editor.codeSyntaxHighlightLineNum && lineNumber !== "true") {
         return;
     }
     block.classList.add("protyle-linenumber");
+    // clientHeight 总是取的整数
+    block.parentElement.style.lineHeight = `${((parseInt(block.parentElement.style.fontSize) || window.siyuan.config.editor.fontSize) * 1.625 * 0.85).toFixed(0)}px`;
     const lineNumberTemp = document.createElement("div");
     lineNumberTemp.className = "hljs protyle-linenumber";
-    lineNumberTemp.setAttribute("style", `padding-top:0 !important;padding-bottom:0 !important;min-height:auto !important;white-space:${block.style.whiteSpace};word-break:${block.style.wordBreak};font-variant-ligatures:${block.style.fontVariantLigatures};`);
+    lineNumberTemp.setAttribute("style", `box-sizing: border-box;width: calc(100% - 3.6em);position: absolute;padding-top:0 !important;padding-bottom:0 !important;min-height:auto !important;white-space:${block.style.whiteSpace};word-break:${block.style.wordBreak};font-variant-ligatures:${block.style.fontVariantLigatures};`);
     lineNumberTemp.setAttribute("contenteditable", "true");
     block.insertAdjacentElement("afterend", lineNumberTemp);
 
@@ -141,13 +137,16 @@ export const lineNumberRender = (block: HTMLElement) => {
     if (lineList[lineList.length - 1] === "" && lineList.length > 1) {
         lineList.pop();
     }
-    const isWrap = block.style.wordBreak === "break-all";
+    const isWrap = block.style.wordBreak === "break-word";
     lineList.map((line) => {
         let lineHeight = "";
         if (isWrap) {
             lineNumberTemp.textContent = line || "\n";
-            const height = lineNumberTemp.getBoundingClientRect().height;
-            lineHeight = ` style="height:${height}px;"`;
+            // 不能使用 lineNumberTemp.getBoundingClientRect().height.toFixed(1) 否则
+            // windows 需等待字体下载完成再计算，否则导致不换行，高度计算错误
+            // https://github.com/siyuan-note/siyuan/issues/9029
+            // https://github.com/siyuan-note/siyuan/issues/9140
+            lineHeight = ` style="height:${lineNumberTemp.clientHeight}px;"`;
         }
         lineNumberHTML += `<span${lineHeight}></span>`;
     });

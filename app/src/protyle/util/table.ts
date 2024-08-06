@@ -2,9 +2,24 @@ import {updateTransaction} from "../wysiwyg/transaction";
 import {getSelectionOffset, focusByWbr, focusByRange, focusBlock} from "./selection";
 import {hasClosestBlock, hasClosestByMatchTag} from "./hasClosest";
 import {matchHotKey} from "./hotKey";
-import {isCtrl} from "./compatibility";
+import {isNotCtrl} from "./compatibility";
 import {scrollCenter} from "../../util/highlightById";
 import {insertEmptyBlock} from "../../block/util";
+import {removeBlock} from "../wysiwyg/remove";
+import {hasPreviousSibling} from "../wysiwyg/getBlock";
+
+const scrollToView = (nodeElement: Element, rowElement: HTMLElement, protyle: IProtyle) => {
+    if (nodeElement.getAttribute("custom-pinthead") === "true") {
+        const tableElement = nodeElement.querySelector("table");
+        if (tableElement.clientHeight + tableElement.scrollTop < rowElement.offsetTop + rowElement.clientHeight) {
+            tableElement.scrollTop = rowElement.offsetTop - tableElement.clientHeight + rowElement.clientHeight + 1;
+        } else if (tableElement.scrollTop > rowElement.offsetTop - rowElement.clientHeight) {
+            tableElement.scrollTop = rowElement.offsetTop - rowElement.clientHeight + 1;
+        }
+    } else {
+        scrollCenter(protyle, rowElement);
+    }
+};
 
 export const getColIndex = (cellElement: HTMLElement) => {
     let previousElement = cellElement.previousElementSibling;
@@ -96,7 +111,7 @@ export const insertRow = (protyle: IProtyle, range: Range, cellElement: HTMLElem
     range.collapse(true);
     focusByRange(range);
     updateTransaction(protyle, nodeElement.getAttribute("data-node-id"), nodeElement.outerHTML, html);
-    scrollCenter(protyle, newRowElememt);
+    scrollToView(nodeElement, newRowElememt, protyle);
 };
 
 export const insertRowAbove = (protyle: IProtyle, range: Range, cellElement: HTMLElement, nodeElement: Element) => {
@@ -148,7 +163,7 @@ export const insertRowAbove = (protyle: IProtyle, range: Range, cellElement: HTM
     range.collapse(true);
     focusByRange(range);
     updateTransaction(protyle, nodeElement.getAttribute("data-node-id"), nodeElement.outerHTML, html);
-    scrollCenter(protyle, newRowElememt);
+    scrollToView(nodeElement, newRowElememt, protyle);
 };
 
 export const insertColumn = (protyle: IProtyle, nodeElement: Element, cellElement: HTMLElement, type: InsertPosition, range: Range) => {
@@ -198,7 +213,7 @@ export const deleteRow = (protyle: IProtyle, range: Range, cellElement: HTMLElem
         range.selectNodeContents(previousTrElement.cells[index]);
         range.collapse(true);
         focusByRange(range);
-        scrollCenter(protyle, previousTrElement);
+        scrollToView(nodeElement, previousTrElement, protyle);
         updateTransaction(protyle, nodeElement.getAttribute("data-node-id"), nodeElement.outerHTML, html);
     }
 };
@@ -217,6 +232,10 @@ export const deleteColumn = (protyle: IProtyle, range: Range, nodeElement: Eleme
         if (sideCellElement.offsetLeft + sideCellElement.clientWidth > nodeElement.firstElementChild.scrollLeft + nodeElement.firstElementChild.clientWidth) {
             nodeElement.firstElementChild.scrollLeft = sideCellElement.offsetLeft + sideCellElement.clientWidth - nodeElement.firstElementChild.clientWidth;
         }
+    } else {
+        nodeElement.classList.add("protyle-wysiwyg--select");
+        removeBlock(protyle, nodeElement, range, "remove");
+        return;
     }
     const tableElement = nodeElement.querySelector("table");
     for (let i = 0; i < tableElement.rows.length; i++) {
@@ -356,7 +375,7 @@ export const fixTable = (protyle: IProtyle, event: KeyboardEvent, range: Range) 
     }
 
     // shift+enter 软换行
-    if (event.key === "Enter" && event.shiftKey && !isCtrl(event) && !event.altKey) {
+    if (event.key === "Enter" && event.shiftKey && isNotCtrl(event) && !event.altKey) {
         const wbrElement = document.createElement("wbr");
         range.insertNode(wbrElement);
         const oldHTML = nodeElement.outerHTML;
@@ -381,11 +400,12 @@ export const fixTable = (protyle: IProtyle, event: KeyboardEvent, range: Range) 
         return true;
     }
     // enter 光标跳转到下一行同列
-    if (!isCtrl(event) && !event.shiftKey && !event.altKey && event.key === "Enter") {
+    if (isNotCtrl(event) && !event.shiftKey && !event.altKey && event.key === "Enter") {
         event.preventDefault();
         const trElement = cellElement.parentElement as HTMLTableRowElement;
         if ((!trElement.nextElementSibling && trElement.parentElement.tagName === "TBODY") ||
             (trElement.parentElement.tagName === "THEAD" && !trElement.parentElement.nextElementSibling)) {
+            insertEmptyBlock(protyle, "afterend", nodeElement.getAttribute("data-node-id"));
             return true;
         }
         let nextElement = trElement.nextElementSibling as HTMLTableRowElement;
@@ -410,7 +430,7 @@ export const fixTable = (protyle: IProtyle, event: KeyboardEvent, range: Range) 
         return true;
     }
     // tab：光标移向下一个 cell
-    if (event.key === "Tab" && !event.ctrlKey) {
+    if (event.key === "Tab" && isNotCtrl(event)) {
         if (event.shiftKey) {
             // shift + tab 光标移动到前一个 cell
             goPreviousCell(cellElement, range);
@@ -440,18 +460,18 @@ export const fixTable = (protyle: IProtyle, event: KeyboardEvent, range: Range) 
         return true;
     }
 
-    if (event.key === "ArrowUp" && !isCtrl(event) && !event.shiftKey && !event.altKey) {
+    if (event.key === "ArrowUp" && isNotCtrl(event) && !event.shiftKey && !event.altKey) {
         const startContainer = range.startContainer as HTMLElement;
         let previousBrElement;
         if (startContainer.nodeType !== 3 && (startContainer.tagName === "TH" || startContainer.tagName === "TD")) {
-            previousBrElement = (startContainer.childNodes[Math.max(0, range.startOffset - 1)] as HTMLElement)?.previousElementSibling;
+            previousBrElement = (startContainer.childNodes[Math.min(range.startOffset, startContainer.childNodes.length - 1)] as HTMLElement);
         } else if (startContainer.parentElement.tagName === "SPAN") {
             previousBrElement = startContainer.parentElement.previousElementSibling;
         } else {
             previousBrElement = startContainer.previousElementSibling;
         }
         while (previousBrElement) {
-            if (previousBrElement.tagName === "BR") {
+            if (previousBrElement.tagName === "BR" && hasPreviousSibling(previousBrElement)) {
                 return false;
             }
             previousBrElement = previousBrElement.previousElementSibling;
@@ -471,7 +491,7 @@ export const fixTable = (protyle: IProtyle, event: KeyboardEvent, range: Range) 
         return true;
     }
 
-    if (event.key === "ArrowDown" && !isCtrl(event) && !event.shiftKey && !event.altKey) {
+    if (event.key === "ArrowDown" && isNotCtrl(event) && !event.shiftKey && !event.altKey) {
         const endContainer = range.endContainer as HTMLElement;
         let nextBrElement;
         if (endContainer.nodeType !== 3 && (endContainer.tagName === "TH" || endContainer.tagName === "TD")) {
@@ -507,7 +527,7 @@ export const fixTable = (protyle: IProtyle, event: KeyboardEvent, range: Range) 
     }
 
     // Backspace：光标移动到前一个 cell
-    if (!isCtrl(event) && !event.shiftKey && !event.altKey && event.key === "Backspace"
+    if (isNotCtrl(event) && !event.shiftKey && !event.altKey && event.key === "Backspace"
         && getSelectionOffset(cellElement, protyle.wysiwyg.element, range).start === 0 && range.toString() === "" &&
         // 空换行无法删除 https://github.com/siyuan-note/siyuan/issues/2732
         (range.startOffset === 0 || (range.startOffset === 1 && cellElement.querySelectorAll("br").length === 1))) {

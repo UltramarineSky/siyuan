@@ -41,13 +41,13 @@ func execNewVerInstallPkg(newVerInstallPkgPath string) {
 	logging.LogInfof("installing the new version [%s]", newVerInstallPkgPath)
 	var cmd *exec.Cmd
 	if gulu.OS.IsWindows() {
-		cmd = exec.Command("cmd.exe", "/C", "start", newVerInstallPkgPath)
+		cmd = exec.Command(newVerInstallPkgPath)
 	} else if gulu.OS.IsDarwin() {
 		exec.Command("chmod", "+x", newVerInstallPkgPath).CombinedOutput()
 		cmd = exec.Command("open", newVerInstallPkgPath)
 	}
 	gulu.CmdAttr(cmd)
-	cmdErr := cmd.Start()
+	cmdErr := cmd.Run()
 	if nil != cmdErr {
 		logging.LogErrorf("exec install new version failed: %s", cmdErr)
 		return
@@ -82,11 +82,9 @@ func checkDownloadInstallPkg() {
 		return
 	}
 
-	if util.IsMutexLocked(&checkDownloadInstallPkgLock) {
+	if !checkDownloadInstallPkgLock.TryLock() {
 		return
 	}
-
-	checkDownloadInstallPkgLock.Lock()
 	defer checkDownloadInstallPkgLock.Unlock()
 
 	downloadPkgURLs, checksum, err := getUpdatePkg()
@@ -123,7 +121,11 @@ func getUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
 
 	var suffix string
 	if gulu.OS.IsWindows() {
-		suffix = "win.exe"
+		if "arm64" == runtime.GOARCH {
+			suffix = "win-arm64.exe"
+		} else {
+			suffix = "win.exe"
+		}
 	} else if gulu.OS.IsDarwin() {
 		if "arm64" == runtime.GOARCH {
 			suffix = "mac-arm64.dmg"
@@ -134,11 +136,19 @@ func getUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
 	pkg := "siyuan-" + ver + "-" + suffix
 
 	b3logURL := "https://release.b3log.org/siyuan/" + pkg
-	downloadPkgURLs = append(downloadPkgURLs, b3logURL)
+	liuyunURL := "https://release.liuyun.io/siyuan/" + pkg
 	githubURL := "https://github.com/siyuan-note/siyuan/releases/download/v" + ver + "/" + pkg
-	ghproxyURL := "https://ghproxy.com/" + githubURL
-	downloadPkgURLs = append(downloadPkgURLs, ghproxyURL)
-	downloadPkgURLs = append(downloadPkgURLs, githubURL)
+	ghproxyURL := "https://mirror.ghproxy.com/" + githubURL
+	if util.IsChinaCloud() {
+		downloadPkgURLs = append(downloadPkgURLs, b3logURL)
+		downloadPkgURLs = append(downloadPkgURLs, liuyunURL)
+		downloadPkgURLs = append(downloadPkgURLs, ghproxyURL)
+		downloadPkgURLs = append(downloadPkgURLs, githubURL)
+	} else {
+		downloadPkgURLs = append(downloadPkgURLs, githubURL)
+		downloadPkgURLs = append(downloadPkgURLs, b3logURL)
+		downloadPkgURLs = append(downloadPkgURLs, liuyunURL)
+	}
 
 	checksums := result["checksums"].(map[string]interface{})
 	checksum = checksums[pkg].(string)
@@ -243,6 +253,10 @@ func GetAnnouncements() (ret []*Announcement) {
 
 func CheckUpdate(showMsg bool) {
 	if !showMsg {
+		return
+	}
+
+	if Conf.System.IsMicrosoftStore {
 		return
 	}
 

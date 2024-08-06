@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/html"
@@ -28,6 +29,42 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/model"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func getBlockTreeInfos(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var ids []string
+	idsArg := arg["ids"].([]interface{})
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+
+	ret.Data = model.GetBlockTreeInfos(ids)
+}
+
+func getBlockSiblingID(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	id := arg["id"].(string)
+	parent, previous, next := model.GetBlockSiblingID(id)
+	ret.Data = map[string]string{
+		"parent":   parent,
+		"next":     next,
+		"previous": previous,
+	}
+}
 
 func transferBlockRef(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -47,6 +84,11 @@ func transferBlockRef(c *gin.Context) {
 		return
 	}
 
+	reloadUI := true
+	if nil != arg["reloadUI"] {
+		reloadUI = arg["reloadUI"].(bool)
+	}
+
 	var refIDs []string
 	if nil != arg["refIDs"] {
 		for _, refID := range arg["refIDs"].([]interface{}) {
@@ -60,6 +102,10 @@ func transferBlockRef(c *gin.Context) {
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
 		return
+	}
+
+	if reloadUI {
+		util.ReloadUI()
 	}
 }
 
@@ -187,7 +233,11 @@ func checkBlockFold(c *gin.Context) {
 	}
 
 	id := arg["id"].(string)
-	ret.Data = model.IsBlockFolded(id)
+	isFolded, isRoot := model.IsBlockFolded(id)
+	ret.Data = map[string]interface{}{
+		"isFolded": isFolded,
+		"isRoot":   isRoot,
+	}
 }
 
 func checkBlockExist(c *gin.Context) {
@@ -279,6 +329,19 @@ func getTreeStat(c *gin.Context) {
 	ret.Data = model.StatTree(id)
 }
 
+func getDOMText(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	dom := arg["dom"].(string)
+	ret.Data = model.GetDOMText(dom)
+}
+
 func getRefText(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -290,7 +353,22 @@ func getRefText(c *gin.Context) {
 
 	id := arg["id"].(string)
 	model.WaitForWritingFiles()
-	ret.Data = model.GetBlockRefText(id)
+	refText := model.GetBlockRefText(id)
+	if "" == refText {
+		// 空块返回 id https://github.com/siyuan-note/siyuan/issues/10259
+		refText = id
+		ret.Data = refText
+		return
+	}
+
+	if strings.Count(refText, "\\") == len(refText) {
+		// 全部都是 \ 的话使用实体 https://github.com/siyuan-note/siyuan/issues/11473
+		refText = strings.ReplaceAll(refText, "\\", "&#92;")
+		ret.Data = refText
+		return
+	}
+
+	ret.Data = refText
 }
 
 func getRefIDs(c *gin.Context) {
@@ -394,6 +472,24 @@ func getBlockIndex(c *gin.Context) {
 	ret.Data = index
 }
 
+func getBlocksIndexes(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	idsArg := arg["ids"].([]interface{})
+	var ids []string
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+	index := model.GetBlocksIndexes(ids)
+	ret.Data = index
+}
+
 func getBlockInfo(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -405,7 +501,8 @@ func getBlockInfo(c *gin.Context) {
 
 	id := arg["id"].(string)
 
-	tree, err := model.LoadTreeByID(id)
+	// 仅在此处使用带重建索引的加载函数，其他地方不要使用
+	tree, err := model.LoadTreeByBlockIDWithReindex(id)
 	if errors.Is(err, model.ErrIndexing) {
 		ret.Code = 3
 		ret.Msg = model.Conf.Language(56)
@@ -504,4 +601,30 @@ func getChildBlocks(c *gin.Context) {
 	}
 
 	ret.Data = model.GetChildBlocks(id)
+}
+
+func getTailChildBlocks(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	id := arg["id"].(string)
+	if util.InvalidIDPattern(id, ret) {
+		return
+	}
+
+	var n int
+	nArg := arg["n"]
+	if nil != nArg {
+		n = int(nArg.(float64))
+	}
+	if 1 > n {
+		n = 7
+	}
+
+	ret.Data = model.GetTailChildBlocks(id, n)
 }

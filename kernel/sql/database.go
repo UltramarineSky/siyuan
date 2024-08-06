@@ -27,8 +27,10 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 	"unicode/utf8"
 
@@ -45,8 +47,9 @@ import (
 )
 
 var (
-	db        *sql.DB
-	historyDB *sql.DB
+	db             *sql.DB
+	historyDB      *sql.DB
+	assetContentDB *sql.DB
 )
 
 func init() {
@@ -79,6 +82,7 @@ func InitDatabase(forceRebuild bool) (err error) {
 	}
 
 	initDBConnection()
+	treenode.InitBlockTree(forceRebuild)
 
 	if !forceRebuild {
 		// 检查数据库结构版本，如果版本不一致的话说明改过表结构，需要重建
@@ -97,9 +101,6 @@ func InitDatabase(forceRebuild bool) (err error) {
 			util.PushClearProgress()
 			err = nil
 		}
-	}
-	if gulu.File.IsExist(util.BlockTreePath) {
-		os.RemoveAll(util.BlockTreePath)
 	}
 
 	initDBConnection()
@@ -129,6 +130,16 @@ func initDBTables() {
 		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create table [blocks] failed: %s", err)
 	}
 
+	_, err = db.Exec("CREATE INDEX idx_blocks_id ON blocks(id)")
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create index [idx_blocks_id] failed: %s", err)
+	}
+
+	_, err = db.Exec("CREATE INDEX idx_blocks_root_id ON blocks(root_id)")
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create index [idx_blocks_root_id] failed: %s", err)
+	}
+
 	_, err = db.Exec("DROP TABLE IF EXISTS blocks_fts")
 	if nil != err {
 		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "drop table [blocks_fts] failed: %s", err)
@@ -155,6 +166,10 @@ func initDBTables() {
 	if nil != err {
 		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create table [spans] failed: %s", err)
 	}
+	_, err = db.Exec("CREATE INDEX idx_spans_root_id ON spans(root_id)")
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create index [idx_spans_root_id] failed: %s", err)
+	}
 
 	_, err = db.Exec("DROP TABLE IF EXISTS assets")
 	if nil != err {
@@ -164,6 +179,10 @@ func initDBTables() {
 	if nil != err {
 		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create table [assets] failed: %s", err)
 	}
+	_, err = db.Exec("CREATE INDEX idx_assets_root_id ON assets(root_id)")
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create index [idx_assets_root_id] failed: %s", err)
+	}
 
 	_, err = db.Exec("DROP TABLE IF EXISTS attributes")
 	if nil != err {
@@ -172,6 +191,10 @@ func initDBTables() {
 	_, err = db.Exec("CREATE TABLE attributes (id, name, value, type, block_id, root_id, box, path)")
 	if nil != err {
 		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create table [attributes] failed: %s", err)
+	}
+	_, err = db.Exec("CREATE INDEX idx_attributes_root_id ON attributes(root_id)")
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create index [idx_attributes_root_id] failed: %s", err)
 	}
 
 	_, err = db.Exec("DROP TABLE IF EXISTS refs")
@@ -193,7 +216,36 @@ func initDBTables() {
 	}
 }
 
+func initDBConnection() {
+	if nil != db {
+		closeDatabase()
+	}
+	dsn := util.DBPath + "?_journal_mode=WAL" +
+		"&_synchronous=OFF" +
+		"&_mmap_size=2684354560" +
+		"&_secure_delete=OFF" +
+		"&_cache_size=-20480" +
+		"&_page_size=32768" +
+		"&_busy_timeout=7000" +
+		"&_ignore_check_constraints=ON" +
+		"&_temp_store=MEMORY" +
+		"&_case_sensitive_like=OFF"
+	var err error
+	db, err = sql.Open("sqlite3_extended", dsn)
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create database failed: %s", err)
+	}
+	db.SetMaxIdleConns(20)
+	db.SetMaxOpenConns(20)
+	db.SetConnMaxLifetime(365 * 24 * time.Hour)
+}
+
+var initHistoryDatabaseLock = sync.Mutex{}
+
 func InitHistoryDatabase(forceRebuild bool) {
+	initHistoryDatabaseLock.Lock()
+	defer initHistoryDatabaseLock.Unlock()
+
 	initHistoryDBConnection()
 
 	if !forceRebuild && gulu.File.IsExist(util.HistoryDBPath) {
@@ -228,7 +280,7 @@ func initHistoryDBConnection() {
 	var err error
 	historyDB, err = sql.Open("sqlite3_extended", dsn)
 	if nil != err {
-		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create database failed: %s", err)
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create history database failed: %s", err)
 	}
 	historyDB.SetMaxIdleConns(3)
 	historyDB.SetMaxOpenConns(3)
@@ -243,11 +295,34 @@ func initHistoryDBTables() {
 	}
 }
 
-func initDBConnection() {
-	if nil != db {
-		closeDatabase()
+var initAssetContentDatabaseLock = sync.Mutex{}
+
+func InitAssetContentDatabase(forceRebuild bool) {
+	initAssetContentDatabaseLock.Lock()
+	defer initAssetContentDatabaseLock.Unlock()
+
+	initAssetContentDBConnection()
+
+	if !forceRebuild && gulu.File.IsExist(util.AssetContentDBPath) {
+		return
 	}
-	dsn := util.DBPath + "?_journal_mode=WAL" +
+
+	assetContentDB.Close()
+	if err := os.RemoveAll(util.AssetContentDBPath); nil != err {
+		logging.LogErrorf("remove assets database file [%s] failed: %s", util.AssetContentDBPath, err)
+		return
+	}
+
+	initAssetContentDBConnection()
+	initAssetContentDBTables()
+}
+
+func initAssetContentDBConnection() {
+	if nil != assetContentDB {
+		assetContentDB.Close()
+	}
+
+	dsn := util.AssetContentDBPath + "?_journal_mode=WAL" +
 		"&_synchronous=OFF" +
 		"&_mmap_size=2684354560" +
 		"&_secure_delete=OFF" +
@@ -258,13 +333,21 @@ func initDBConnection() {
 		"&_temp_store=MEMORY" +
 		"&_case_sensitive_like=OFF"
 	var err error
-	db, err = sql.Open("sqlite3_extended", dsn)
+	assetContentDB, err = sql.Open("sqlite3_extended", dsn)
 	if nil != err {
-		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create database failed: %s", err)
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create assets database failed: %s", err)
 	}
-	db.SetMaxIdleConns(20)
-	db.SetMaxOpenConns(20)
-	db.SetConnMaxLifetime(365 * 24 * time.Hour)
+	assetContentDB.SetMaxIdleConns(3)
+	assetContentDB.SetMaxOpenConns(3)
+	assetContentDB.SetConnMaxLifetime(365 * 24 * time.Hour)
+}
+
+func initAssetContentDBTables() {
+	assetContentDB.Exec("DROP TABLE asset_contents_fts_case_insensitive")
+	_, err := assetContentDB.Exec("CREATE VIRTUAL TABLE asset_contents_fts_case_insensitive USING fts5(id UNINDEXED, name, ext, path, size UNINDEXED, updated UNINDEXED, content, tokenize=\"siyuan case_insensitive\")")
+	if nil != err {
+		logging.LogFatalf(logging.ExitCodeReadOnlyDatabase, "create table [asset_contents_fts_case_insensitive] failed: %s", err)
+	}
 }
 
 var (
@@ -293,7 +376,9 @@ func refsFromTree(tree *parse.Tree) (refs []*Ref, fileAnnotationRefs []*FileAnno
 
 		if treenode.IsBlockRef(n) {
 			ref := buildRef(tree, n)
-			refs = append(refs, ref)
+			if !isRepeatedRef(refs, ref) {
+				refs = append(refs, ref)
+			}
 		} else if treenode.IsFileAnnotationRef(n) {
 			pathID := n.TextMarkFileAnnotationRefID
 			idx := strings.LastIndex(pathID, "/")
@@ -324,15 +409,32 @@ func refsFromTree(tree *parse.Tree) (refs []*Ref, fileAnnotationRefs []*FileAnno
 			fileAnnotationRefs = append(fileAnnotationRefs, ref)
 		} else if treenode.IsEmbedBlockRef(n) {
 			ref := buildEmbedRef(tree, n)
-			refs = append(refs, ref)
+			if !isRepeatedRef(refs, ref) {
+				refs = append(refs, ref)
+			}
 		}
 		return ast.WalkContinue
 	})
 	return
 }
 
+func isRepeatedRef(refs []*Ref, ref *Ref) bool {
+	// Repeated references to the same block within a block only count as one reference https://github.com/siyuan-note/siyuan/issues/9670
+	for _, r := range refs {
+		if r.DefBlockID == ref.DefBlockID && r.BlockID == ref.BlockID {
+			return true
+		}
+	}
+	return false
+}
+
 func buildRef(tree *parse.Tree, refNode *ast.Node) *Ref {
+	// 多个类型可能会导致渲染的 Markdown 不正确，所以这里只保留 block-ref 类型
+	tmpTyp := refNode.TextMarkType
+	refNode.TextMarkType = "block-ref"
 	markdown := treenode.ExportNodeStdMd(refNode, luteEngine)
+	refNode.TextMarkType = tmpTyp
+
 	defBlockID, text, _ := treenode.GetBlockRef(refNode)
 	var defBlockParentID, defBlockRootID, defBlockPath string
 	defBlock := treenode.GetBlockTree(defBlockID)
@@ -603,7 +705,7 @@ func buildSpanFromNode(n *ast.Node, tree *parse.Tree, rootID, boxID, p string) (
 		walkStatus = ast.WalkSkipChildren
 		return
 	case ast.NodeDocument:
-		if asset := docTitleImgAsset(n); nil != asset {
+		if asset := docTitleImgAsset(n, boxLocalPath, docDirLocalPath); nil != asset {
 			assets = append(assets, asset)
 		}
 		if tags := docTagSpans(n); 0 < len(tags) {
@@ -626,6 +728,16 @@ func buildSpanFromNode(n *ast.Node, tree *parse.Tree, rootID, boxID, p string) (
 			b, attrs := buildBlockFromNode(n, tree)
 			blocks = append(blocks, b)
 			attributes = append(attributes, attrs...)
+		}
+
+		if ast.NodeInlineHTML == n.Type {
+			// 没有行级 HTML，只有块级 HTML，这里转换为块
+			b, attrs := buildBlockFromNode(n, tree)
+			b.Type = ast.NodeHTMLBlock.String()
+			blocks = append(blocks, b)
+			attributes = append(attributes, attrs...)
+			walkStatus = ast.WalkContinue
+			return
 		}
 
 		if 1 > len(nodes) {
@@ -708,20 +820,30 @@ func buildBlockFromNode(n *ast.Node, tree *parse.Tree) (block *Block, attributes
 		length = utf8.RuneCountInString(fcontent)
 	} else if n.IsContainerBlock() {
 		markdown = treenode.ExportNodeStdMd(n, luteEngine)
-		content = treenode.NodeStaticContent(n, nil, true, indexAssetPath)
+		if !treenode.IsNodeOCRed(n) {
+			util.PushNodeOCRQueue(n)
+		}
+		content = NodeStaticContent(n, nil, true, indexAssetPath, true, nil)
+
 		fc := treenode.FirstLeafBlock(n)
-		fcontent = treenode.NodeStaticContent(fc, nil, false, false)
+		if !treenode.IsNodeOCRed(fc) {
+			util.PushNodeOCRQueue(fc)
+		}
+		fcontent = NodeStaticContent(fc, nil, true, false, true, nil)
+
 		parentID = n.Parent.ID
-		// 将标题块作为父节点
-		if h := heading(n); nil != h {
+		if h := heading(n); nil != h { // 如果在标题块下方，则将标题块作为父节点
 			parentID = h.ID
 		}
 		length = utf8.RuneCountInString(fcontent)
 	} else {
 		markdown = treenode.ExportNodeStdMd(n, luteEngine)
-		content = treenode.NodeStaticContent(n, nil, true, indexAssetPath)
+		if !treenode.IsNodeOCRed(n) {
+			util.PushNodeOCRQueue(n)
+		}
+		content = NodeStaticContent(n, nil, true, indexAssetPath, true, nil)
+
 		parentID = n.Parent.ID
-		// 将标题块作为父节点
 		if h := heading(n); nil != h {
 			parentID = h.ID
 		}
@@ -807,15 +929,13 @@ func tagFromNode(node *ast.Node) (ret string) {
 }
 
 func heading(node *ast.Node) *ast.Node {
+	if nil == node {
+		return nil
+	}
+
 	currentLevel := 16
 	if ast.NodeHeading == node.Type {
 		currentLevel = node.HeadingLevel
-	} else if ast.NodeSuperBlock == node.Type {
-		superBlockHeading := treenode.SuperBlockHeading(node)
-		if nil != superBlockHeading {
-			node = superBlockHeading
-			currentLevel = node.HeadingLevel
-		}
 	}
 
 	for prev := node.Previous; nil != prev; prev = prev.Previous {
@@ -851,30 +971,50 @@ func deleteByBoxTx(tx *sql.Tx, box string) (err error) {
 }
 
 func deleteBlocksByIDs(tx *sql.Tx, ids []string) (err error) {
-	in := bytes.Buffer{}
-	in.Grow(4096)
-	in.WriteString("(")
-	for i, id := range ids {
-		in.WriteString("'")
-		in.WriteString(id)
-		in.WriteString("'")
-		if i < len(ids)-1 {
-			in.WriteString(",")
-		}
+	if 1 > len(ids) {
+		return
+	}
 
+	var ftsIDs []string
+	for _, id := range ids {
 		removeBlockCache(id)
+		ftsIDs = append(ftsIDs, "\""+id+"\"")
 	}
-	in.WriteString(")")
-	stmt := "DELETE FROM blocks WHERE id IN " + in.String()
+
+	var rowIDs []string
+	stmt := "SELECT ROWID FROM blocks WHERE id IN (" + strings.Join(ftsIDs, ",") + ")"
+	rows, err := tx.Query(stmt)
+	if nil != err {
+		logging.LogErrorf("query block rowIDs failed: %s", err)
+		return
+	}
+	for rows.Next() {
+		var rowID int64
+		if err = rows.Scan(&rowID); nil != err {
+			logging.LogErrorf("scan block rowID failed: %s", err)
+			rows.Close()
+			return
+		}
+		rowIDs = append(rowIDs, strconv.FormatInt(rowID, 10))
+	}
+	rows.Close()
+
+	if 1 > len(rowIDs) {
+		return
+	}
+
+	stmt = "DELETE FROM blocks WHERE ROWID IN (" + strings.Join(rowIDs, ",") + ")"
 	if err = execStmtTx(tx, stmt); nil != err {
 		return
 	}
-	stmt = "DELETE FROM blocks_fts WHERE id IN " + in.String()
+
+	stmt = "DELETE FROM blocks_fts WHERE ROWID IN (" + strings.Join(rowIDs, ",") + ")"
 	if err = execStmtTx(tx, stmt); nil != err {
 		return
 	}
+
 	if !caseSensitive {
-		stmt = "DELETE FROM blocks_fts_case_insensitive WHERE id IN " + in.String()
+		stmt = "DELETE FROM blocks_fts_case_insensitive WHERE ROWID IN (" + strings.Join(rowIDs, ",") + ")"
 		if err = execStmtTx(tx, stmt); nil != err {
 			return
 		}
@@ -901,12 +1041,6 @@ func deleteBlocksByBoxTx(tx *sql.Tx, box string) (err error) {
 	return
 }
 
-func deleteSpansByPathTx(tx *sql.Tx, box, path string) (err error) {
-	stmt := "DELETE FROM spans WHERE box = ? AND path = ?"
-	err = execStmtTx(tx, stmt, box, path)
-	return
-}
-
 func deleteSpansByRootID(tx *sql.Tx, rootID string) (err error) {
 	stmt := "DELETE FROM spans WHERE root_id =?"
 	err = execStmtTx(tx, stmt, rootID)
@@ -919,21 +1053,9 @@ func deleteSpansByBoxTx(tx *sql.Tx, box string) (err error) {
 	return
 }
 
-func deleteAssetsByPathTx(tx *sql.Tx, box, path string) (err error) {
-	stmt := "DELETE FROM assets WHERE box = ? AND docpath = ?"
-	err = execStmtTx(tx, stmt, box, path)
-	return
-}
-
-func deleteAttributeByBlockID(tx *sql.Tx, blockID string) (err error) {
-	stmt := "DELETE FROM attributes WHERE block_id = ?"
-	err = execStmtTx(tx, stmt, blockID)
-	return
-}
-
-func deleteAttributesByPathTx(tx *sql.Tx, box, path string) (err error) {
-	stmt := "DELETE FROM attributes WHERE box = ? AND path = ?"
-	err = execStmtTx(tx, stmt, box, path)
+func deleteAssetsByRootID(tx *sql.Tx, rootID string) (err error) {
+	stmt := "DELETE FROM assets WHERE root_id = ?"
+	err = execStmtTx(tx, stmt, rootID)
 	return
 }
 
@@ -941,6 +1063,13 @@ func deleteAssetsByBoxTx(tx *sql.Tx, box string) (err error) {
 	stmt := "DELETE FROM assets WHERE box = ?"
 	err = execStmtTx(tx, stmt, box)
 	return
+}
+
+func deleteAttributesByRootID(tx *sql.Tx, rootID string) (err error) {
+	stmt := "DELETE FROM attributes WHERE root_id = ?"
+	err = execStmtTx(tx, stmt, rootID)
+	return
+
 }
 
 func deleteAttributesByBoxTx(tx *sql.Tx, box string) (err error) {
@@ -1023,12 +1152,20 @@ func deleteByRootID(tx *sql.Tx, rootID string, context map[string]interface{}) (
 	if err = execStmtTx(tx, stmt, rootID); nil != err {
 		return
 	}
+	stmt = "DELETE FROM attributes WHERE root_id = ?"
+	if err = execStmtTx(tx, stmt, rootID); nil != err {
+		return
+	}
 	ClearCache()
 	eventbus.Publish(eventbus.EvtSQLDeleteBlocks, context, rootID)
 	return
 }
 
 func batchDeleteByRootIDs(tx *sql.Tx, rootIDs []string, context map[string]interface{}) (err error) {
+	if 1 > len(rootIDs) {
+		return
+	}
+
 	ids := strings.Join(rootIDs, "','")
 	ids = "('" + ids + "')"
 	stmt := "DELETE FROM blocks WHERE root_id IN " + ids
@@ -1058,6 +1195,10 @@ func batchDeleteByRootIDs(tx *sql.Tx, rootIDs []string, context map[string]inter
 		return
 	}
 	stmt = "DELETE FROM file_annotation_refs WHERE root_id IN " + ids
+	if err = execStmtTx(tx, stmt); nil != err {
+		return
+	}
+	stmt = "DELETE FROM attributes WHERE root_id IN " + ids
 	if err = execStmtTx(tx, stmt); nil != err {
 		return
 	}
@@ -1097,28 +1238,32 @@ func batchDeleteByPathPrefix(tx *sql.Tx, boxID, pathPrefix string) (err error) {
 	if err = execStmtTx(tx, stmt, boxID, pathPrefix+"%"); nil != err {
 		return
 	}
+	stmt = "DELETE FROM attributes WHERE box = ? AND path LIKE ?"
+	if err = execStmtTx(tx, stmt, boxID, pathPrefix+"%"); nil != err {
+		return
+	}
 	ClearCache()
 	return
 }
 
-func batchUpdateHPath(tx *sql.Tx, boxID, rootID, newHPath string, context map[string]interface{}) (err error) {
-	stmt := "UPDATE blocks SET hpath = ? WHERE box = ? AND root_id = ?"
-	if err = execStmtTx(tx, stmt, newHPath, boxID, rootID); nil != err {
+func batchUpdateHPath(tx *sql.Tx, rootID, newHPath string, context map[string]interface{}) (err error) {
+	stmt := "UPDATE blocks SET hpath = ? WHERE root_id = ?"
+	if err = execStmtTx(tx, stmt, newHPath, rootID); nil != err {
 		return
 	}
-	stmt = "UPDATE blocks_fts SET hpath = ? WHERE box = ? AND root_id = ?"
-	if err = execStmtTx(tx, stmt, newHPath, boxID, rootID); nil != err {
+	stmt = "UPDATE blocks_fts SET hpath = ? WHERE root_id = ?"
+	if err = execStmtTx(tx, stmt, newHPath, rootID); nil != err {
 		return
 	}
 	if !caseSensitive {
-		stmt = "UPDATE blocks_fts_case_insensitive SET hpath = ? WHERE box = ? AND root_id = ?"
-		if err = execStmtTx(tx, stmt, newHPath, boxID, rootID); nil != err {
+		stmt = "UPDATE blocks_fts_case_insensitive SET hpath = ? WHERE root_id = ?"
+		if err = execStmtTx(tx, stmt, newHPath, rootID); nil != err {
 			return
 		}
 	}
 	ClearCache()
 	evtHash := fmt.Sprintf("%x", sha256.Sum256([]byte(rootID)))[:7]
-	eventbus.Publish(eventbus.EvtSQLInsertBlocksFTS, context, 1, evtHash)
+	eventbus.Publish(eventbus.EvtSQLUpdateBlocksHPaths, context, 1, evtHash)
 	return
 }
 
@@ -1131,6 +1276,11 @@ func CloseDatabase() {
 		logging.LogErrorf("close history database failed: %s", err)
 		return
 	}
+	if err := assetContentDB.Close(); nil != err {
+		logging.LogErrorf("close asset content database failed: %s", err)
+		return
+	}
+	treenode.CloseDatabase()
 	logging.LogInfof("closed database")
 }
 
@@ -1161,6 +1311,18 @@ func beginTx() (tx *sql.Tx, err error) {
 	return
 }
 
+func commitTx(tx *sql.Tx) (err error) {
+	if nil == tx {
+		logging.LogErrorf("tx is nil")
+		return errors.New("tx is nil")
+	}
+
+	if err = tx.Commit(); nil != err {
+		logging.LogErrorf("commit tx failed: %s\n  %s", err, logging.ShortStack())
+	}
+	return
+}
+
 func beginHistoryTx() (tx *sql.Tx, err error) {
 	if tx, err = historyDB.Begin(); nil != err {
 		logging.LogErrorf("begin history tx failed: %s\n  %s", err, logging.ShortStack())
@@ -1183,7 +1345,17 @@ func commitHistoryTx(tx *sql.Tx) (err error) {
 	return
 }
 
-func commitTx(tx *sql.Tx) (err error) {
+func beginAssetContentTx() (tx *sql.Tx, err error) {
+	if tx, err = assetContentDB.Begin(); nil != err {
+		logging.LogErrorf("begin asset content tx failed: %s\n  %s", err, logging.ShortStack())
+		if strings.Contains(err.Error(), "database is locked") {
+			os.Exit(logging.ExitCodeReadOnlyDatabase)
+		}
+	}
+	return
+}
+
+func commitAssetContentTx(tx *sql.Tx) (err error) {
 	if nil == tx {
 		logging.LogErrorf("tx is nil")
 		return errors.New("tx is nil")
@@ -1246,6 +1418,8 @@ func nSort(n *ast.Node) int {
 		return 20
 	case ast.NodeSuperBlock:
 		return 30
+	case ast.NodeAttributeView:
+		return 30
 	case ast.NodeText, ast.NodeTextMark:
 		if n.IsTextMarkType("tag") {
 			return 205
@@ -1290,4 +1464,21 @@ func closeDatabase() (err error) {
 	debug.FreeOSMemory()
 	runtime.GC() // 没有这句的话文件句柄不会释放，后面就无法删除文件
 	return
+}
+
+func SQLTemplateFuncs(templateFuncMap *template.FuncMap) {
+	(*templateFuncMap)["queryBlocks"] = func(stmt string, args ...string) (retBlocks []*Block) {
+		for _, arg := range args {
+			stmt = strings.Replace(stmt, "?", arg, 1)
+		}
+		retBlocks = SelectBlocksRawStmt(stmt, 1, 512)
+		return
+	}
+	(*templateFuncMap)["querySpans"] = func(stmt string, args ...string) (retSpans []*Span) {
+		for _, arg := range args {
+			stmt = strings.Replace(stmt, "?", arg, 1)
+		}
+		retSpans = SelectSpansRawStmt(stmt, 512)
+		return
+	}
 }

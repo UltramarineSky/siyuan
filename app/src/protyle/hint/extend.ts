@@ -23,7 +23,7 @@ import {avRender} from "../render/av/render";
 
 export const hintSlash = (key: string, protyle: IProtyle) => {
     const allList: IHintData[] = [{
-        filter: ["模版", "moban", "mb", "template"],
+        filter: ["模版", "moban", "muban", "mb", "template"],
         value: Constants.ZWSP,
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconMarkdown"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.template}</span></div>`,
     }, {
@@ -35,7 +35,7 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
         value: Constants.ZWSP + 2,
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconImage"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.assets}</span></div>`,
     }, {
-        filter: ["引用块", "yinyong", "yy", "block reference"],
+        filter: ["块引用", "kuaiyinyong", "kyy", "block reference"],
         value: "((",
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconRef"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.ref}</span><span class="b3-list-item__meta">((</span></div>`,
     }, {
@@ -47,13 +47,17 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
         value: Constants.ZWSP + 5,
         html: '<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconSparkles"></use></svg><span class="b3-list-item__text">AI Chat</span></div>',
     }, {
-        filter: ["属性视图", "shuxingshitu", "sxst", "attribute view"],
+        filter: ["数据库", "视图", "shujuku", "shitu", "sjk", "st", "database", "view", "db"],
         value: '<div data-type="NodeAttributeView" data-av-type="table"></div>',
-        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconDatabase"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.attributeView}</span></div>`,
+        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconDatabase"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.database}</span></div>`,
     }, {
-        filter: ["文档", "子文档", "wendang", "wd", "ziwendang", "zwd", "xjwd"],
+        filter: ["新建文档并引用", "xinjianwendangbingyinyong","xjwdbyy", "new doc"],
         value: Constants.ZWSP + 4,
-        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconFile"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.newFile}</span><span class="b3-menu__accelerator">${updateHotkeyTip(window.siyuan.config.keymap.general.newFile.custom)}</span></div>`,
+        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconFile"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.newFileRef}</span></div>`,
+    }, {
+        filter: ["新建子文档并引用", "xinjianziwendangbingyinyong", "xjzwdbyy", "create sub doc"],
+        value: Constants.ZWSP + 6,
+        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconFile"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.newSubDocRef}</span></div>`,
     }, {
         value: "",
         html: "separator",
@@ -100,7 +104,7 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
     }, {
         filter: ["代码块", "daimakuai", "dmk", "code block"],
         value: "```",
-        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconCode"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.code}</span><span class="b3-list-item__meta">\`\`\`Enter</span></div>`,
+        html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconCode"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.code}</span><span class="b3-list-item__meta">\`\`\`${window.siyuan.languages.enterKey}</span></div>`,
     }, {
         filter: ["表格", "biaoge", "bg", "table"],
         value: `| ${Lute.Caret} |  |  |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |`,
@@ -161,11 +165,11 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
         value: "tag",
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconTags"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.tag}</span><span class="b3-menu__accelerator">${updateHotkeyTip((window.siyuan.config.keymap.editor.insert.tag.custom))}</span></div>`,
     }, {
-        filter: ["行内代码", "hangneidaima", "hndm", "inline code"],
+        filter: ["行级代码", "hangjidaima", "hjdm", "行内代码", "hangneidaima", "hndm", "inline code"],
         value: "code",
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconInlineCode"></use></svg><span class="b3-list-item__text">${window.siyuan.languages["inline-code"]}</span><span class="b3-menu__accelerator">${updateHotkeyTip((window.siyuan.config.keymap.editor.insert["inline-code"].custom))}</span></div>`,
     }, {
-        filter: ["行内数学公式", "hangneishuxuegongshi", "hnsxgs", "inline math"],
+        filter: ["行级公式", "hangjigongshi", "hjgs", "行级数学公式", "hangjishuxuegongshi", "hjsxgs", "行内数学公式", "hangneishuxuegongshi", "hnsxgs", "inline math"],
         value: "inline-math",
         html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconMath"></use></svg><span class="b3-list-item__text">${window.siyuan.languages["inline-math"]}</span><span class="b3-menu__accelerator">${updateHotkeyTip((window.siyuan.config.keymap.editor.insert["inline-math"].custom))}</span></div>`,
     }, {
@@ -246,11 +250,10 @@ export const hintSlash = (key: string, protyle: IProtyle) => {
         filter: ["移除样式", "yichuyangshi", "ycys", "remove style"],
         value: `style${Constants.ZWSP}`,
         html: `<div class="b3-list-item__first"><div class="color__square">A</div><span class="b3-list-item__text">${window.siyuan.languages.clearFontStyle}</span></div>`,
-    }];
-    allList.push({
+    }, {
         value: "",
         html: "separator",
-    });
+    }];
     let hasPlugin = false;
     protyle.app.plugins.forEach((plugin) => {
         plugin.protyleSlash.forEach(slash => {
@@ -295,8 +298,8 @@ export const hintTag = (key: string, protyle: IProtyle): IHintData[] => {
         response.data.tags.forEach((item: string) => {
             const value = item.replace(/<mark>/g, "").replace(/<\/mark>/g, "");
             dataList.push({
-                value: `#${value}#`,
-                html: item,
+                value: `<span data-type="tag">${value}</span>`,
+                html: `<div class="b3-list-item__text">${item}</div>`,
             });
             if (value === response.data.k) {
                 hasKey = true;
@@ -304,73 +307,79 @@ export const hintTag = (key: string, protyle: IProtyle): IHintData[] => {
         });
         if (response.data.k && !hasKey) {
             dataList.splice(0, 0, {
-                value: `#${response.data.k}#`,
-                html: `${window.siyuan.languages.new} <mark>${escapeHtml(response.data.k)}</mark>`,
+                value: `<span data-type="tag">${response.data.k}</span>`,
+                html: `<div class="b3-list-item__text">${window.siyuan.languages.new} <mark>${escapeHtml(response.data.k)}</mark></div>`,
             });
             if (dataList.length > 1) {
                 dataList[1].focus = true;
             }
         }
-        protyle.hint.genHTML(dataList, protyle, true);
+        protyle.hint.genHTML(dataList, protyle, true, "hint");
     });
 
     return [];
 };
 
-export const hintRef = (key: string, protyle: IProtyle, isQuick = false): IHintData[] => {
+export const genHintItemHTML = (item: IBlock) => {
+    let iconHTML;
+    if (item.type === "NodeDocument" && item.ial.icon) {
+        iconHTML = unicode2Emoji(item.ial.icon, "b3-list-item__graphic popover__block", true);
+        iconHTML = iconHTML.replace('popover__block"', `popover__block" data-id="${item.id}"`);
+    } else {
+        iconHTML = `<svg class="b3-list-item__graphic popover__block" data-id="${item.id}"><use xlink:href="#${getIconByType(item.type)}"></use></svg>`;
+    }
+    let attrHTML = "";
+    if (item.name) {
+        attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconN"></use></svg><span>${item.name}</span></span><span class="fn__space"></span>`;
+    }
+    if (item.alias) {
+        attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconA"></use></svg><span>${item.alias}</span></span><span class="fn__space"></span>`;
+    }
+    if (item.memo) {
+        attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconM"></use></svg><span>${item.memo}</span></span>`;
+    }
+    if (attrHTML) {
+        attrHTML = `<div class="fn__flex b3-list-item__meta b3-list-item__showall">${attrHTML}</div>`;
+    }
+
+    return `${attrHTML}<div class="b3-list-item__first">
+    ${iconHTML}
+    <span class="b3-list-item__text">${item.content}</span>
+</div>
+<div class="b3-list-item__meta b3-list-item__showall">${item.hPath}</div>`;
+};
+
+export const hintRef = (key: string, protyle: IProtyle, source: THintSource): IHintData[] => {
     const nodeElement = hasClosestBlock(getEditorRange(protyle.wysiwyg.element).startContainer);
     protyle.hint.genLoading(protyle);
     fetchPost("/api/search/searchRefBlock", {
         k: key,
         id: nodeElement ? nodeElement.getAttribute("data-node-id") : protyle.block.parentID,
         beforeLen: Math.floor((Math.max(protyle.element.clientWidth / 2, 320) - 58) / 28.8),
-        rootID: protyle.block.rootID,
+        rootID: source === "av" ? "" : protyle.block.rootID,
+        isDatabase: source === "av",
         isSquareBrackets: ["[[", "【【"].includes(protyle.hint.splitChar)
     }, (response) => {
         const dataList: IHintData[] = [];
         if (response.data.newDoc) {
             const newFileName = Lute.UnEscapeHTMLStr(replaceFileName(response.data.k));
             dataList.push({
-                value: isQuick ? `((newFile "${newFileName}"${Constants.ZWSP}'${newFileName}${Lute.Caret}'))` : `((newFile '${newFileName}${Lute.Caret}'))`,
+                value: `((newFile "${newFileName}"${Constants.ZWSP}'${newFileName}${Lute.Caret}'))`,
                 html: `<div class="b3-list-item__first"><svg class="b3-list-item__graphic"><use xlink:href="#iconFile"></use></svg>
 <span class="b3-list-item__text">${window.siyuan.languages.newFile} <mark>${response.data.k}</mark></span></div>`,
             });
         }
         response.data.blocks.forEach((item: IBlock) => {
-            let iconHTML;
-            if (item.type === "NodeDocument" && item.ial.icon) {
-                iconHTML = unicode2Emoji(item.ial.icon, "b3-list-item__graphic popover__block", true);
-                iconHTML = iconHTML.replace('popover__block"', `popover__block" data-id="${item.id}"`);
-            } else {
-                iconHTML = `<svg class="b3-list-item__graphic popover__block" data-id="${item.id}"><use xlink:href="#${getIconByType(item.type)}"></use></svg>`;
-            }
-            let attrHTML = "";
-            if (item.name) {
-                attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconN"></use></svg><span>${item.name}</span></span><span class="fn__space"></span>`;
-            }
-            if (item.alias) {
-                attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconA"></use></svg><span>${item.alias}</span></span><span class="fn__space"></span>`;
-            }
-            if (item.memo) {
-                attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconM"></use></svg><span>${item.memo}</span></span>`;
-            }
-            if (attrHTML) {
-                attrHTML = `<div class="fn__flex b3-list-item__meta b3-list-item__showall">${attrHTML}</div>`;
-            }
-            let value = `<span data-type="block-ref" data-id="${item.id}" data-subtype="d">${item.name || item.refText}</span>`;
-            if (isQuick) {
-                value = `<span data-type="block-ref" data-id="${item.id}" data-subtype="s">${key}</span>`;
+            let value = `<span data-type="block-ref" data-id="${item.id}" data-subtype="d">${item.name || item.refText.replace(new RegExp(Constants.ZWSP, "g"), "")}</span>`;
+            if (source === "search") {
+                value = `<span data-type="block-ref" data-id="${item.id}" data-subtype="s">${key}${Constants.ZWSP}${item.name || item.refText.replace(new RegExp(Constants.ZWSP, "g"), "")}</span>`;
             }
             dataList.push({
                 value,
-                html: `${attrHTML}<div class="b3-list-item__first">
-    ${iconHTML}
-    <span class="b3-list-item__text">${item.content}</span>
-</div>
-<div class="b3-list-item__meta b3-list-item__showall" style="margin-bottom: 4px">${item.hPath}</div>`,
+                html: genHintItemHTML(item),
             });
         });
-        if (isQuick) {
+        if (source === "search") {
             protyle.hint.splitChar = "((";
             protyle.hint.lastIndex = -1;
         }
@@ -382,7 +391,7 @@ export const hintRef = (key: string, protyle: IProtyle, isQuick = false): IHintD
         } else if (response.data.newDoc && dataList.length > 1) {
             dataList[1].focus = true;
         }
-        protyle.hint.genHTML(dataList, protyle, true, isQuick);
+        protyle.hint.genHTML(dataList, protyle, true, source);
     });
     return [];
 };
@@ -395,39 +404,16 @@ export const hintEmbed = (key: string, protyle: IProtyle): IHintData[] => {
     const nodeElement = hasClosestBlock(getEditorRange(protyle.wysiwyg.element).startContainer);
     fetchPost("/api/search/searchRefBlock", {
         k: key,
+        isDatabase: false,
         beforeLen: Math.floor((Math.max(protyle.element.clientWidth / 2, 320) - 58) / 28.8),
         id: nodeElement ? nodeElement.getAttribute("data-node-id") : protyle.block.parentID,
         rootID: protyle.block.rootID,
     }, (response) => {
         const dataList: IHintData[] = [];
         response.data.blocks.forEach((item: IBlock) => {
-            let iconHTML;
-            if (item.type === "NodeDocument" && item.ial.icon) {
-                iconHTML = unicode2Emoji(item.ial.icon, "b3-list-item__graphic popover__block", true);
-                iconHTML = iconHTML.replace('popover__block"', `popover__block" data-id="${item.id}"`);
-            } else {
-                iconHTML = `<svg class="b3-list-item__graphic popover__block" data-id="${item.id}"><use xlink:href="#${getIconByType(item.type)}"></use></svg>`;
-            }
-            let attrHTML = "";
-            if (item.name) {
-                attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconN"></use></svg>${item.name}</span><span class="fn__space"></span>`;
-            }
-            if (item.alias) {
-                attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconA"></use></svg>${item.alias}</span><span class="fn__space"></span>`;
-            }
-            if (item.memo) {
-                attrHTML += `<span class="fn__flex"><svg class="b3-list-item__hinticon"><use xlink:href="#iconM"></use></svg>${item.memo}</span>`;
-            }
-            if (attrHTML) {
-                attrHTML = `<div class="fn__flex b3-list-item__meta b3-list-item__showall">${attrHTML}</div>`;
-            }
             dataList.push({
                 value: `{{select * from blocks where id='${item.id}'}}`,
-                html: `${attrHTML}<div class="b3-list-item__first">
-    ${iconHTML}
-    <span class="b3-list-item__text">${item.content}</span>
-</div>
-<div class="b3-list-item__meta b3-list-item__showall" style="margin-bottom: 4px">${item.hPath}</div>`,
+                html: genHintItemHTML(item),
             });
         });
         if (dataList.length === 0) {
@@ -436,7 +422,7 @@ export const hintEmbed = (key: string, protyle: IProtyle): IHintData[] => {
                 html: window.siyuan.languages.emptyContent,
             });
         }
-        protyle.hint.genHTML(dataList, protyle, true);
+        protyle.hint.genHTML(dataList, protyle, true, "hint");
     });
     return [];
 };
@@ -460,14 +446,16 @@ export const hintRenderTemplate = (value: string, protyle: IProtyle, nodeElement
         blockRender(protyle, protyle.wysiwyg.element);
         processRender(protyle.wysiwyg.element);
         highlightRender(protyle.wysiwyg.element);
-        avRender(protyle.wysiwyg.element);
+        avRender(protyle.wysiwyg.element, protyle);
         hideElements(["util"], protyle);
     });
 };
 
 export const hintRenderWidget = (value: string, protyle: IProtyle) => {
     focusByRange(protyle.toolbar.range);
-    insertHTML(protyle.lute.SpinBlockDOM(`<iframe src="/widgets/${value}" data-subtype="widget" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>`), protyle, true);
+    // src 地址以 / 结尾
+    // Use the path ending with `/` when loading the widget https://github.com/siyuan-note/siyuan/issues/10520
+    insertHTML(protyle.lute.SpinBlockDOM(`<iframe src="/widgets/${value}/" data-subtype="widget" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>`), protyle, true);
     hideElements(["util"], protyle);
 };
 

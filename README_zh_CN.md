@@ -1,7 +1,7 @@
 <p align="center">
 <img alt="SiYuan" src="https://b3log.org/images/brand/siyuan-128.png">
 <br>
-重构你的思维
+<em>重构你的思维</em>
 <br><br>
 <a title="Build Status" target="_blank" href="https://github.com/siyuan-note/siyuan/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/siyuan-note/siyuan/cd.yml?style=flat-square"></a>
 <a title="Releases" target="_blank" href="https://github.com/siyuan-note/siyuan/releases"><img src="https://img.shields.io/github/release/siyuan-note/siyuan.svg?style=flat-square&color=9CF"></a>
@@ -19,18 +19,52 @@
 <a title="Last Commit" target="_blank" href="https://github.com/siyuan-note/siyuan/commits/master"><img src="https://img.shields.io/github/last-commit/siyuan-note/siyuan.svg?style=flat-square&color=FF9900"></a>
 <br><br>
 <a title="Twitter" target="_blank" href="https://twitter.com/b3logos"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/b3logos?label=Follow&style=social"></a>
-<a title="Discord" target="_blank" href="https://discord.com/channels/808152298789666826"><img alt="Discord" src="https://img.shields.io/discord/808152298789666826?logo=discord&label=Chat&style=social"></a>
+<a title="Discord" target="_blank" href="https://discord.gg/dmMbCqVX7G"><img alt="Chat on Discord" src="https://img.shields.io/discord/808152298789666826?label=Discord&logo=Discord&style=social"></a>
+<br><br>
+<a href="https://www.producthunt.com/products/siyuan/reviews?utm_source=badge-product_rating&utm_medium=badge&utm_souce=badge-siyuan" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_rating.svg?product_id=534576&theme=light" alt="SiYuan - A&#0032;privacy&#0045;first&#0032;personal&#0032;knowledge&#0032;management&#0032;software | Product Hunt" style="width: 242px; height: 108px;" width="242" height="108" /></a>
 </p>
 
 <p align="center">
 <a href="README.md">English</a>
 </p>
 
+---
+
+## 目录
+
+* [💡 简介](#-简介)
+* [🔮 特性](#-特性)
+* [🏗️ 架构和生态](#️-架构和生态)
+* [🌟 星标历史](#-星标历史)
+* [🗺️ 路线图](#️-路线图)
+* [🚀 下载安装](#-下载安装)
+  * [应用市场](#应用市场)
+  * [安装包](#安装包)
+  * [Docker 部署](#docker-部署)
+  * [Unraid 部署](#unraid-部署)
+  * [内部预览版](#内部预览版)
+* [🏘️ 社区](#️-社区)
+* [🛠️ 开发指南](#️-开发指南)
+* [❓ 常见问题和解答](#-常见问题和解答)
+  * [思源是如何存储数据的？](#思源是如何存储数据的)
+  * [支持通过第三方同步盘进行数据同步吗？](#支持通过第三方同步盘进行数据同步吗)
+  * [思源是开源的吗？](#思源是开源的吗)
+  * [如何升级到新版本？](#如何升级到新版本)
+  * [有的块（比如在列表项中的段落块）找不到块标怎么办？](#有的块比如在列表项中的段落块找不到块标怎么办)
+  * [数据仓库密钥遗失怎么办？](#数据仓库密钥遗失怎么办)
+  * [使用需要付费吗？](#使用需要付费吗)
+* [🙏 鸣谢](#-鸣谢)
+  * [贡献者列表](#贡献者列表)
+
+---
+
 ## 💡 简介
 
 思源笔记是一款隐私优先的个人知识管理系统，支持细粒度块级引用和 Markdown 所见即所得。
 
-![feature0.png](screenshots/feature0.png)
+![feature0.png](https://b3logfile.com/file/2024/01/feature0-1orBRlI.png)
+
+![feature51.png](https://b3logfile.com/file/2024/02/feature5-1-uYYjAqy.png)
 
 欢迎到[思源笔记官方讨论区](https://ld246.com/domain/siyuan)了解更多。同时也欢迎关注 B3log 开源社区微信公众号 `B3log开源`：
 
@@ -38,9 +72,7 @@
 
 ## 🔮 特性
 
-### 免费
-
-所有本地功能都是免费的，即使是在商业环境下使用。
+大部分功能是免费的，即使是在商业环境下使用。
 
 * 内容块
   * 块级引用和双向链接
@@ -52,51 +84,45 @@
   * Markdown 所见即所得
   * 列表大纲
   * 块缩放聚焦
-  * 块横向排版
   * 百万字大文档编辑
   * 数学公式、图表、流程图、甘特图、时序图、五线谱等
   * 网页剪藏
   * PDF 标注双链
 * 导出
-  * 引用块和嵌入块 
+  * 块引用和嵌入块 
   * 带 assets 文件夹的标准 Markdown
   * PDF、Word 和 HTML
   * 复制到微信公众号、知乎和语雀
-* 通过第三方云端存储服务实现端到端加密数据同步和备份
-  * S3 
-  * WebDAV
-* 间隔重复
+* 数据库
+  * 表格视图
+* 闪卡间隔重复
+* 接入 OpenAI 接口支持人工智能写作和问答聊天
+* Tesseract OCR
 * 模板片段
 * JavaScript/CSS 代码片段
-* Android/iOS APP
+* Android/iOS App
 * Docker 部署
 * [API](API_zh_CN.md)
 * 社区集市
 
-### 付费订阅
+部分功能需要付费会员才能使用，更多细节请参考[定价](https://b3log.org/siyuan/pricing.html)。
 
-云端服务需要付费订阅。
-
-* 尊贵身份标识
-* 端到端加密数据同步和备份
-* 云端图床服务
-* 定时微信提醒
-* 云端收集箱
-
-## 🏗️ 架构设计和开源生态
+## 🏗️ 架构和生态
 
 ![思源笔记架构设计](https://b3logfile.com/file/2023/05/SiYuan_Arch-Sgu8vXT.png "思源笔记架构设计")
 
-* [bazzar](https://github.com/siyuan-note/bazaar)：社区集市
-* [dejavu](https://github.com/siyuan-note/dejavu)：数据仓库
-* [riff](https://github.com/siyuan-note/riff)：间隔重复系统
-* [petal](https://github.com/siyuan-note/petal)：插件 API
-* [chrome](https://github.com/siyuan-note/siyuan-chrome)：Chrome 扩展
-* [lute](https://github.com/88250/lute)：结构化的编辑器引擎，支持 Go 和 JavaScript
-* [ios](https://github.com/siyuan-note/siyuan-ios): iOS APP
-* [android](https://github.com/siyuan-note/siyuan-android): Android APP
+| Project                                                  | Description    | Forks                                                                           | Stars                                                                                | 
+|----------------------------------------------------------|----------------|---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| [lute](https://github.com/88250/lute)                    | 编辑器引擎          | ![GitHub forks](https://img.shields.io/github/forks/88250/lute)                 | ![GitHub Repo stars](https://img.shields.io/github/stars/88250/lute)                 |
+| [chrome](https://github.com/siyuan-note/siyuan-chrome)   | Chrome/Edge 扩展 | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/siyuan-chrome)  | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/siyuan-chrome)  |
+| [bazaar](https://github.com/siyuan-note/bazaar)          | 社区集市           | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/bazaar)         | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/bazaar)         |
+| [dejavu](https://github.com/siyuan-note/dejavu)          | 数据仓库           | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/dejavu)         | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/dejavu)         |
+| [petal](https://github.com/siyuan-note/petal)            | 插件 API         | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/petal)          | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/petal)          |
+| [android](https://github.com/siyuan-note/siyuan-android) | Android App    | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/siyuan-android) | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/siyuan-android) |
+| [ios](https://github.com/siyuan-note/siyuan-ios)         | iOS App        | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/siyuan-ios)     | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/siyuan-ios)     |
+| [riff](https://github.com/siyuan-note/riff)              | 间隔重复           | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/riff)           | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/riff)           |
 
-## 🌟 Star History
+## 🌟 星标历史
 
 [![Star History Chart](https://api.star-history.com/svg?repos=siyuan-note/siyuan&type=Date)](https://star-history.com/#siyuan-note/siyuan&Date)
 
@@ -111,12 +137,23 @@
 
 ### 应用市场
 
+移动端：
+
 * [App Store](https://apps.apple.com/cn/app/siyuan/id1583226508)
 * [Google Play](https://play.google.com/store/apps/details?id=org.b3log.siyuan)
-* [Microsoft Store](https://www.microsoft.com/store/apps/9P7HPMXP73K4)
+* [F-Droid](https://f-droid.org/packages/org.b3log.siyuan)
 * [华为应用市场](https://appgallery.huawei.com/app/C105558879)
 * [小米应用商店](https://app.mi.com/details?id=org.b3log.siyuan)
 * [酷安](https://www.coolapk.com/apk/292664)
+
+桌面端：
+
+* [Microsoft Store](https://apps.microsoft.com/detail/9p7hpmxp73k4)
+
+### 安装包
+
+* [B3log](https://b3log.org/siyuan/download.html)
+* [GitHub](https://github.com/siyuan-note/siyuan/releases)
 
 ### Docker 部署
 
@@ -143,14 +180,43 @@
 
 构建 Docker 镜像时设置了入口：`ENTRYPOINT [ "/opt/siyuan/kernel" ]`，使用 `docker run b3log/siyuan` 并带参即可启动：
 
-* `--workspace` 指定工作空间文件夹路径，在宿主机上通过 `-v` 挂载到容器中
+* `--workspace`：指定工作空间文件夹路径，在宿主机上通过 `-v` 挂载到容器中
+* `--accessAuthCode`：指定访问授权码
 
-更多的参数可参考 `--help`。下面是一条启动命令示例：`docker run -v workspace_dir_host:workspace_dir_container -p 6806:6806 b3log/siyuan --workspace=workspace_dir_container`
+更多的参数可参考 `--help`。下面是一条启动命令示例：
+
+```
+docker run -d -v workspace_dir_host:workspace_dir_container -p 6806:6806 b3log/siyuan --workspace=workspace_dir_container --accessAuthCode=xxx
+```
 
 * `workspace_dir_host`：宿主机上的工作空间文件夹路径
 * `workspace_dir_container`：容器内工作空间文件夹路径，和后面 `--workspace` 指定成一样的
+* `accessAuthCode`：访问授权码，请**务必修改**，否则任何人都可以读写你的数据
 
-为了简化，建议将 workspace 文件夹路径在宿主机和容器上配置为一致的，比如将 `workspace_dir_host` 和 `workspace_dir_container` 都配置为 `/siyuan/workspace`，对应的启动命令示例：`docker run -v /siyuan/workspace:/siyuan/workspace -p 6806:6806 -u 1000:1000 b3log/siyuan --workspace=/siyuan/workspace/`。
+为了简化，建议将 workspace 文件夹路径在宿主机和容器上配置为一致的，比如将 `workspace_dir_host` 和 `workspace_dir_container` 都配置为 `/siyuan/workspace`，对应的启动命令示例：
+
+```
+docker run -d -v /siyuan/workspace:/siyuan/workspace -p 6806:6806 -u 1000:1000 b3log/siyuan --workspace=/siyuan/workspace/ --accessAuthCode=xxx
+```
+
+使用 Docker Compose 部署请参考下面的示例：
+
+```
+version: "3.9"
+services:
+  main:
+    image: b3log/siyuan
+    command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=${AuthCode}']
+    user: '1000:1000'
+    ports:
+      - 6806:6806
+    volumes:
+      - /siyuan/workspace:/siyuan/workspace
+    restart: unless-stopped
+    environment:
+      # A list of time zone identifiers can be found at https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      - TZ=${TimeZone}
+```
 
 #### 用户权限
 
@@ -175,10 +241,26 @@
 
 </details>
 
-### 安装包
+### Unraid 部署
 
-* [B3log](https://b3log.org/siyuan/download.html)
-* [GitHub](https://github.com/siyuan-note/siyuan/releases)
+<details>
+<summary>Unraid 部署文档</summary>
+
+注意：首先终端运行 `chown -R 1000:1000 /mnt/user/appdata/siyuan`
+
+模板参考：
+
+```
+Web UI: 6806
+Container Port: 6806
+Container Path: /home/siyuan
+Host path: /mnt/user/appdata/siyuan
+PUID: 1000
+PGID: 1000
+Publish parameters: --accessAuthCode=******（访问授权码）
+```
+
+</details>
 
 ### 内部预览版
 
@@ -214,12 +296,7 @@
 
 不支持通过第三方同步盘进行数据同步，否则可能会导致数据损坏。
 
-虽然不支持第三方同步盘，但是支持第三方云端存储服务，可在 <kbd>设置</kbd> - <kbd>云端</kbd> - <kbd>云端存储服务提供商</kbd> 中进行选择和配置，目前已经支持：
-
-* S3 兼容的对象存储服务，比如[七牛云](https://s.qiniu.com/VbQfeu)、[阿里云 OSS](https://www.aliyun.com/product/oss?userCode=yqovuas2)、[Cloudflare R2](https://www.cloudflare.com/)
-* WebDAV 协议，比如 [TeraCLOUD](https://teracloud.jp/)
-
-通过第三方云端存储服务同步数据同样是端到端加密的，第三方云端存储服务提供商无法获得我们的明文数据。
+虽然不支持第三方同步盘，但是支持对接第三方云端存储（会员特权）。
 
 另外，也可以考虑手动导出导入 Data 实现数据同步：
 
@@ -243,29 +320,13 @@
 * 如果是桌面端通过安装包安装的，可打开 <kbd>设置</kbd> - <kbd>关于</kbd> - <kbd>自动下载更新安装包</kbd> 选项，这样思源会自动下载最新版安装包并提示安装
 * 如果是通过手动安装包安装的，请再次下载安装包安装
 
-可在 <kbd>设置</kbd> - <kbd>关于</kbd> - <kbd>当前版本</kbd> 中 <kbd>检查更新</kbd>，也可以通过关注 [GitHub Releases](https://github.com/siyuan-note/siyuan/releases) 来获取新版本。
+可在 <kbd>设置</kbd> - <kbd>关于</kbd> - <kbd>当前版本</kbd> 中 <kbd>检查更新</kbd>，也可以通过关注[官方下载](https://b3log.org/siyuan/download.html)或者 [GitHub Releases](https://github.com/siyuan-note/siyuan/releases) 来获取新版本。
 
 **注意**：切勿将工作空间放置于安装目录下，因为更新版本会清空安装目录下的所有文件
 
-### 删除文档有什么注意事项吗？
-
-文档被删除后不会出现在操作系统回收站中，而是直接删除，删除时思源会生成数据历史。
-
-### 如何才能只换行不新起段落？
-
-请使用 <kbd>Shift+Enter</kbd>。
-
-## 有的块（比如在列表项中的段落块）找不到块标怎么办？
+### 有的块（比如在列表项中的段落块）找不到块标怎么办？
 
 在列表项下的第一个子块是省略块标的。可以将光标移到这个块中，然后通过 <kbd>Ctrl+/</kbd> 触发它的块标菜单。
-
-### 如何分享笔记？
-
-* 分享文档到链滴
-* 导出导入 `.sy.zip` 数据包
-* 通过网络伺服
-* 导出导入 Markdown
-* <kbd>导出预览</kbd> 中复制到第三方在线服务
 
 ### 数据仓库密钥遗失怎么办？
 
@@ -280,15 +341,17 @@
 
 ### 使用需要付费吗？
 
-所有本地功能都是免费的，即使是在商业环境下使用。
+大部分功能是免费的，即使是在商业环境下使用。
 
-[云端服务](https://b3log.org/siyuan/pricing.html)需要年付订阅。
+会员特权需要付费后才能使用，请参考[定价](https://b3log.org/siyuan/pricing.html)。
 
-如果你没有订阅需求但又想支持开发，欢迎进行捐赠：
-
-* [靠爱发电 - 链滴](https://ld246.com/sponsor)
+如果你没有会员特权需求但又想支持开发，欢迎进行捐赠：[靠爱发电 - 链滴](https://ld246.com/sponsor)
 
 ## 🙏 鸣谢
+
+思源的诞生离不开众多的开源项目和贡献者，请参考项目源代码 kernel/go.mod、app/package.json 和项目首页。
+
+思源的成长离不开用户的反馈和宣传推广，感谢所有人对思源的帮助 ❤️
 
 ### 贡献者列表
 
@@ -297,52 +360,3 @@
 <a href="https://github.com/siyuan-note/siyuan/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=siyuan-note/siyuan" />
 </a>
-
-### 开源项目依赖列表
-
-思源的诞生离不开下列开源项目。
-
-* [https://github.com/golang/go](https://github.com/golang/go) `BSD-3-Clause License`
-* [https://github.com/atotto/clipboard](https://github.com/atotto/clipboard) `BSD-3-Clause License`
-* [https://github.com/vanng822/css](https://github.com/vanng822/css) `MIT License`
-* [https://github.com/gofrs/flock](https://github.com/gofrs/flock) `BSD-3-Clause License`
-* [https://github.com/olahol/melody](https://github.com/olahol/melody) `BSD-2-Clause License`
-* [https://github.com/pdfcpu/pdfcpu](https://github.com/pdfcpu/pdfcpu) `Apache-2.0 License`
-* [https://github.com/blastrain/vitess-sqlparser](https://github.com/blastrain/vitess-sqlparser) `Apache-2.0 License`
-* [https://github.com/ConradIrwin/font](https://github.com/ConradIrwin/font) `MIT License`
-* [https://github.com/Masterminds/sprig](https://github.com/Masterminds/sprig) `MIT License`
-* [https://github.com/PuerkitoBio/goquery](https://github.com/PuerkitoBio/goquery) `BSD-3-Clause License`
-* [https://github.com/Xuanwo/go-locale](https://github.com/Xuanwo/go-locale) `Apache-2.0 License`
-* [https://github.com/araddon/dateparse](https://github.com/araddon/dateparse) `MIT License`
-* [https://github.com/common-nighthawk/go-figure](https://github.com/common-nighthawk/go-figure) `MIT License`
-* [https://github.com/denisbrodbeck/machineid](https://github.com/denisbrodbeck/machineid) `MIT License`
-* [https://github.com/dgraph-io/ristretto](https://github.com/dgraph-io/ristretto) `Apache-2.0 License`
-* [https://github.com/dustin/go-humanize](https://github.com/dustin/go-humanize) `MIT License`
-* [https://github.com/emirpasic/gods](https://github.com/emirpasic/gods) `BSD-2-Clause License`
-* [https://github.com/facette/natsort](https://github.com/facette/natsort) `BSD-3-Clause License`
-* [https://github.com/flopp/go-findfont](https://github.com/flopp/go-findfont) `MIT License`
-* [https://github.com/fsnotify/fsnotify](https://github.com/fsnotify/fsnotify) `BSD-3-Clause License`
-* [https://github.com/gabriel-vasile/mimetype](https://github.com/gabriel-vasile/mimetype) `MIT License`
-* [https://github.com/gin-contrib/cors](https://github.com/gin-contrib/cors) `MIT License`
-* [https://github.com/gin-contrib/gzip](https://github.com/gin-contrib/gzip) `MIT License`
-* [https://github.com/gin-contrib/sessions](https://github.com/gin-contrib/sessions) `MIT License`
-* [https://github.com/gin-gonic/gin](https://github.com/gin-gonic/gin) `MIT License`
-* [https://github.com/go-ole/go-ole](https://github.com/go-ole/go-ole) `MIT License`
-* [https://github.com/imroc/req](https://github.com/imroc/req) `MIT License`
-* [https://github.com/jinzhu/copier](https://github.com/jinzhu/copier) `MIT License`
-* [https://github.com/mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) `MIT License`
-* [https://github.com/mitchellh/go-ps](https://github.com/mitchellh/go-ps) `MIT License`
-* [https://github.com/mssola/useragent](https://github.com/mssola/useragent) `MIT License`
-* [https://github.com/panjf2000/ants](https://github.com/panjf2000/ants) `MIT License`
-* [https://github.com/patrickmn/go-cache](https://github.com/patrickmn/go-cache) `MIT License`
-* [https://github.com/radovskyb/watcher](https://github.com/radovskyb/watcher) `BSD-3-Clause License`
-* [https://github.com/sabhiram/go-gitignore](https://github.com/sabhiram/go-gitignore) `MIT License`
-* [https://github.com/steambap/captcha](https://github.com/steambap/captcha) `MIT License`
-* [https://github.com/vmihailenco/msgpack](https://github.com/vmihailenco/msgpack) `BSD-2-Clause License`
-* [https://github.com/xrash/smetrics](https://github.com/xrash/smetrics) `MIT License`
-* [https://github.com/jgm/pandoc](https://github.com/jgm/pandoc) `GPL-2.0 License`
-* [https://github.com/microsoft/TypeScript](https://github.com/microsoft/TypeScript) `Apache-2.0 License`
-* [https://github.com/electron/electron](https://github.com/electron/electron) `MIT License`
-* [https://github.com/visjs/vis-network](https://github.com/visjs/vis-network) `Apache-2.0 License`
-* [https://github.com/mozilla/pdf.js](https://github.com/mozilla/pdf.js) `Apache-2.0 License`
-* [https://github.com/blueimp/JavaScript-MD5](https://github.com/blueimp/JavaScript-MD5) `MIT License`

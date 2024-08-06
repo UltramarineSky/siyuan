@@ -54,6 +54,15 @@ export class Options {
                 key: "「「",
                 hint: hintEmbed,
             }, {
+                key: "「『",
+                hint: hintEmbed,
+            }, {
+                key: "『「",
+                hint: hintEmbed,
+            }, {
+                key: "『『",
+                hint: hintEmbed,
+            }, {
                 key: "#", // 需在 / 之前，否则 #abc/ 会显示菜单
                 hint: hintTag,
             }, {
@@ -69,7 +78,7 @@ export class Options {
         lang: window.siyuan.config.appearance.lang,
         preview: {
             actions: ["desktop", "tablet", "mobile", "mp-wechat", "zhihu", "yuque"],
-            delay: 1000,
+            delay: 0,
             markdown: {
                 paragraphBeginningSpace: window.siyuan.config.export.paragraphBeginningSpace,
                 listStyle: false,

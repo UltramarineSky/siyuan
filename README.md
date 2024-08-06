@@ -1,7 +1,7 @@
 <p align="center">
 <img alt="SiYuan" src="https://b3log.org/images/brand/siyuan-128.png">
 <br>
-Refactor your thinking
+<em>Refactor your thinking</em>
 <br><br>
 <a title="Build Status" target="_blank" href="https://github.com/siyuan-note/siyuan/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/siyuan-note/siyuan/cd.yml?style=flat-square"></a>
 <a title="Releases" target="_blank" href="https://github.com/siyuan-note/siyuan/releases"><img src="https://img.shields.io/github/release/siyuan-note/siyuan.svg?style=flat-square&color=9CF"></a>
@@ -19,12 +19,44 @@ Refactor your thinking
 <a title="Last Commit" target="_blank" href="https://github.com/siyuan-note/siyuan/commits/master"><img src="https://img.shields.io/github/last-commit/siyuan-note/siyuan.svg?style=flat-square&color=FF9900"></a>
 <br><br>
 <a title="Twitter" target="_blank" href="https://twitter.com/b3logos"><img alt="Twitter Follow" src="https://img.shields.io/twitter/follow/b3logos?label=Follow&style=social"></a>
-<a title="Discord" target="_blank" href="https://discord.com/channels/808152298789666826"><img alt="Discord" src="https://img.shields.io/discord/808152298789666826?logo=discord&label=Chat&style=social"></a>
+<a title="Discord" target="_blank" href="https://discord.gg/dmMbCqVX7G"><img alt="Chat on Discord" src="https://img.shields.io/discord/808152298789666826?label=Discord&logo=Discord&style=social"></a>
+<br><br>
+<a href="https://www.producthunt.com/products/siyuan/reviews?utm_source=badge-product_rating&utm_medium=badge&utm_souce=badge-siyuan" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_rating.svg?product_id=534576&theme=light" alt="SiYuan - A&#0032;privacy&#0045;first&#0032;personal&#0032;knowledge&#0032;management&#0032;software | Product Hunt" style="width: 242px; height: 108px;" width="242" height="108" /></a>
 </p>
 
 <p align="center">
 <a href="README_zh_CN.md">中文</a>
 </p>
+
+---
+
+## Table of Contents
+
+* [💡 Introduction](#-introduction)
+* [🔮 Features](#-features)
+* [🏗️ Architecture and Ecosystem](#-architecture-and-ecosystem)
+* [🌟 Star History](#-star-history)
+* [🗺️ Roadmap](#️-roadmap)
+* [🚀 Download Setup](#-download-setup)
+  * [App Market](#app-market)
+  * [Installation Package](#installation-package)
+  * [Docker Hosting](#docker-hosting)
+  * [Unraid Hosting](#unraid-hosting)
+  * [Insider Preview](#insider-preview)
+* [🏘️ Community](#️-community)
+* [🛠️ Development Guide](#️-development-guide)
+* [❓ FAQ](#-faq)
+  * [How does SiYuan store data?](#how-does-siyuan-store-data)
+  * [Does it support data synchronization through a third-party sync disk?](#does-it-support-data-synchronization-through-a-third-party-sync-disk)
+  * [Is SiYuan open source?](#is-siyuan-open-source)
+  * [How to upgrade to a new version?](#how-to-upgrade-to-a-new-version)
+  * [What if some blocks (such as paragraph blocks in list items) cannot find the block icon?](#what-if-some-blocks-such-as-paragraph-blocks-in-list-items-cannot-find-the-block-icon)
+  * [What should I do if the data repo key is lost?](#what-should-i-do-if-the-data-repo-key-is-lost)
+  * [Do I need to pay for it?](#do-i-need-to-pay-for-it)
+* [🙏 Acknowledgement](#-acknowledgement)
+  * [Contributors](#contributors)
+
+---
 
 ## 💡 Introduction
 
@@ -33,13 +65,13 @@ WYSIWYG.
 
 Welcome to [SiYuan English Discussion Forum](https://liuyun.io) to learn more.
 
-![feature0.png](screenshots/feature0.png)
+![feature0.png](https://b3logfile.com/file/2024/01/feature0-1orBRlI.png)
+
+![feature51.png](https://b3logfile.com/file/2024/02/feature5-1-uYYjAqy.png)
 
 ## 🔮 Features
 
-### Free
-
-All local features are free, even for commercial use.
+Most features are free, even for commercial use.
 
 * Content block
   * Block-level reference and two-way links
@@ -51,7 +83,6 @@ All local features are free, even for commercial use.
   * Markdown WYSIWYG
   * List outline
   * Block zoom-in
-  * Block horizontal layout
   * Million-word large document editing
   * Mathematical formulas, charts, flowcharts, Gantt charts, timing charts, staffs, etc.
   * Web clipping
@@ -61,38 +92,35 @@ All local features are free, even for commercial use.
   * Standard Markdown with assets
   * PDF, Word and HTML
   * Copy to WeChat MP, Zhihu and Yuque
-* End-to-end encrypted data sync and backup via the third-party cloud storage services
-  * S3
-  * WebDAV
-* Spaced repetition
+* Database
+  * Table view
+* Flashcard spaced repetition
+* AI writing and Q/A chat via OpenAI API
+* Tesseract OCR 
 * Multi-tab, drag and drop to split screen
 * Template snippet
 * JavaScript/CSS snippet
-* Android/iOS APP
+* Android/iOS App
 * Docker deployment
 * [API](https://github.com/siyuan-note/siyuan/blob/master/API.md)
-* Community bazaar
+* Community marketplace
 
-### Paid subscription
+Some features are only available to paid members, for more details please refer to [Pricing](https://b3log.org/siyuan/en/pricing.html).
 
-Cloud services require a paid subscription.
-
-* VIP identity
-* End-to-end encrypted data sync and backup
-* Cloud assets hosting
-
-## 🏗️ Architecture design and open source ecosystem
+## 🏗️ Architecture and Ecosystem
 
 ![SiYuan Arch](https://b3logfile.com/file/2023/05/SiYuan_Arch-Sgu8vXT.png "SiYuan Arch")
 
-* [bazzar](https://github.com/siyuan-note/bazaar): Community marketplace
-* [dejavu](https://github.com/siyuan-note/dejavu): Data repo
-* [riff](https://github.com/siyuan-note/riff): Spaced repetition system
-* [petal](https://github.com/siyuan-note/petal): Plugin API
-* [chrome](https://github.com/siyuan-note/siyuan-chrome): Chrome extension
-* [lute](https://github.com/88250/lute): A structured editor engine that supports Go and JavaScript
-* [ios](https://github.com/siyuan-note/siyuan-ios): iOS APP
-* [android](https://github.com/siyuan-note/siyuan-android): Android APP
+| Project                                                  | Description           | Forks                                                                           | Stars                                                                                | 
+|----------------------------------------------------------|-----------------------|---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| [lute](https://github.com/88250/lute)                    | Editor engine         | ![GitHub forks](https://img.shields.io/github/forks/88250/lute)                 | ![GitHub Repo stars](https://img.shields.io/github/stars/88250/lute)                 |
+| [chrome](https://github.com/siyuan-note/siyuan-chrome)   | Chrome/Edge extension | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/siyuan-chrome)  | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/siyuan-chrome)  |
+| [bazaar](https://github.com/siyuan-note/bazaar)          | Community marketplace | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/bazaar)         | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/bazaar)         |
+| [dejavu](https://github.com/siyuan-note/dejavu)          | Data repo             | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/dejavu)         | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/dejavu)         |
+| [petal](https://github.com/siyuan-note/petal)            | Plugin API            | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/petal)          | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/petal)          |
+| [android](https://github.com/siyuan-note/siyuan-android) | Android App           | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/siyuan-android) | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/siyuan-android) |
+| [ios](https://github.com/siyuan-note/siyuan-ios)         | iOS App               | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/siyuan-ios)     | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/siyuan-ios)     |
+| [riff](https://github.com/siyuan-note/riff)              | Spaced repetition     | ![GitHub forks](https://img.shields.io/github/forks/siyuan-note/riff)           | ![GitHub Repo stars](https://img.shields.io/github/stars/siyuan-note/riff)           |
 
 ## 🌟 Star History
 
@@ -109,9 +137,20 @@ It is recommended to give priority to installing through the application market 
 
 ### App Market
 
+Mobile:
+
 * [App Store](https://apps.apple.com/us/app/siyuan/id1583226508)
 * [Google Play](https://play.google.com/store/apps/details?id=org.b3log.siyuan)
-* [Microsoft Store](https://www.microsoft.com/store/apps/9P7HPMXP73K4)
+* [F-Droid](https://f-droid.org/packages/org.b3log.siyuan)
+
+Desktop:
+
+* [Microsoft Store](https://apps.microsoft.com/detail/9p7hpmxp73k4)
+
+### Installation Package
+
+* [B3log](https://b3log.org/siyuan/en/download.html)
+* [GitHub](https://github.com/siyuan-note/siyuan/releases)
 
 ### Docker Hosting
 
@@ -138,14 +177,43 @@ The overall program is located under `/opt/siyuan/`, which is basically the stru
 
 The entry point is set when building the Docker image: `ENTRYPOINT ["/opt/siyuan/kernel" ]`, use `docker run b3log/siyuan` with parameters to start:
 
-* `--workspace` specifies the workspace folder path, mounted to the container via `-v` on the host
+* `--workspace`: Specifies the workspace folder path, mounted to the container via `-v` on the host
+* `--accessAuthCode`: Specifies the access authorization code
 
-More parameters can refer to `--help`. The following is an example of a startup command: `docker run -v workspace_dir_host:workspace_dir_container -p 6806:6806 b3log/siyuan --workspace=workspace_dir_container`
+More parameters can refer to `--help`. The following is an example of a startup command:
 
-* `workspace_dir_host`: the workspace folder path on the host
+```
+docker run -d -v workspace_dir_host:workspace_dir_container -p 6806:6806 b3log/siyuan --workspace=workspace_dir_container --accessAuthCode=xxx
+```
+
+* `workspace_dir_host`: The workspace folder path on the host
 * `workspace_dir_container`: The path of the workspace folder in the container, which is the same as specified in `--workspace`
+* `accessAuthCode`: Access authorization code, please **be sure to modify**, otherwise anyone can read and write your data
 
-To simplify, it is recommended to configure the workspace folder path to be consistent on the host and container, such as: `workspace_dir_host` and `workspace_dir_container` are configured as `/siyuan/workspace`, the corresponding startup commands is: `docker run -v /siyuan/workspace:/siyuan/workspace -p 6806:6806 -u 1000:1000 b3log/siyuan --workspace=/siyuan/workspace/`.
+To simplify, it is recommended to configure the workspace folder path to be consistent on the host and container, such as: `workspace_dir_host` and `workspace_dir_container` are configured as `/siyuan/workspace`, the corresponding startup commands is:
+
+```
+docker run -d -v /siyuan/workspace:/siyuan/workspace -p 6806:6806 -u 1000:1000 b3log/siyuan --workspace=/siyuan/workspace/ --accessAuthCode=xxx
+```
+
+Alternatively, see below for an example Docker Compose file:
+
+```
+version: "3.9"
+services:
+  main:
+    image: b3log/siyuan
+    command: ['--workspace=/siyuan/workspace/', '--accessAuthCode=${AuthCode}']
+    user: '1000:1000'
+    ports:
+      - 6806:6806
+    volumes:
+      - /siyuan/workspace:/siyuan/workspace
+    restart: unless-stopped
+    environment:
+      # A list of time zone identifiers can be found at https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      - TZ=${TimeZone}
+```
 
 #### User permissions
 
@@ -170,10 +238,26 @@ Use NGINX reverse proxy to hide port 6806, please note:
 
 </details>
 
-### Installation Package
+### Unraid Hosting
 
-* [B3log](https://b3log.org/siyuan/en/download.html)
-* [GitHub](https://github.com/siyuan-note/siyuan/releases)
+<details>
+<summary>Unraid Deployment</summary>
+
+Note: First run `chown -R 1000:1000 /mnt/user/appdata/siyuan` in the terminal
+
+Template reference:
+
+```
+Web UI: 6806
+Container Port: 6806
+Container Path: /home/siyuan
+Host path: /mnt/user/appdata/siyuan
+PUID: 1000
+PGID: 1000
+Publish parameters: --accessAuthCode=******(Access authorization code)
+```
+
+</details>
 
 ### Insider Preview
 
@@ -209,12 +293,7 @@ The data is saved in the workspace folder, in the workspace data folder:
 
 Data synchronization through third-party synchronization disks is not supported, otherwise data may be corrupted.
 
-Although it does not support third-party sync disks, it supports third-party cloud storage services, which can be configured in <kbd>Settings</kbd> - <kbd>Cloud</kbd> - <kbd>Cloud Storage Provider</kbd>, currently supported:
-
-* S3 compatible object storage services, such as [Qiniu](https://s.qiniu.com/VbQfeu), [Aliyun OSS](https://www.aliyun.com/product/oss?userCode=yqovuas2), [Cloudflare R2](https://www.cloudflare.com/)
-* WebDAV protocol, such as [TeraCLOUD](https://teracloud.jp/), [Koofr](https://koofr.eu/)
-
-Synchronizing data through third-party cloud storage services is also end-to-end encrypted, and third-party cloud storage service providers cannot obtain our plaintext data.
+Although it does not support third-party sync disks, it supports connect with third-party cloud storage (Member's privileges).
 
 In addition, you can also consider manually exporting and importing data to achieve data synchronization:
 
@@ -238,29 +317,11 @@ For more details, please refer to [Development Guide](https://github.com/siyuan-
 * If it is installed through the installation package on the desktop, you can open the option of <kbd>Settings</kbd> - <kbd>About</kbd> - <kbd>Automatically download update installation package</kbd>, so that SiYuan will automatically download The latest version of the installation package and prompts to install
 * If it is installed by manual installation package, please download the installation package again to install
 
-You can <kbd>Check update</kbd> in <kbd>Settings</kbd> - <kbd>About</kbd> - <kbd>Current Version</kbd>, or by following [GitHub Releases](https://github.com/siyuan-note/siyuan/releases) to get the new version.
-
-**Note**: Do not place the workspace in the installation directory, because the updated version will clear all files in the installation directory
-
-### Is there any note for deleting docs?
-
-After deletion, the doc will not appear in the operating system's recycle bin, but will be deleted directly. When deleted, SiYuan will generate data history.
-
-### How can I just wrap and not start a new paragraph?
-
-Please use <kbd>Shift+Enter</kbd>.
+You can <kbd>Check update</kbd> in <kbd>Settings</kbd> - <kbd>About</kbd> - <kbd>Current Version</kbd>, or pay attention to [Official Download](https://b3log.org/siyuan/en/download.html) or [GitHub Releases](https://github.com/siyuan-note/siyuan/releases) to get the new version.
 
 ### What if some blocks (such as paragraph blocks in list items) cannot find the block icon?
 
 The first sub-block under the list item is the block icon omitted. You can move the cursor into this block and trigger its block menu with <kbd>Ctrl+/</kbd> .
-
-### How to share notes?
-
-* Share document to Liandi
-* Export and import `.sy.zip` package
-* Via network hosting
-* Export and import Markdown
-* <kbd>Export Preview</kbd> to copy to third-party online services
 
 ### What should I do if the data repo key is lost?
 
@@ -275,11 +336,15 @@ The first sub-block under the list item is the block icon omitted. You can move 
 
 ### Do I need to pay for it?
 
-All local features are free, even for commercial use.
+Most features are free, even for commercial use.
 
-[Cloud Service](https://b3log.org/siyuan/en/pricing.html) require a paid subscription to use.
+Member's privileges can only be used after payment, please refer to [Pricing](https://b3log.org/siyuan/en/pricing.html).
 
 ## 🙏 Acknowledgement
+
+The birth of SiYuan is inseparable from many open source projects and contributors, please refer to the project source code kernel/go.mod, app/package.json and project homepage.
+
+The growth of SiYuan is inseparable from user feedback and promotion, thank you for everyone's help to SiYuan ❤️
 
 ### Contributors
 
@@ -288,52 +353,3 @@ Welcome to join us and contribute code to SiYuan together.
 <a href="https://github.com/siyuan-note/siyuan/graphs/contributors">
    <img src="https://contrib.rocks/image?repo=siyuan-note/siyuan" />
 </a>
-
-### Open source project dependencies
-
-SiYuan is made possible by the following open source projects.
-
-* [https://github.com/golang/go](https://github.com/golang/go) `BSD-3-Clause License`
-* [https://github.com/atotto/clipboard](https://github.com/atotto/clipboard) `BSD-3-Clause License`
-* [https://github.com/vanng822/css](https://github.com/vanng822/css) `MIT License`
-* [https://github.com/gofrs/flock](https://github.com/gofrs/flock) `BSD-3-Clause License`
-* [https://github.com/olahol/melody](https://github.com/olahol/melody) `BSD-2-Clause License`
-* [https://github.com/pdfcpu/pdfcpu](https://github.com/pdfcpu/pdfcpu) `Apache-2.0 License`
-* [https://github.com/blastrain/vitess-sqlparser](https://github.com/blastrain/vitess-sqlparser) `Apache-2.0 License`
-* [https://github.com/ConradIrwin/font](https://github.com/ConradIrwin/font) `MIT License`
-* [https://github.com/Masterminds/sprig](https://github.com/Masterminds/sprig) `MIT License`
-* [https://github.com/PuerkitoBio/goquery](https://github.com/PuerkitoBio/goquery) `BSD-3-Clause License`
-* [https://github.com/Xuanwo/go-locale](https://github.com/Xuanwo/go-locale) `Apache-2.0 License` 
-* [https://github.com/araddon/dateparse](https://github.com/araddon/dateparse) `MIT License`
-* [https://github.com/common-nighthawk/go-figure](https://github.com/common-nighthawk/go-figure) `MIT License`
-* [https://github.com/denisbrodbeck/machineid](https://github.com/denisbrodbeck/machineid) `MIT License`
-* [https://github.com/dgraph-io/ristretto](https://github.com/dgraph-io/ristretto) `Apache-2.0 License`
-* [https://github.com/dustin/go-humanize](https://github.com/dustin/go-humanize) `MIT License`
-* [https://github.com/emirpasic/gods](https://github.com/emirpasic/gods) `BSD-2-Clause License`
-* [https://github.com/facette/natsort](https://github.com/facette/natsort) `BSD-3-Clause License`
-* [https://github.com/flopp/go-findfont](https://github.com/flopp/go-findfont) `MIT License`
-* [https://github.com/fsnotify/fsnotify](https://github.com/fsnotify/fsnotify) `BSD-3-Clause License`
-* [https://github.com/gabriel-vasile/mimetype](https://github.com/gabriel-vasile/mimetype) `MIT License`
-* [https://github.com/gin-contrib/cors](https://github.com/gin-contrib/cors) `MIT License`
-* [https://github.com/gin-contrib/gzip](https://github.com/gin-contrib/gzip) `MIT License`
-* [https://github.com/gin-contrib/sessions](https://github.com/gin-contrib/sessions) `MIT License`
-* [https://github.com/gin-gonic/gin](https://github.com/gin-gonic/gin) `MIT License`
-* [https://github.com/go-ole/go-ole](https://github.com/go-ole/go-ole) `MIT License`
-* [https://github.com/imroc/req](https://github.com/imroc/req) `MIT License`
-* [https://github.com/jinzhu/copier](https://github.com/jinzhu/copier) `MIT License`
-* [https://github.com/mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) `MIT License`
-* [https://github.com/mitchellh/go-ps](https://github.com/mitchellh/go-ps) `MIT License`
-* [https://github.com/mssola/useragent](https://github.com/mssola/useragent) `MIT License`
-* [https://github.com/panjf2000/ants](https://github.com/panjf2000/ants) `MIT License`
-* [https://github.com/patrickmn/go-cache](https://github.com/patrickmn/go-cache) `MIT License`
-* [https://github.com/radovskyb/watcher](https://github.com/radovskyb/watcher) `BSD-3-Clause License`
-* [https://github.com/sabhiram/go-gitignore](https://github.com/sabhiram/go-gitignore) `MIT License`
-* [https://github.com/steambap/captcha](https://github.com/steambap/captcha) `MIT License`
-* [https://github.com/vmihailenco/msgpack](https://github.com/vmihailenco/msgpack) `BSD-2-Clause License`
-* [https://github.com/xrash/smetrics](https://github.com/xrash/smetrics) `MIT License`
-* [https://github.com/jgm/pandoc](https://github.com/jgm/pandoc) `GPL-2.0 License`
-* [https://github.com/microsoft/TypeScript](https://github.com/microsoft/TypeScript) `Apache-2.0 License`
-* [https://github.com/electron/electron](https://github.com/electron/electron) `MIT License`
-* [https://github.com/visjs/vis-network](https://github.com/visjs/vis-network) `Apache-2.0 License`
-* [https://github.com/mozilla/pdf.js](https://github.com/mozilla/pdf.js) `Apache-2.0 License`
-* [https://github.com/blueimp/JavaScript-MD5](https://github.com/blueimp/JavaScript-MD5) `MIT License`

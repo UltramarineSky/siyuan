@@ -33,6 +33,24 @@ func getBookmarkLabels(c *gin.Context) {
 	ret.Data = model.BookmarkLabels()
 }
 
+func batchGetBlockAttrs(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	ids := arg["ids"].([]interface{})
+	var idList []string
+	for _, id := range ids {
+		idList = append(idList, id.(string))
+	}
+
+	ret.Data = model.BatchGetBlockAttrs(idList)
+}
+
 func getBlockAttrs(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -81,6 +99,48 @@ func setBlockAttrs(c *gin.Context) {
 		}
 	}
 	err := model.SetBlockAttrs(id, nameValues)
+	if nil != err {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+}
+
+func batchSetBlockAttrs(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	blockAttrsArg := arg["blockAttrs"].([]interface{})
+	var blockAttrs []map[string]interface{}
+	for _, blockAttrArg := range blockAttrsArg {
+		blockAttr := blockAttrArg.(map[string]interface{})
+		id := blockAttr["id"].(string)
+		if util.InvalidIDPattern(id, ret) {
+			return
+		}
+
+		attrs := blockAttr["attrs"].(map[string]interface{})
+		nameValues := map[string]string{}
+		for name, value := range attrs {
+			if nil == value {
+				nameValues[name] = ""
+			} else {
+				nameValues[name] = value.(string)
+			}
+		}
+
+		blockAttrs = append(blockAttrs, map[string]interface{}{
+			"id":    id,
+			"attrs": nameValues,
+		})
+	}
+
+	err := model.BatchSetBlockAttrs(blockAttrs)
 	if nil != err {
 		ret.Code = -1
 		ret.Msg = err.Error()

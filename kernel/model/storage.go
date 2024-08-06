@@ -63,17 +63,13 @@ func RemoveRecentDoc(ids []string) {
 	return
 }
 
-func SetRecentDocByTree(tree *parse.Tree) {
+func setRecentDocByTree(tree *parse.Tree) {
 	recentDoc := &RecentDoc{
 		RootID: tree.Root.ID,
 		Icon:   tree.Root.IALAttr("icon"),
 		Title:  tree.Root.IALAttr("title"),
 	}
 
-	SetRecentDoc(recentDoc)
-}
-
-func SetRecentDoc(doc *RecentDoc) (err error) {
 	recentDocLock.Lock()
 	defer recentDocLock.Unlock()
 
@@ -83,13 +79,13 @@ func SetRecentDoc(doc *RecentDoc) (err error) {
 	}
 
 	for i, c := range recentDocs {
-		if c.RootID == doc.RootID {
+		if c.RootID == recentDoc.RootID {
 			recentDocs = append(recentDocs[:i], recentDocs[i+1:]...)
 			break
 		}
 	}
 
-	recentDocs = append([]*RecentDoc{doc}, recentDocs...)
+	recentDocs = append([]*RecentDoc{recentDoc}, recentDocs...)
 	if 32 < len(recentDocs) {
 		recentDocs = recentDocs[:32]
 	}
@@ -129,7 +125,7 @@ func setRecentDocs(recentDocs []*RecentDoc) (err error) {
 func getRecentDocs() (ret []*RecentDoc, err error) {
 	tmp := []*RecentDoc{}
 	dataPath := filepath.Join(util.DataDir, "storage/recent-doc.json")
-	if !gulu.File.IsExist(dataPath) {
+	if !filelock.IsExist(dataPath) {
 		return
 	}
 
@@ -144,9 +140,14 @@ func getRecentDocs() (ret []*RecentDoc, err error) {
 		return
 	}
 
+	var rootIDs []string
+	for _, doc := range tmp {
+		rootIDs = append(rootIDs, doc.RootID)
+	}
+	bts := treenode.GetBlockTrees(rootIDs)
 	var notExists []string
 	for _, doc := range tmp {
-		if bt := treenode.GetBlockTree(doc.RootID); nil != bt {
+		if bt := bts[doc.RootID]; nil != bt {
 			doc.Title = path.Base(bt.HPath) // Recent docs not updated after renaming https://github.com/siyuan-note/siyuan/issues/7827
 			ret = append(ret, doc)
 		} else {
@@ -160,31 +161,63 @@ func getRecentDocs() (ret []*RecentDoc, err error) {
 }
 
 type Criterion struct {
-	Name       string          `json:"name"`
-	Sort       int             `json:"sort"`       //  0：按块类型（默认），1：按创建时间升序，2：按创建时间降序，3：按更新时间升序，4：按更新时间降序，5：按内容顺序（仅在按文档分组时）
-	Group      int             `json:"group"`      // 0：不分组，1：按文档分组
-	HasReplace bool            `json:"hasReplace"` // 是否有替换
-	Method     int             `json:"method"`     //  0：文本，1：查询语法，2：SQL，3：正则表达式
-	HPath      string          `json:"hPath"`
-	IDPath     []string        `json:"idPath"`
-	K          string          `json:"k"`     // 搜索关键字
-	R          string          `json:"r"`     // 替换关键字
-	Types      *CriterionTypes `json:"types"` // 类型过滤选项
+	Name         string                 `json:"name"`
+	Sort         int                    `json:"sort"`       // 0：按块类型（默认），1：按创建时间升序，2：按创建时间降序，3：按更新时间升序，4：按更新时间降序，5：按内容顺序（仅在按文档分组时）
+	Group        int                    `json:"group"`      // 0：不分组，1：按文档分组
+	HasReplace   bool                   `json:"hasReplace"` // 是否有替换
+	Method       int                    `json:"method"`     // 0：文本，1：查询语法，2：SQL，3：正则表达式
+	HPath        string                 `json:"hPath"`
+	IDPath       []string               `json:"idPath"`
+	K            string                 `json:"k"`            // 搜索关键字
+	R            string                 `json:"r"`            // 替换关键字
+	Types        *CriterionTypes        `json:"types"`        // 类型过滤选项
+	ReplaceTypes *CriterionReplaceTypes `json:"replaceTypes"` // 替换类型过滤选项
 }
 
 type CriterionTypes struct {
-	MathBlock  bool `json:"mathBlock"`
-	Table      bool `json:"table"`
-	Blockquote bool `json:"blockquote"`
-	SuperBlock bool `json:"superBlock"`
-	Paragraph  bool `json:"paragraph"`
-	Document   bool `json:"document"`
-	Heading    bool `json:"heading"`
-	List       bool `json:"list"`
-	ListItem   bool `json:"listItem"`
+	MathBlock     bool `json:"mathBlock"`
+	Table         bool `json:"table"`
+	Blockquote    bool `json:"blockquote"`
+	SuperBlock    bool `json:"superBlock"`
+	Paragraph     bool `json:"paragraph"`
+	Document      bool `json:"document"`
+	Heading       bool `json:"heading"`
+	List          bool `json:"list"`
+	ListItem      bool `json:"listItem"`
+	CodeBlock     bool `json:"codeBlock"`
+	HtmlBlock     bool `json:"htmlBlock"`
+	EmbedBlock    bool `json:"embedBlock"`
+	DatabaseBlock bool `json:"databaseBlock"`
+	AudioBlock    bool `json:"audioBlock"`
+	VideoBlock    bool `json:"videoBlock"`
+	IFrameBlock   bool `json:"iframeBlock"`
+	WidgetBlock   bool `json:"widgetBlock"`
+}
+
+type CriterionReplaceTypes struct {
+	Text       bool `json:"text"`
+	ImgText    bool `json:"imgText"`
+	ImgTitle   bool `json:"imgTitle"`
+	ImgSrc     bool `json:"imgSrc"`
+	AText      bool `json:"aText"`
+	ATitle     bool `json:"aTitle"`
+	AHref      bool `json:"aHref"`
+	Code       bool `json:"code"`
+	Em         bool `json:"em"`
+	Strong     bool `json:"strong"`
+	InlineMath bool `json:"inlineMath"`
+	InlineMemo bool `json:"inlineMemo"`
+	Kbd        bool `json:"kbd"`
+	Mark       bool `json:"mark"`
+	S          bool `json:"s"`
+	Sub        bool `json:"sub"`
+	Sup        bool `json:"sup"`
+	Tag        bool `json:"tag"`
+	U          bool `json:"u"`
+	DocTitle   bool `json:"docTitle"`
 	CodeBlock  bool `json:"codeBlock"`
+	MathBlock  bool `json:"mathBlock"`
 	HtmlBlock  bool `json:"htmlBlock"`
-	EmbedBlock bool `json:"embedBlock"`
 }
 
 var criteriaLock = sync.Mutex{}
@@ -270,7 +303,7 @@ func setCriteria(criteria []*Criterion) (err error) {
 func getCriteria() (ret []*Criterion, err error) {
 	ret = []*Criterion{}
 	dataPath := filepath.Join(util.DataDir, "storage/criteria.json")
-	if !gulu.File.IsExist(dataPath) {
+	if !filelock.IsExist(dataPath) {
 		return
 	}
 
@@ -351,7 +384,7 @@ func getLocalStorage() (ret map[string]interface{}) {
 	// When local.json is corrupted, clear the file to avoid being unable to enter the main interface https://github.com/siyuan-note/siyuan/issues/7911
 	ret = map[string]interface{}{}
 	lsPath := filepath.Join(util.DataDir, "storage/local.json")
-	if !gulu.File.IsExist(lsPath) {
+	if !filelock.IsExist(lsPath) {
 		return
 	}
 

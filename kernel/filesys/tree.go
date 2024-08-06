@@ -36,6 +36,25 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func LoadTrees(ids []string) (ret map[string]*parse.Tree) {
+	ret, tmpCache := map[string]*parse.Tree{}, map[string]*parse.Tree{}
+	bts := treenode.GetBlockTrees(ids)
+	luteEngine := util.NewLute()
+	for id, bt := range bts {
+		tree := tmpCache[bt.RootID]
+		if nil == tree {
+			tree, _ = LoadTree(bt.BoxID, bt.Path, luteEngine)
+			if nil == tree {
+				logging.LogWarnf("load tree [%s] failed: %s", id, bt.Path)
+				continue
+			}
+			tmpCache[bt.RootID] = tree
+		}
+		ret[id] = tree
+	}
+	return
+}
+
 func LoadTree(boxID, p string, luteEngine *lute.Lute) (ret *parse.Tree, err error) {
 	filePath := filepath.Join(util.DataDir, boxID, p)
 	data, err := filelock.ReadFile(filePath)
@@ -88,7 +107,7 @@ func LoadTreeByData(data []byte, boxID, p string, luteEngine *lute.Lute) (ret *p
 					logging.LogErrorf("rebuild parent tree [%s] failed: %s", parentAbsPath, writeErr)
 				} else {
 					logging.LogInfof("rebuilt parent tree [%s]", parentAbsPath)
-					treenode.IndexBlockTree(parentTree)
+					treenode.UpsertBlockTree(parentTree)
 				}
 			} else {
 				logging.LogWarnf("read parent tree data [%s] failed: %s", parentAbsPath, readErr)
@@ -111,22 +130,6 @@ func LoadTreeByData(data []byte, boxID, p string, luteEngine *lute.Lute) (ret *p
 	hPathBuilder.WriteString(ret.Root.IALAttr("title"))
 	ret.HPath = hPathBuilder.String()
 	ret.Hash = treenode.NodeHash(ret.Root, ret, luteEngine)
-	return
-}
-
-func WriteTreeWithoutChangeTime(tree *parse.Tree) (err error) {
-	data, filePath, err := prepareWriteTree(tree)
-	if nil != err {
-		return
-	}
-
-	if err = filelock.WriteFileWithoutChangeTime(filePath, data); nil != err {
-		msg := fmt.Sprintf("write data [%s] failed: %s", filePath, err)
-		logging.LogErrorf(msg)
-		return errors.New(msg)
-	}
-
-	afterWriteTree(tree)
 	return
 }
 
@@ -153,25 +156,27 @@ func prepareWriteTree(tree *parse.Tree) (data []byte, filePath string, err error
 		newP := treenode.NewParagraph()
 		tree.Root.AppendChild(newP)
 		tree.Root.SetIALAttr("updated", util.TimeFromID(newP.ID))
-		treenode.IndexBlockTree(tree)
+		treenode.UpsertBlockTree(tree)
 	}
 
 	filePath = filepath.Join(util.DataDir, tree.Box, tree.Path)
 	if oldSpec := tree.Root.Spec; "" == oldSpec {
-		parse.NestedInlines2FlattedSpans(tree)
+		parse.NestedInlines2FlattedSpans(tree, false)
 		tree.Root.Spec = "1"
 		logging.LogInfof("migrated tree [%s] from spec [%s] to [%s]", filePath, oldSpec, tree.Root.Spec)
 	}
+	tree.Root.SetIALAttr("type", "doc")
 	renderer := render.NewJSONRenderer(tree, luteEngine.RenderOptions)
 	data = renderer.Render()
 
-	// .sy 文档数据使用格式化好的 JSON 而非单行 JSON
-	buf := bytes.Buffer{}
-	buf.Grow(4096)
-	if err = json.Indent(&buf, data, "", "\t"); nil != err {
-		return
+	if !util.UseSingleLineSave {
+		buf := bytes.Buffer{}
+		buf.Grow(1024 * 1024 * 2)
+		if err = json.Indent(&buf, data, "", "\t"); nil != err {
+			return
+		}
+		data = buf.Bytes()
 	}
-	data = buf.Bytes()
 
 	if err = os.MkdirAll(filepath.Dir(filePath), 0755); nil != err {
 		return
@@ -198,26 +203,28 @@ func parseJSON2Tree(boxID, p string, jsonData []byte, luteEngine *lute.Lute) (re
 
 	filePath := filepath.Join(util.DataDir, ret.Box, ret.Path)
 	if oldSpec := ret.Root.Spec; "" == oldSpec {
-		parse.NestedInlines2FlattedSpans(ret)
+		parse.NestedInlines2FlattedSpans(ret, false)
 		ret.Root.Spec = "1"
 		needFix = true
 		logging.LogInfof("migrated tree [%s] from spec [%s] to [%s]", filePath, oldSpec, ret.Root.Spec)
 	}
 	if needFix {
 		renderer := render.NewJSONRenderer(ret, luteEngine.RenderOptions)
-		output := renderer.Render()
+		data := renderer.Render()
 
-		buf := bytes.Buffer{}
-		buf.Grow(4096)
-		if err = json.Indent(&buf, output, "", "\t"); nil != err {
-			return
+		if !util.UseSingleLineSave {
+			buf := bytes.Buffer{}
+			buf.Grow(1024 * 1024 * 2)
+			if err = json.Indent(&buf, data, "", "\t"); nil != err {
+				return
+			}
+			data = buf.Bytes()
 		}
-		output = buf.Bytes()
 
 		if err = os.MkdirAll(filepath.Dir(filePath), 0755); nil != err {
 			return
 		}
-		if err = filelock.WriteFile(filePath, output); nil != err {
+		if err = filelock.WriteFile(filePath, data); nil != err {
 			msg := fmt.Sprintf("write data [%s] failed: %s", filePath, err)
 			logging.LogErrorf(msg)
 		}

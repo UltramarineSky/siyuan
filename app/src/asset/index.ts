@@ -14,6 +14,7 @@ import {webViewerPageNumberChanged} from "./pdf/app";
 import {fetchPost} from "../util/fetch";
 import {setStorageVal, updateHotkeyTip} from "../protyle/util/compatibility";
 import {App} from "../index";
+import {clearOBG} from "../layout/dock/util";
 
 export class Asset extends Model {
     public path: string;
@@ -31,6 +32,7 @@ export class Asset extends Model {
         this.path = options.path;
         this.pdfId = options.page;
         this.element.addEventListener("click", (event) => {
+            clearOBG();
             setPanelFocus(this.element.parentElement.parentElement);
             this.app.plugins.forEach(item => {
                 item.eventBus.emit("click-pdf", {event});
@@ -163,7 +165,7 @@ export class Asset extends Model {
             <span id="findMsg" class="b3-button b3-button--small b3-button--cancel"></span>
         </div>  <!-- findbar -->
         <div id="secondaryToolbar" class="secondaryToolbar fn__hidden doorHangerRight b3-menu">
-          <div id="secondaryToolbarButtonContainer">
+          <div id="secondaryToolbarButtonContainer" class="b3-menu__items">
             <button id="pdfLight" class="secondaryToolbarButton b3-menu__item toggled">
               <svg class="b3-menu__icon"><use xlink:href="#iconLight"></use></svg> 
               <span class="b3-menu__label">${window.siyuan.languages.themeLight}</span>
@@ -435,6 +437,10 @@ export class Asset extends Model {
         <button class="b3-menu__item pdf__util__hide" data-type="copy">
             <svg class="b3-menu__icon"><use xlink:href="#iconRef"></use></svg>
             <span class="b3-menu__label">${window.siyuan.languages.copyAnnotation}</span>
+        </button>
+        <button class="b3-menu__item pdf__util__hide" data-type="relate">
+            <svg class="b3-menu__icon"><use xlink:href="#iconParagraph"></use></svg>
+            <span class="b3-menu__label">${window.siyuan.languages.relation}</span>
         </button>
         <button class="b3-menu__item pdf__util__hide" data-type="remove">
             <svg class="b3-menu__icon"><use xlink:href="#iconTrashcan"></use></svg>

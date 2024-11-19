@@ -4,12 +4,17 @@ import {fetchPost} from "../util/fetch";
 import {isMobile, isWindow} from "../util/functions";
 /// #if !MOBILE
 import {Custom} from "../layout/dock/Custom";
-/// #endif
+import {getAllModels} from "../layout/getAll";
 import {Tab} from "../layout/Tab";
-import {getDockByType, setPanelFocus} from "../layout/util";
+import {setPanelFocus} from "../layout/util";
+import {getDockByType} from "../layout/tabUtil";
+///#else
+import {MobileCustom} from "../mobile/dock/MobileCustom";
+/// #endif
 import {hasClosestByAttribute} from "../protyle/util/hasClosest";
 import {BlockPanel} from "../block/Panel";
 import {Setting} from "./Setting";
+import {clearOBG} from "../layout/dock/util";
 
 export class Plugin {
     private app: App;
@@ -17,7 +22,7 @@ export class Plugin {
     public eventBus: EventBus;
     public data: any = {};
     public displayName: string;
-    public name: string;
+    public readonly name: string;
     public protyleSlash: {
         filter: string[],
         html: string,
@@ -43,13 +48,16 @@ export class Plugin {
         /// #endif
     } = {};
     public docks: {
-        /// #if !MOBILE
         [key: string]: {
             config: IPluginDockTab,
+            /// #if !MOBILE
             model: (options: { tab: Tab }) => Custom
+            /// #else
+            mobileModel: (element: Element) => MobileCustom
+            /// #endif
         }
-        /// #endif
     } = {};
+    private protyleOptionsValue: IProtyleOptions;
 
     constructor(options: {
         app: App,
@@ -59,9 +67,14 @@ export class Plugin {
     }) {
         this.app = options.app;
         this.i18n = options.i18n;
-        this.name = options.name;
         this.displayName = options.displayName;
         this.eventBus = new EventBus(options.name);
+
+        // https://github.com/siyuan-note/siyuan/issues/9943
+        Object.defineProperty(this, "name", {
+            value: options.name,
+            writable: false,
+        });
     }
 
     public onload() {
@@ -69,7 +82,15 @@ export class Plugin {
     }
 
     public onunload() {
-        // 禁用/卸载
+        // 禁用/关闭
+    }
+
+    public uninstall() {
+        // 卸载
+    }
+
+    public async updateCards(options: ICardData) {
+        return options;
     }
 
     public onLayoutReady() {
@@ -77,7 +98,36 @@ export class Plugin {
     }
 
     public addCommand(command: ICommand) {
-        this.commands.push(command);
+        if (!window.siyuan.config.keymap.plugin) {
+            window.siyuan.config.keymap.plugin = {};
+        }
+        if (!window.siyuan.config.keymap.plugin[this.name]) {
+            command.customHotkey = command.hotkey;
+            window.siyuan.config.keymap.plugin[this.name] = {
+                [command.langKey]: {
+                    default: command.hotkey,
+                    custom: command.hotkey,
+                }
+            };
+        } else if (!window.siyuan.config.keymap.plugin[this.name][command.langKey]) {
+            command.customHotkey = command.hotkey;
+            window.siyuan.config.keymap.plugin[this.name][command.langKey] = {
+                default: command.hotkey,
+                custom: command.hotkey,
+            };
+        } else if (window.siyuan.config.keymap.plugin[this.name][command.langKey]) {
+            if (typeof window.siyuan.config.keymap.plugin[this.name][command.langKey].custom === "string") {
+                command.customHotkey = window.siyuan.config.keymap.plugin[this.name][command.langKey].custom;
+            } else {
+                command.customHotkey = command.hotkey;
+            }
+            window.siyuan.config.keymap.plugin[this.name][command.langKey]["default"] = command.hotkey;
+        }
+        if (typeof command.customHotkey !== "string") {
+            console.error(`${this.name} - commands data is error and has been removed.`);
+        } else {
+            this.commands.push(command);
+        }
     }
 
     public addIcons(svg: string) {
@@ -104,7 +154,7 @@ export class Plugin {
             iconElement.innerHTML = (options.icon.startsWith("icon") ? `<svg class="b3-menu__icon"><use xlink:href="#${options.icon}"></use></svg>` : options.icon) +
                 `<span class="b3-menu__label">${options.title}</span>`;
         } else if (!isWindow()) {
-            iconElement.className = "toolbar__item b3-tooltips b3-tooltips__sw";
+            iconElement.className = "toolbar__item ariaLabel";
             iconElement.setAttribute("aria-label", options.title);
             iconElement.innerHTML = options.icon.startsWith("icon") ? `<svg><use xlink:href="#${options.icon}"></use></svg>` : options.icon;
             iconElement.addEventListener("click", options.callback);
@@ -180,6 +230,22 @@ export class Plugin {
         });
     }
 
+    public getOpenedTab() {
+        const tabs: { [key: string]: Custom[] } = {};
+        const modelKeys = Object.keys(this.models);
+        modelKeys.forEach(item => {
+            tabs[item.replace(this.name, "")] = [];
+        });
+        /// #if !MOBILE
+        getAllModels().custom.find(item => {
+            if (modelKeys.includes(item.type)) {
+                tabs[item.type.replace(this.name, "")].push(item);
+            }
+        });
+        /// #endif
+        return tabs;
+    }
+
     public addTab(options: {
         type: string,
         destroy?: () => void,
@@ -203,6 +269,7 @@ export class Plugin {
                 update: options.update,
             });
             customObj.element.addEventListener("click", () => {
+                clearOBG();
                 setPanelFocus(customObj.element.parentElement.parentElement);
             });
             return customObj;
@@ -220,13 +287,25 @@ export class Plugin {
         update?: () => void,
         init: () => void
     }) {
-        /// #if !MOBILE
         const type2 = this.name + options.type;
         if (typeof options.config.index === "undefined") {
             options.config.index = 1000;
         }
         this.docks[type2] = {
             config: options.config,
+            /// #if MOBILE
+            mobileModel: (element) => {
+                const customObj = new MobileCustom({
+                    element,
+                    type: type2,
+                    data: options.data,
+                    init: options.init,
+                    update: options.update,
+                    destroy: options.destroy,
+                });
+                return customObj;
+            },
+            /// #else
             model: (arg: { tab: Tab }) => {
                 const customObj = new Custom({
                     app: this.app,
@@ -247,9 +326,32 @@ export class Plugin {
                 customObj.element.classList.add("sy__" + type2);
                 return customObj;
             }
+            /// #endif
         };
+        if (!window.siyuan.config.keymap.plugin) {
+            window.siyuan.config.keymap.plugin = {};
+        }
+        if (options.config.hotkey) {
+            if (!window.siyuan.config.keymap.plugin[this.name]) {
+                window.siyuan.config.keymap.plugin[this.name] = {
+                    [type2]: {
+                        default: options.config.hotkey,
+                        custom: options.config.hotkey,
+                    }
+                };
+            } else if (!window.siyuan.config.keymap.plugin[this.name][type2]) {
+                window.siyuan.config.keymap.plugin[this.name][type2] = {
+                    default: options.config.hotkey,
+                    custom: options.config.hotkey,
+                };
+            } else if (window.siyuan.config.keymap.plugin[this.name][type2]) {
+                if (typeof window.siyuan.config.keymap.plugin[this.name][type2].custom !== "string") {
+                    window.siyuan.config.keymap.plugin[this.name][type2].custom = options.config.hotkey;
+                }
+                window.siyuan.config.keymap.plugin[this.name][type2]["default"] = options.config.hotkey;
+            }
+        }
         return this.docks[type2];
-        /// #endif
     }
 
     public addFloatLayer = (options: {
@@ -270,4 +372,16 @@ export class Plugin {
             defIds: options.defIds,
         }));
     };
+
+    public updateProtyleToolbar(toolbar: Array<string | IMenuItem>) {
+        return toolbar;
+    }
+
+    set protyleOptions(options: IProtyleOptions) {
+        this.protyleOptionsValue = options;
+    }
+
+    get protyleOptions() {
+        return this.protyleOptionsValue;
+    }
 }

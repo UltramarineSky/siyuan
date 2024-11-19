@@ -27,7 +27,7 @@ import (
 )
 
 func ListItem2Doc(srcListItemID, targetBoxID, targetPath string) (srcRootBlockID, newTargetPath string, err error) {
-	srcTree, _ := loadTreeByBlockID(srcListItemID)
+	srcTree, _ := LoadTreeByBlockID(srcListItemID)
 	if nil == srcTree {
 		err = ErrBlockNotFound
 		return
@@ -60,17 +60,20 @@ func ListItem2Doc(srcListItemID, targetBoxID, targetPath string) (srcRootBlockID
 
 	newTargetPath = path.Join(toFolder, srcListItemID+".sy")
 	if !box.Exist(toFolder) {
-		if err = box.MkdirAll(toFolder); nil != err {
+		if err = box.MkdirAll(toFolder); err != nil {
 			return
 		}
 	}
 
 	var children []*ast.Node
-	for c := listItemNode.FirstChild.Next; nil != c; c = c.Next {
+	for c := listItemNode.FirstChild; nil != c; c = c.Next {
+		if c.IsMarker() {
+			continue
+		}
 		children = append(children, c)
 	}
 	if 1 > len(children) {
-		newNode := treenode.NewParagraph()
+		newNode := treenode.NewParagraph("")
 		children = append(children, newNode)
 	}
 
@@ -94,17 +97,18 @@ func ListItem2Doc(srcListItemID, targetBoxID, targetPath string) (srcRootBlockID
 	}
 	srcTree.Root.SetIALAttr("updated", util.CurrentTimeSecondsStr())
 	if nil == srcTree.Root.FirstChild {
-		srcTree.Root.AppendChild(treenode.NewParagraph())
+		srcTree.Root.AppendChild(treenode.NewParagraph(""))
 	}
 	treenode.RemoveBlockTreesByRootID(srcTree.ID)
-	if err = indexWriteJSONQueue(srcTree); nil != err {
+	if err = indexWriteTreeUpsertQueue(srcTree); err != nil {
 		return "", "", err
 	}
 
 	newTree.Box, newTree.Path = targetBoxID, newTargetPath
 	newTree.Root.SetIALAttr("updated", util.CurrentTimeSecondsStr())
 	newTree.Root.Spec = "1"
-	if err = indexWriteJSONQueue(newTree); nil != err {
+	box.addMinSort(path.Dir(newTargetPath), newTree.ID)
+	if err = indexWriteTreeUpsertQueue(newTree); err != nil {
 		return "", "", err
 	}
 	IncSync()

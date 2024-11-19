@@ -18,7 +18,6 @@ package model
 
 import (
 	"bytes"
-	"github.com/siyuan-note/siyuan/kernel/util"
 	"math"
 	"strings"
 	"unicode/utf8"
@@ -30,6 +29,7 @@ import (
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
+	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
 type GraphNode struct {
@@ -63,8 +63,8 @@ func BuildTreeGraph(id, query string) (boxID string, nodes []*GraphNode, links [
 	nodes = []*GraphNode{}
 	links = []*GraphLink{}
 
-	tree, err := loadTreeByBlockID(id)
-	if nil != err {
+	tree, err := LoadTreeByBlockID(id)
+	if err != nil {
 		return
 	}
 	node := treenode.GetNodeInTree(tree, id)

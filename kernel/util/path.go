@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/88250/gulu"
+	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 )
 
@@ -56,16 +57,73 @@ func GetLocalIPs() (ret []string) {
 
 	ret = []string{}
 	addrs, err := net.InterfaceAddrs()
-	if nil != err {
+	if err != nil {
 		logging.LogWarnf("get interface addresses failed: %s", err)
 		return
 	}
+
+	IPv4Nets := []*net.IPNet{}
+	IPv6Nets := []*net.IPNet{}
 	for _, addr := range addrs {
-		if networkIp, ok := addr.(*net.IPNet); ok && !networkIp.IP.IsLoopback() && networkIp.IP.To4() != nil &&
-			bytes.Equal([]byte{255, 255, 255, 0}, networkIp.Mask) {
-			ret = append(ret, networkIp.IP.String())
+		if networkIp, ok := addr.(*net.IPNet); ok && networkIp.IP.String() != "<nil>" {
+			if networkIp.IP.To4() != nil {
+				IPv4Nets = append(IPv4Nets, networkIp)
+			} else if networkIp.IP.To16() != nil {
+				IPv6Nets = append(IPv6Nets, networkIp)
+			}
 		}
 	}
+
+	// loopback address
+	for _, net := range IPv4Nets {
+		if net.IP.IsLoopback() {
+			ret = append(ret, net.IP.String())
+		}
+	}
+	// private address
+	for _, net := range IPv4Nets {
+		if net.IP.IsPrivate() {
+			ret = append(ret, net.IP.String())
+		}
+	}
+	// IPv4 private address
+	for _, net := range IPv4Nets {
+		if net.IP.IsGlobalUnicast() {
+			ret = append(ret, net.IP.String())
+		}
+	}
+	// link-local unicast address
+	for _, net := range IPv4Nets {
+		if net.IP.IsLinkLocalUnicast() {
+			ret = append(ret, net.IP.String())
+		}
+	}
+
+	// loopback address
+	for _, net := range IPv6Nets {
+		if net.IP.IsLoopback() {
+			ret = append(ret, "["+net.IP.String()+"]")
+		}
+	}
+	// private address
+	for _, net := range IPv6Nets {
+		if net.IP.IsPrivate() {
+			ret = append(ret, "["+net.IP.String()+"]")
+		}
+	}
+	// IPv6 private address
+	for _, net := range IPv6Nets {
+		if net.IP.IsGlobalUnicast() {
+			ret = append(ret, "["+net.IP.String()+"]")
+		}
+	}
+	// link-local unicast address
+	for _, net := range IPv6Nets {
+		if net.IP.IsLinkLocalUnicast() {
+			ret = append(ret, "["+net.IP.String()+"]")
+		}
+	}
+
 	ret = append(ret, LocalHost)
 	ret = gulu.Str.RemoveDuplicatedElem(ret)
 	return
@@ -109,7 +167,7 @@ func GetChildDocDepth(treeAbsPath string) (ret int) {
 
 	baseDepth := strings.Count(filepath.ToSlash(treeAbsPath), "/")
 	depth := 1
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	filelock.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		p := filepath.ToSlash(path)
 		currentDepth := strings.Count(p, "/")
 		if depth < currentDepth {
@@ -121,10 +179,25 @@ func GetChildDocDepth(treeAbsPath string) (ret int) {
 	return
 }
 
+func NormalizeConcurrentReqs(concurrentReqs int, provider int) int {
+	if 1 > concurrentReqs {
+		if 2 == provider { // S3
+			return 8
+		} else if 3 == provider { // WebDAV
+			return 1
+		}
+		return 8
+	}
+	if 16 < concurrentReqs {
+		return 16
+	}
+	return concurrentReqs
+}
+
 func NormalizeTimeout(timeout int) int {
 	if 7 > timeout {
 		if 1 > timeout {
-			return 30
+			return 60
 		}
 		return 7
 	}
@@ -207,4 +280,17 @@ func IsDisplayableAsset(p string) bool {
 		return true
 	}
 	return false
+}
+
+func GetAbsPathInWorkspace(relPath string) (string, error) {
+	absPath := filepath.Join(WorkspaceDir, relPath)
+	absPath = filepath.Clean(absPath)
+	if WorkspaceDir == absPath {
+		return absPath, nil
+	}
+
+	if IsSubPath(WorkspaceDir, absPath) {
+		return absPath, nil
+	}
+	return "", os.ErrPermission
 }

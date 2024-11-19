@@ -2,6 +2,8 @@
 import {exportLayout} from "../layout/util";
 /// #endif
 import {hideMessage, showMessage} from "../dialog/message";
+import {setStorageVal} from "../protyle/util/compatibility";
+import {Constants} from "../constants";
 
 export const processMessage = (response: IWebSocketData) => {
     if ("msg" === response.cmd) {
@@ -20,16 +22,32 @@ export const processMessage = (response: IWebSocketData) => {
         return false;
     }
     if ("reloadui" === response.cmd) {
-        /// #if MOBILE
-        window.location.reload();
-        /// #else
-        exportLayout({
-            reload: true,
-            onlyData: false,
-            errorExit: false,
-            dropEditScroll: response.data?.resetScroll,
-        });
-        /// #endif
+        if (response.data?.resetScroll) {
+            window.siyuan.storage[Constants.LOCAL_FILEPOSITION] = {};
+            setStorageVal(Constants.LOCAL_FILEPOSITION, window.siyuan.storage[Constants.LOCAL_FILEPOSITION], () => {
+                /// #if MOBILE
+                window.location.reload();
+                /// #else
+                exportLayout({
+                    cb() {
+                        window.location.reload();
+                    },
+                    errorExit: false,
+                });
+                /// #endif
+            });
+        } else {
+            /// #if MOBILE
+            window.location.reload();
+            /// #else
+            exportLayout({
+                cb() {
+                    window.location.reload();
+                },
+                errorExit: false,
+            });
+            /// #endif
+        }
         return false;
     }
 

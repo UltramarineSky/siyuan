@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io/fs"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -29,19 +28,9 @@ import (
 	"github.com/88250/lute"
 	"github.com/88250/lute/ast"
 	"github.com/88250/lute/parse"
+	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
-
-func StatTree(tree *parse.Tree) (ret *util.BlockStatResult) {
-	runeCnt, wordCnt, linkCnt, imgCnt, refCnt := tree.Root.Stat()
-	return &util.BlockStatResult{
-		RuneCount:  runeCnt,
-		WordCount:  wordCnt,
-		LinkCount:  linkCnt,
-		ImageCount: imgCnt,
-		RefCount:   refCnt,
-	}
-}
 
 func NodeHash(node *ast.Node, tree *parse.Tree, luteEngine *lute.Lute) string {
 	ialArray := node.KramdownIAL
@@ -55,6 +44,9 @@ func NodeHash(node *ast.Node, tree *parse.Tree, luteEngine *lute.Lute) string {
 	}
 	hpath := tree.HPath
 	data := tree.Box + tree.Path + hpath + string(ial) + md
+	if nil != node.Parent {
+		data += node.Parent.ID
+	}
 	return fmt.Sprintf("%x", sha256.Sum256(gulu.Str.ToBytes(data)))[:7]
 }
 
@@ -68,7 +60,7 @@ func TreeRoot(node *ast.Node) *ast.Node {
 }
 
 func NewTree(boxID, p, hp, title string) *parse.Tree {
-	id := strings.TrimSuffix(path.Base(p), ".sy")
+	id := util.GetTreeID(p)
 	root := &ast.Node{Type: ast.NodeDocument, ID: id, Spec: "1", Box: boxID, Path: p}
 	root.SetIALAttr("title", title)
 	root.SetIALAttr("id", id)
@@ -86,6 +78,8 @@ func IALStr(n *ast.Node) string {
 	if 1 > len(n.KramdownIAL) {
 		return ""
 	}
+	// 这里不能进行转义，否则会导致从数据库中读取后转换为 IAL 时解析错误
+	// 所以 Some symbols should not be escaped to avoid inaccurate searches https://github.com/siyuan-note/siyuan/issues/10185 无法被修复了
 	return string(parse.IAL2Tokens(n.KramdownIAL))
 }
 
@@ -101,7 +95,7 @@ func RootChildIDs(rootID string) (ret []string) {
 	if !gulu.File.IsDir(subFolder) {
 		return
 	}
-	filepath.Walk(subFolder, func(path string, info fs.FileInfo, err error) error {
+	filelock.Walk(subFolder, func(path string, d fs.DirEntry, err error) error {
 		if strings.HasSuffix(path, ".sy") {
 			name := filepath.Base(path)
 			id := strings.TrimSuffix(name, ".sy")
@@ -112,8 +106,11 @@ func RootChildIDs(rootID string) (ret []string) {
 	return
 }
 
-func NewParagraph() (ret *ast.Node) {
-	newID := ast.NewNodeID()
+func NewParagraph(id string) (ret *ast.Node) {
+	newID := id
+	if "" == newID {
+		newID = ast.NewNodeID()
+	}
 	ret = &ast.Node{ID: newID, Type: ast.NodeParagraph}
 	ret.SetIALAttr("id", newID)
 	ret.SetIALAttr("updated", newID[:14])

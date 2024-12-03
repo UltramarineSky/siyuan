@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/html"
@@ -28,6 +29,42 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/model"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func getBlockTreeInfos(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var ids []string
+	idsArg := arg["ids"].([]interface{})
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+
+	ret.Data = model.GetBlockTreeInfos(ids)
+}
+
+func getBlockSiblingID(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	id := arg["id"].(string)
+	parent, previous, next := model.GetBlockSiblingID(id)
+	ret.Data = map[string]string{
+		"parent":   parent,
+		"next":     next,
+		"previous": previous,
+	}
+}
 
 func transferBlockRef(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -47,6 +84,11 @@ func transferBlockRef(c *gin.Context) {
 		return
 	}
 
+	reloadUI := true
+	if nil != arg["reloadUI"] {
+		reloadUI = arg["reloadUI"].(bool)
+	}
+
 	var refIDs []string
 	if nil != arg["refIDs"] {
 		for _, refID := range arg["refIDs"].([]interface{}) {
@@ -55,11 +97,15 @@ func transferBlockRef(c *gin.Context) {
 	}
 
 	err := model.TransferBlockRef(fromID, toID, refIDs)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
 		return
+	}
+
+	if reloadUI {
+		util.ReloadUI()
 	}
 }
 
@@ -76,7 +122,7 @@ func swapBlockRef(c *gin.Context) {
 	defID := arg["defID"].(string)
 	includeChildren := arg["includeChildren"].(bool)
 	err := model.SwapBlockRef(refID, defID, includeChildren)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -124,7 +170,7 @@ func getHeadingDeleteTransaction(c *gin.Context) {
 	id := arg["id"].(string)
 
 	transaction, err := model.GetHeadingDeleteTransaction(id)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -147,7 +193,7 @@ func getHeadingLevelTransaction(c *gin.Context) {
 	level := int(arg["level"].(float64))
 
 	transaction, err := model.GetHeadingLevelTransaction(id, level)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -169,7 +215,7 @@ func setBlockReminder(c *gin.Context) {
 	id := arg["id"].(string)
 	timed := arg["timed"].(string) // yyyyMMddHHmmss
 	err := model.SetBlockReminder(id, timed)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -187,7 +233,11 @@ func checkBlockFold(c *gin.Context) {
 	}
 
 	id := arg["id"].(string)
-	ret.Data = model.IsBlockFolded(id)
+	isFolded, isRoot := model.IsBlockFolded(id)
+	ret.Data = map[string]interface{}{
+		"isFolded": isFolded,
+		"isRoot":   isRoot,
+	}
 }
 
 func checkBlockExist(c *gin.Context) {
@@ -223,6 +273,30 @@ func getDocInfo(c *gin.Context) {
 	if nil == info {
 		ret.Code = -1
 		ret.Msg = fmt.Sprintf(model.Conf.Language(15), id)
+		return
+	}
+	ret.Data = info
+}
+
+func getDocsInfo(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+	idsArg := arg["ids"].([]interface{})
+	var ids []string
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+	queryRefCount := arg["refCount"].(bool)
+	queryAv := arg["av"].(bool)
+	info := model.GetDocsInfo(ids, queryRefCount, queryAv)
+	if nil == info {
+		ret.Code = -1
+		ret.Msg = fmt.Sprintf(model.Conf.Language(15), ids)
 		return
 	}
 	ret.Data = info
@@ -279,6 +353,19 @@ func getTreeStat(c *gin.Context) {
 	ret.Data = model.StatTree(id)
 }
 
+func getDOMText(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	dom := arg["dom"].(string)
+	ret.Data = model.GetDOMText(dom)
+}
+
 func getRefText(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -289,8 +376,23 @@ func getRefText(c *gin.Context) {
 	}
 
 	id := arg["id"].(string)
-	model.WaitForWritingFiles()
-	ret.Data = model.GetBlockRefText(id)
+	model.FlushTxQueue()
+	refText := model.GetBlockRefText(id)
+	if "" == refText {
+		// 空块返回 id https://github.com/siyuan-note/siyuan/issues/10259
+		refText = id
+		ret.Data = refText
+		return
+	}
+
+	if strings.Count(refText, "\\") == len(refText) {
+		// 全部都是 \ 的话使用实体 https://github.com/siyuan-note/siyuan/issues/11473
+		refText = strings.ReplaceAll(refText, "\\", "&#92;")
+		ret.Data = refText
+		return
+	}
+
+	ret.Data = refText
 }
 
 func getRefIDs(c *gin.Context) {
@@ -307,7 +409,7 @@ func getRefIDs(c *gin.Context) {
 	}
 
 	id := arg["id"].(string)
-	refIDs, refTexts, defIDs := model.GetBlockRefIDs(id)
+	refIDs, refTexts, defIDs := model.GetBlockRefs(id)
 	ret.Data = map[string][]string{
 		"refIDs":   refIDs,
 		"refTexts": refTexts,
@@ -371,7 +473,7 @@ func getBlockBreadcrumb(c *gin.Context) {
 	}
 
 	blockPath, err := model.BuildBlockBreadcrumb(id, excludeTypes)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -394,6 +496,24 @@ func getBlockIndex(c *gin.Context) {
 	ret.Data = index
 }
 
+func getBlocksIndexes(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	idsArg := arg["ids"].([]interface{})
+	var ids []string
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+	index := model.GetBlocksIndexes(ids)
+	ret.Data = index
+}
+
 func getBlockInfo(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -405,7 +525,8 @@ func getBlockInfo(c *gin.Context) {
 
 	id := arg["id"].(string)
 
-	tree, err := model.LoadTreeByID(id)
+	// 仅在此处使用带重建索引的加载函数，其他地方不要使用
+	tree, err := model.LoadTreeByBlockIDWithReindex(id)
 	if errors.Is(err, model.ErrIndexing) {
 		ret.Code = 3
 		ret.Msg = model.Conf.Language(56)
@@ -482,7 +603,20 @@ func getBlockKramdown(c *gin.Context) {
 		return
 	}
 
-	kramdown := model.GetBlockKramdown(id)
+	// md：Markdown 标记符模式，使用标记符导出
+	// textmark：文本标记模式，使用 span 标签导出
+	// https://github.com/siyuan-note/siyuan/issues/13183
+	mode := "md"
+	if modeArg := arg["mode"]; nil != modeArg {
+		mode = modeArg.(string)
+		if "md" != mode && "textmark" != mode {
+			ret.Code = -1
+			ret.Msg = "Invalid mode"
+			return
+		}
+	}
+
+	kramdown := model.GetBlockKramdown(id, mode)
 	ret.Data = map[string]string{
 		"id":       id,
 		"kramdown": kramdown,
@@ -504,4 +638,30 @@ func getChildBlocks(c *gin.Context) {
 	}
 
 	ret.Data = model.GetChildBlocks(id)
+}
+
+func getTailChildBlocks(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	id := arg["id"].(string)
+	if util.InvalidIDPattern(id, ret) {
+		return
+	}
+
+	var n int
+	nArg := arg["n"]
+	if nil != nArg {
+		n = int(nArg.(float64))
+	}
+	if 1 > n {
+		n = 7
+	}
+
+	ret.Data = model.GetTailChildBlocks(id, n)
 }

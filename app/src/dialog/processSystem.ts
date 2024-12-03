@@ -3,9 +3,11 @@ import {fetchPost} from "../util/fetch";
 /// #if !MOBILE
 import {exportLayout} from "../layout/util";
 /// #endif
+import {getAllEditor, getAllModels} from "../layout/getAll";
+import {getDockByType} from "../layout/tabUtil";
+import {Files} from "../layout/dock/Files";
 /// #if !BROWSER
 import {ipcRenderer} from "electron";
-import {getCurrentWindow} from "@electron/remote";
 /// #endif
 import {hideMessage, showMessage} from "./message";
 import {Dialog} from "./index";
@@ -15,60 +17,82 @@ import {escapeHtml} from "../util/escape";
 import {getWorkspaceName} from "../util/noRelyPCFunction";
 import {needSubscribe} from "../util/needSubscribe";
 import {redirectToCheckAuth, setNoteBook} from "../util/pathName";
-import {getAllModels} from "../layout/getAll";
 import {reloadProtyle} from "../protyle/util/reload";
 import {Tab} from "../layout/Tab";
 import {setEmpty} from "../mobile/util/setEmpty";
-import {hideElements} from "../protyle/ui/hideElements";
+import {hideAllElements, hideElements} from "../protyle/ui/hideElements";
 import {App} from "../index";
+import {saveScroll} from "../protyle/scroll/saveScroll";
+import {isInAndroid, isInHarmony, isInIOS, setStorageVal} from "../protyle/util/compatibility";
+import {Plugin} from "../plugin";
 
-const updateTitle = (rootID: string, tab: Tab) => {
+const updateTitle = (rootID: string, tab: Tab, protyle?: IProtyle) => {
     fetchPost("/api/block/getDocInfo", {
         id: rootID
     }, (response) => {
         tab.updateTitle(response.data.name);
+        if (protyle && protyle.title) {
+            protyle.title.setTitle(response.data.name);
+        }
     });
 };
 
-export const reloadSync = (app: App, data: { upsertRootIDs: string[], removeRootIDs: string[] }) => {
-    hideMessage();
+export const reloadSync = (
+    app: App,
+    data: { upsertRootIDs: string[], removeRootIDs: string[] },
+    hideMsg = true,
+    // 同步的时候需要更新只读状态 https://github.com/siyuan-note/siyuan/issues/11517
+    // 调整大纲的时候需要使用现有状态 https://github.com/siyuan-note/siyuan/issues/11808
+    updateReadonly = true,
+    onlyUpdateDoc = false
+) => {
+    if (hideMsg) {
+        hideMessage();
+    }
     /// #if MOBILE
     if (window.siyuan.mobile.popEditor) {
         if (data.removeRootIDs.includes(window.siyuan.mobile.popEditor.protyle.block.rootID)) {
             hideElements(["dialog"]);
         } else {
-            reloadProtyle(window.siyuan.mobile.popEditor.protyle, false);
-            window.siyuan.mobile.popEditor.protyle.breadcrumb.render(window.siyuan.mobile.popEditor.protyle, true);
+            reloadProtyle(window.siyuan.mobile.popEditor.protyle, false, updateReadonly);
         }
     }
     if (window.siyuan.mobile.editor) {
         if (data.removeRootIDs.includes(window.siyuan.mobile.editor.protyle.block.rootID)) {
             setEmpty(app);
         } else {
-            reloadProtyle(window.siyuan.mobile.editor.protyle, false);
+            reloadProtyle(window.siyuan.mobile.editor.protyle, false, updateReadonly);
             fetchPost("/api/block/getDocInfo", {
                 id: window.siyuan.mobile.editor.protyle.block.rootID
             }, (response) => {
-                (document.getElementById("toolbarName") as HTMLInputElement).value = response.data.name === "Untitled" ? "" : response.data.name;
+                setTitle(response.data.name);
+                window.siyuan.mobile.editor.protyle.title.setTitle(response.data.name);
             });
         }
     }
     setNoteBook(() => {
-        window.siyuan.mobile.files.init(false);
+        window.siyuan.mobile.docks.file.init(false);
     });
     /// #else
     const allModels = getAllModels();
     allModels.editor.forEach(item => {
         if (data.upsertRootIDs.includes(item.editor.protyle.block.rootID)) {
-            reloadProtyle(item.editor.protyle, false);
-            updateTitle(item.editor.protyle.block.rootID, item.parent);
+            fetchPost("/api/block/getDocInfo", {
+                id: item.editor.protyle.block.rootID,
+            }, (response) => {
+                item.editor.protyle.wysiwyg.renderCustom(response.data.ial);
+                reloadProtyle(item.editor.protyle, false, updateReadonly);
+                updateTitle(item.editor.protyle.block.rootID, item.parent, item.editor.protyle);
+            });
         } else if (data.removeRootIDs.includes(item.editor.protyle.block.rootID)) {
-            item.parent.parent.removeTab(item.parent.id, false, false, false);
+            item.parent.parent.removeTab(item.parent.id, false, false);
+            delete window.siyuan.storage[Constants.LOCAL_FILEPOSITION][item.editor.protyle.block.rootID];
+            setStorageVal(Constants.LOCAL_FILEPOSITION, window.siyuan.storage[Constants.LOCAL_FILEPOSITION]);
         }
     });
     allModels.graph.forEach(item => {
         if (item.type === "local" && data.removeRootIDs.includes(item.rootId)) {
-            item.parent.parent.removeTab(item.parent.id, false, false, false);
+            item.parent.parent.removeTab(item.parent.id, false, false);
         } else if (item.type !== "local" || data.upsertRootIDs.includes(item.rootId)) {
             item.searchGraph(false);
             if (item.type === "local") {
@@ -78,10 +102,11 @@ export const reloadSync = (app: App, data: { upsertRootIDs: string[], removeRoot
     });
     allModels.outline.forEach(item => {
         if (item.type === "local" && data.removeRootIDs.includes(item.blockId)) {
-            item.parent.parent.removeTab(item.parent.id, false, false, false);
+            item.parent.parent.removeTab(item.parent.id, false, false);
         } else if (item.type !== "local" || data.upsertRootIDs.includes(item.blockId)) {
             fetchPost("/api/outline/getDocOutline", {
                 id: item.blockId,
+                preview: item.isPreview
             }, response => {
                 item.update(response);
             });
@@ -92,7 +117,7 @@ export const reloadSync = (app: App, data: { upsertRootIDs: string[], removeRoot
     });
     allModels.backlink.forEach(item => {
         if (item.type === "local" && data.removeRootIDs.includes(item.rootId)) {
-            item.parent.parent.removeTab(item.parent.id, false, false, false);
+            item.parent.parent.removeTab(item.parent.id, false, false);
         } else {
             item.refresh();
             if (item.type === "local") {
@@ -100,11 +125,13 @@ export const reloadSync = (app: App, data: { upsertRootIDs: string[], removeRoot
             }
         }
     });
-    allModels.files.forEach(item => {
-        setNoteBook(() => {
-            item.init(false);
+    if (!onlyUpdateDoc) {
+        allModels.files.forEach(item => {
+            setNoteBook(() => {
+                item.init(false);
+            });
         });
-    });
+    }
     allModels.bookmark.forEach(item => {
         item.update();
     });
@@ -123,10 +150,99 @@ export const reloadSync = (app: App, data: { upsertRootIDs: string[], removeRoot
     /// #endif
 };
 
-export const lockScreen = () => {
+export const setRefDynamicText = (data: {
+    "blockID": string,
+    "defBlockID": string,
+    "refText": string,
+    "rootID": string
+}) => {
+    getAllEditor().forEach(item => {
+        // 不能对比 rootId，否则嵌入块中的锚文本无法更新
+        item.protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${data.blockID}"] span[data-type="block-ref"][data-subtype="d"][data-id="${data.defBlockID}"]`).forEach(item => {
+            item.innerHTML = data.refText;
+        });
+    });
+};
+
+export const setDefRefCount = (data: {
+    "blockID": string,
+    "refCount": number,
+    "rootRefCount": number,
+    "rootID": string
+    refIDs: string[]
+}) => {
+    getAllEditor().forEach(editor => {
+        if (data.rootID === data.blockID && editor.protyle.block.rootID === data.rootID) {
+            if (!editor.protyle.title) {
+                return;
+            }
+            const attrElement = editor.protyle.title.element.querySelector(".protyle-attr");
+            const countElement = attrElement.querySelector(".protyle-attr--refcount");
+            if (countElement) {
+                if (data.refCount === 0) {
+                    countElement.remove();
+                } else {
+                    countElement.textContent = data.refCount.toString();
+                    countElement.setAttribute("data-id", data.refIDs.toString());
+                }
+            } else if (data.refCount > 0) {
+                attrElement.insertAdjacentHTML("beforeend", `<div class="protyle-attr--refcount popover__block" data-defids="[&quot;${data.blockID}&quot;]" data-id="${data.refIDs.toString()}" style="">${data.refCount}</div>`);
+            }
+            return;
+        }
+        // 不能对比 rootId，否则嵌入块中的锚文本无法更新
+        editor.protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${data.blockID}"]`).forEach(item => {
+            // 不能直接查询，否则列表中会获取到第一个列表项的 attr https://github.com/siyuan-note/siyuan/issues/12738
+            const countElement = item.lastElementChild.querySelector(".protyle-attr--refcount");
+            if (countElement) {
+                if (data.refCount === 0) {
+                    countElement.remove();
+                } else {
+                    countElement.textContent = data.refCount.toString();
+                }
+            } else if (data.refCount > 0) {
+                const attrElement = item.lastElementChild;
+                if (attrElement.childElementCount > 0) {
+                    attrElement.lastElementChild.insertAdjacentHTML("afterend", `<div class="protyle-attr--refcount popover__block">${data.refCount}</div>`);
+                } else {
+                    attrElement.innerHTML = `<div class="protyle-attr--refcount popover__block">${data.refCount}</div>${Constants.ZWSP}`;
+                }
+            }
+            if (data.refCount === 0) {
+                item.removeAttribute("refcount");
+            } else {
+                item.setAttribute("refcount", data.refCount.toString());
+            }
+        });
+    });
+
+    let liElement;
+    /// #if MOBILE
+    liElement = window.siyuan.mobile.docks.file.element.querySelector(`li[data-node-id="${data.rootID}"]`);
+    /// #else
+    liElement = (getDockByType("file").data.file as Files).element.querySelector(`li[data-node-id="${data.rootID}"]`);
+    /// #endif
+    if (liElement) {
+        const counterElement = liElement.querySelector(".counter");
+        if (counterElement) {
+            if (data.rootRefCount === 0) {
+                counterElement.remove();
+            } else {
+                counterElement.textContent = data.rootRefCount.toString();
+            }
+        } else if (data.rootRefCount > 0) {
+            liElement.insertAdjacentHTML("beforeend", `<span class="popover__block counter b3-tooltips b3-tooltips__nw" aria-label="${window.siyuan.languages.ref}">${data.rootRefCount}</span>`);
+        }
+    }
+};
+
+export const lockScreen = (app: App) => {
     if (window.siyuan.config.readonly) {
         return;
     }
+    app.plugins.forEach(item => {
+        item.eventBus.emit("lock-screen");
+    });
     /// #if BROWSER
     fetchPost("/api/system/logoutAuth", {}, () => {
         redirectToCheckAuth();
@@ -141,7 +257,7 @@ export const kernelError = () => {
         return;
     }
     let iosReStart = "";
-    if (window.siyuan.config.system.container === "ios" && window.webkit?.messageHandlers) {
+    if (isInIOS()) {
         iosReStart = `<div class="fn__hr"></div><div class="fn__flex"><div class="fn__flex-1"></div><button class="b3-button">${window.siyuan.languages.retry}</button></div>`;
     }
     const dialog = new Dialog({
@@ -158,6 +274,7 @@ export const kernelError = () => {
 </div>`
     });
     dialog.element.id = "errorLog";
+    dialog.element.setAttribute("data-key", Constants.DIALOG_KERNELFAULT);
     const restartElement = dialog.element.querySelector(".b3-button");
     if (restartElement) {
         restartElement.addEventListener("click", () => {
@@ -167,7 +284,13 @@ export const kernelError = () => {
     }
 };
 
-export const exitSiYuan = () => {
+export const exitSiYuan = async () => {
+    hideAllElements(["util"]);
+    /// #if MOBILE
+    if (window.siyuan.mobile.editor) {
+        await saveScroll(window.siyuan.mobile.editor.protyle);
+    }
+    /// #endif
     fetchPost("/api/system/exit", {force: false}, (response) => {
         if (response.code === 1) { // 同步执行失败
             const msgId = showMessage(response.msg, response.data.closeTimeout, "error");
@@ -178,7 +301,7 @@ export const exitSiYuan = () => {
                         /// #if !BROWSER
                         ipcRenderer.send(Constants.SIYUAN_QUIT, location.port);
                         /// #else
-                        if (["ios", "android"].includes(window.siyuan.config.system.container) && (window.webkit?.messageHandlers || window.JSAndroid)) {
+                        if (isInIOS() || isInAndroid() || isInHarmony()) {
                             window.location.href = "siyuan://api/system/exit";
                         }
                         /// #endif
@@ -196,7 +319,7 @@ export const exitSiYuan = () => {
                     // 桌面端退出拉起更新安装时有时需要重启两次 https://github.com/siyuan-note/siyuan/issues/6544
                     // 这里先将主界面隐藏
                     setTimeout(() => {
-                        getCurrentWindow().hide();
+                        ipcRenderer.send(Constants.SIYUAN_CMD, "hide");
                     }, 2000);
                     // 然后等待一段时间后再退出，避免界面主进程退出以后内核子进程被杀死
                     setTimeout(() => {
@@ -218,7 +341,7 @@ export const exitSiYuan = () => {
             /// #if !BROWSER
             ipcRenderer.send(Constants.SIYUAN_QUIT, location.port);
             /// #else
-            if (["ios", "android"].includes(window.siyuan.config.system.container) && (window.webkit?.messageHandlers || window.JSAndroid)) {
+            if (isInIOS() || isInAndroid() || isInHarmony()) {
                 window.location.href = "siyuan://api/system/exit";
             }
             /// #endif
@@ -241,49 +364,67 @@ export const transactionError = () => {
 </div>`,
         width: isMobile() ? "92vw" : "520px",
     });
+    dialog.element.setAttribute("data-key", Constants.DIALOG_STATEEXCEPTED);
     const btnsElement = dialog.element.querySelectorAll(".b3-button");
     btnsElement[0].addEventListener("click", () => {
         /// #if MOBILE
         exitSiYuan();
         /// #else
         exportLayout({
-            reload: false,
-            onlyData: false,
             errorExit: true,
             cb: exitSiYuan
         });
         /// #endif
     });
     btnsElement[1].addEventListener("click", () => {
-        fetchPost("/api/filetree/refreshFiletree", {});
+        refreshFileTree();
         dialog.destroy();
     });
 };
 
+export const refreshFileTree = (cb?: () => void) => {
+    window.siyuan.storage[Constants.LOCAL_FILEPOSITION] = {};
+    setStorageVal(Constants.LOCAL_FILEPOSITION, window.siyuan.storage[Constants.LOCAL_FILEPOSITION]);
+    fetchPost("/api/filetree/refreshFiletree", {}, () => {
+        if (cb) {
+            cb();
+        }
+    });
+};
+
+let statusTimeout: number;
 export const progressStatus = (data: IWebSocketData) => {
     const statusElement = document.querySelector("#status") as HTMLElement;
     if (!statusElement) {
         return;
     }
+
     if (isMobile()) {
         if (!document.querySelector("#keyboardToolbar").classList.contains("fn__none")) {
             return;
         }
+        clearTimeout(statusTimeout);
         statusElement.innerHTML = data.msg;
-        statusElement.classList.remove("status--hide");
         statusElement.style.bottom = "0";
-        return;
-    }
-    const msgElement = statusElement.querySelector(".status__msg");
-    if (msgElement) {
-        msgElement.innerHTML = data.msg;
+        statusTimeout = window.setTimeout(() => {
+            statusElement.style.bottom = "";
+        }, 12000);
+    } else {
+        const msgElement = statusElement.querySelector(".status__msg");
+        if (msgElement) {
+            clearTimeout(statusTimeout);
+            msgElement.innerHTML = data.msg;
+            statusTimeout = window.setTimeout(() => {
+                msgElement.innerHTML = "";
+            }, 12000);
+        }
     }
 };
 
 export const progressLoading = (data: IWebSocketData) => {
     let progressElement = document.getElementById("progress");
     if (!progressElement) {
-        document.body.insertAdjacentHTML("beforeend", '<div id="progress"></div>');
+        document.body.insertAdjacentHTML("beforeend", `<div id="progress" style="z-index: ${++window.siyuan.zIndex}"></div>`);
         progressElement = document.getElementById("progress");
     }
     // code 0: 有进度；1: 无进度；2: 关闭
@@ -292,20 +433,20 @@ export const progressLoading = (data: IWebSocketData) => {
         return;
     }
     if (data.code === 0) {
-        progressElement.innerHTML = `<div class="b3-dialog__scrim" style="z-index:400;opacity: 1"></div>
-<div style="position: fixed;top: 45vh;width: 70vw;left: 15vw;color:var(--b3-theme-on-surface);z-index:400;">
+        progressElement.innerHTML = `<div class="b3-dialog__scrim" style="opacity: 1"></div>
+<div class="b3-dialog__loading">
     <div style="text-align: right">${data.data.current}/${data.data.total}</div>
     <div style="margin: 8px 0;height: 8px;border-radius: var(--b3-border-radius);overflow: hidden;background-color:#fff;"><div style="width: ${data.data.current / data.data.total * 100}%;transition: var(--b3-transition);background-color: var(--b3-theme-primary);height: 8px;"></div></div>
-    <div>${data.msg}</div>
+    <div class="ft__breakword">${data.msg}</div>
 </div>`;
     } else if (data.code === 1) {
         if (progressElement.lastElementChild) {
             progressElement.lastElementChild.lastElementChild.innerHTML = data.msg;
         } else {
-            progressElement.innerHTML = `<div class="b3-dialog__scrim" style="z-index:400;opacity: 1"></div>
-<div style="position: fixed;top: 45vh;width: 70vw;left: 15vw;color:var(--b3-theme-on-surface);z-index:400;">
+            progressElement.innerHTML = `<div class="b3-dialog__scrim" style="opacity: 1"></div>
+<div class="b3-dialog__loading">
     <div style="margin: 8px 0;height: 8px;border-radius: var(--b3-border-radius);overflow: hidden;background-color:#fff;"><div style="background-color: var(--b3-theme-primary);height: 8px;background-image: linear-gradient(-45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0.2) 75%, transparent 75%, transparent);animation: stripMove 450ms linear infinite;background-size: 50px 50px;"></div></div>
-    <div>${data.msg}</div>
+    <div class="ft__breakword">${data.msg}</div>
 </div>`;
         }
     }
@@ -341,6 +482,7 @@ export const bootSync = () => {
     <button class="b3-button b3-button--text">${window.siyuan.languages.syncNow}</button>
 </div>`
             });
+            dialog.element.setAttribute("data-key", Constants.DIALOG_BOOTSYNCFAILED);
             const btnsElement = dialog.element.querySelectorAll(".b3-button");
             btnsElement[0].addEventListener("click", () => {
                 dialog.destroy();
@@ -365,14 +507,14 @@ export const setTitle = (title: string) => {
     const dragElement = document.getElementById("drag");
     const workspaceName = getWorkspaceName();
     if (title === window.siyuan.languages.siyuanNote) {
-        const versionTitle = `${title} - ${workspaceName} - v${Constants.SIYUAN_VERSION}`;
+        const versionTitle = `${workspaceName} - ${window.siyuan.languages.siyuanNote} v${Constants.SIYUAN_VERSION}`;
         document.title = versionTitle;
         if (dragElement) {
             dragElement.textContent = versionTitle;
             dragElement.setAttribute("title", versionTitle);
         }
     } else {
-        title = title || "Untitled";
+        title = title || window.siyuan.languages.untitled;
         document.title = `${title} - ${workspaceName} - ${window.siyuan.languages.siyuanNote} v${Constants.SIYUAN_VERSION}`;
         if (!dragElement) {
             return;
@@ -404,7 +546,7 @@ export const downloadProgress = (data: { id: string, percent: number }) => {
     }
 };
 
-export const processSync = (data?: IWebSocketData) => {
+export const processSync = (data?: IWebSocketData, plugins?: Plugin[]) => {
     /// #if MOBILE
     const menuSyncUseElement = document.querySelector("#menuSyncNow use");
     const barSyncUseElement = document.querySelector("#toolbarSync use");
@@ -460,4 +602,13 @@ export const processSync = (data?: IWebSocketData) => {
         useElement.setAttribute("xlink:href", "#iconCloudSucc");
     }
     /// #endif
+    plugins.forEach((item) => {
+        if (data.code === 0) {
+            item.eventBus.emit("sync-start", data);
+        } else if (data.code === 1) {
+            item.eventBus.emit("sync-end", data);
+        } else if (data.code === 2) {
+            item.eventBus.emit("sync-fail", data);
+        }
+    });
 };

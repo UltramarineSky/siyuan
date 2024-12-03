@@ -23,13 +23,39 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/88250/gulu"
+	"github.com/88250/lute/parse"
 	"github.com/gin-gonic/gin"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/model"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func exportAttributeView(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	avID := arg["id"].(string)
+	blockID := arg["blockID"].(string)
+	zipPath, err := model.ExportAv2CSV(avID, blockID)
+	if err != nil {
+		ret.Code = 1
+		ret.Msg = err.Error()
+		ret.Data = map[string]interface{}{"closeTimeout": 7000}
+		return
+	}
+
+	ret.Data = map[string]interface{}{
+		"zip": zipPath,
+	}
+}
 
 func exportEPUB(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -195,7 +221,7 @@ func export2Liandi(c *gin.Context) {
 
 	id := arg["id"].(string)
 	err := model.Export2Liandi(id)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -213,7 +239,7 @@ func exportDataInFolder(c *gin.Context) {
 
 	exportFolder := arg["folder"].(string)
 	name, err := model.ExportDataInFolder(exportFolder)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -229,7 +255,7 @@ func exportData(c *gin.Context) {
 	defer c.JSON(http.StatusOK, ret)
 
 	zipPath, err := model.ExportData()
-	if nil != err {
+	if err != nil {
 		ret.Code = 1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -240,7 +266,48 @@ func exportData(c *gin.Context) {
 	}
 }
 
-func batchExportMd(c *gin.Context) {
+func exportResources(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var name string
+	if nil != arg["name"] {
+		name = util.TruncateLenFileName(arg["name"].(string))
+	}
+	if name == "" {
+		name = time.Now().Format("export-2006-01-02_15-04-05") // 生成的 *.zip 文件主文件名
+	}
+
+	if nil == arg["paths"] {
+		ret.Code = 1
+		ret.Data = ""
+		ret.Msg = "paths is required"
+		return
+	}
+
+	var resourcePaths []string // 文件/文件夹在工作空间中的路径
+	for _, resourcePath := range arg["paths"].([]interface{}) {
+		resourcePaths = append(resourcePaths, resourcePath.(string))
+	}
+
+	zipFilePath, err := model.ExportResources(resourcePaths, name)
+	if err != nil {
+		ret.Code = 1
+		ret.Msg = err.Error()
+		ret.Data = map[string]interface{}{"closeTimeout": 7000}
+		return
+	}
+	ret.Data = map[string]interface{}{
+		"path": zipFilePath, // 相对于工作空间目录的路径
+	}
+}
+
+func exportNotebookMd(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
@@ -251,9 +318,31 @@ func batchExportMd(c *gin.Context) {
 
 	notebook := arg["notebook"].(string)
 	p := arg["path"].(string)
-	zipPath := model.BatchExportMarkdown(notebook, p)
+	zipPath := model.ExportNotebookMarkdown(notebook, p)
 	ret.Data = map[string]interface{}{
 		"name": path.Base(zipPath),
+		"zip":  zipPath,
+	}
+}
+
+func exportMds(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	idsArg := arg["ids"].([]interface{})
+	var ids []string
+	for _, id := range idsArg {
+		ids = append(ids, id.(string))
+	}
+
+	name, zipPath := model.BatchExportPandocConvertZip(ids, "", ".md")
+	ret.Data = map[string]interface{}{
+		"name": name,
 		"zip":  zipPath,
 	}
 }
@@ -345,12 +434,16 @@ func exportDocx(c *gin.Context) {
 	if nil != arg["merge"] {
 		merge = arg["merge"].(bool)
 	}
-	err := model.ExportDocx(id, savePath, removeAssets, merge)
-	if nil != err {
+
+	fullPath, err := model.ExportDocx(id, savePath, removeAssets, merge)
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
 		return
+	}
+	ret.Data = map[string]interface{}{
+		"path": fullPath,
 	}
 }
 
@@ -384,14 +477,14 @@ func exportTempContent(c *gin.Context) {
 
 	content := arg["content"].(string)
 	tmpExport := filepath.Join(util.TempDir, "export", "temp")
-	if err := os.MkdirAll(tmpExport, 0755); nil != err {
+	if err := os.MkdirAll(tmpExport, 0755); err != nil {
 		ret.Code = 1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
 		return
 	}
 	p := filepath.Join(tmpExport, gulu.Rand.String(7))
-	if err := os.WriteFile(p, []byte(content), 0644); nil != err {
+	if err := os.WriteFile(p, []byte(content), 0644); err != nil {
 		ret.Code = 1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 7000}
@@ -425,14 +518,24 @@ func exportPreviewHTML(c *gin.Context) {
 	if nil != arg["image"] {
 		image = arg["image"].(bool)
 	}
-	name, content := model.ExportHTML(id, "", true, image, keepFold, merge)
+	name, content, node := model.ExportHTML(id, "", true, image, keepFold, merge)
 	// 导出 PDF 预览时点击块引转换后的脚注跳转不正确 https://github.com/siyuan-note/siyuan/issues/5894
 	content = strings.ReplaceAll(content, "http://"+util.LocalHost+":"+util.ServerPort+"/#", "#")
+
+	// Add `data-doc-type` and attribute when exporting image and PDF https://github.com/siyuan-note/siyuan/issues/9497
+	attrs := map[string]string{}
+	var typ string
+	if nil != node {
+		attrs = parse.IAL2Map(node.KramdownIAL)
+		typ = node.Type.String()
+	}
 
 	ret.Data = map[string]interface{}{
 		"id":      id,
 		"name":    name,
 		"content": content,
+		"attrs":   attrs,
+		"type":    typ,
 	}
 }
 
@@ -456,7 +559,7 @@ func exportHTML(c *gin.Context) {
 	if nil != arg["merge"] {
 		merge = arg["merge"].(bool)
 	}
-	name, content := model.ExportHTML(id, savePath, pdf, false, keepFold, merge)
+	name, content, _ := model.ExportHTML(id, savePath, pdf, false, keepFold, merge)
 	ret.Data = map[string]interface{}{
 		"id":      id,
 		"name":    name,
@@ -480,8 +583,9 @@ func processPDF(c *gin.Context) {
 		merge = arg["merge"].(bool)
 	}
 	removeAssets := arg["removeAssets"].(bool)
-	err := model.ProcessPDF(id, path, merge, removeAssets)
-	if nil != err {
+	watermark := arg["watermark"].(bool)
+	err := model.ProcessPDF(id, path, merge, removeAssets, watermark)
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -498,10 +602,9 @@ func exportPreview(c *gin.Context) {
 	}
 
 	id := arg["id"].(string)
-	stdHTML, outline := model.Preview(id)
+	stdHTML := model.Preview(id)
 	ret.Data = map[string]interface{}{
-		"html":    stdHTML,
-		"outline": outline,
+		"html": stdHTML,
 	}
 }
 
@@ -510,7 +613,7 @@ func exportAsFile(c *gin.Context) {
 	defer c.JSON(http.StatusOK, ret)
 
 	form, err := c.MultipartForm()
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("export as file failed: %s", err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -519,7 +622,7 @@ func exportAsFile(c *gin.Context) {
 
 	file := form.File["file"][0]
 	reader, err := file.Open()
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("export as file failed: %s", err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -528,7 +631,7 @@ func exportAsFile(c *gin.Context) {
 	defer reader.Close()
 
 	data, err := io.ReadAll(reader)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("export as file failed: %s", err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -538,7 +641,7 @@ func exportAsFile(c *gin.Context) {
 	name := "file-" + file.Filename
 	name = util.FilterFileName(name)
 	tmpDir := filepath.Join(util.TempDir, "export")
-	if err = os.MkdirAll(tmpDir, 0755); nil != err {
+	if err = os.MkdirAll(tmpDir, 0755); err != nil {
 		logging.LogErrorf("export as file failed: %s", err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -547,7 +650,7 @@ func exportAsFile(c *gin.Context) {
 
 	tmp := filepath.Join(tmpDir, name)
 	err = os.WriteFile(tmp, data, 0644)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("export as file failed: %s", err)
 		ret.Code = -1
 		ret.Msg = err.Error()

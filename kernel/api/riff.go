@@ -27,6 +27,74 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func getRiffCardsByBlockIDs(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+	blockIDsArg := arg["blockIDs"].([]interface{})
+	var blockIDs []string
+	for _, blockID := range blockIDsArg {
+		blockIDs = append(blockIDs, blockID.(string))
+	}
+
+	blocks := model.GetFlashcardsByBlockIDs(blockIDs)
+	ret.Data = map[string]interface{}{
+		"blocks": blocks,
+	}
+}
+
+func batchSetRiffCardsDueTime(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var cardDues []*model.SetFlashcardDueTime
+	for _, cardDueArg := range arg["cardDues"].([]interface{}) {
+		cardDue := cardDueArg.(map[string]interface{})
+		cardDues = append(cardDues, &model.SetFlashcardDueTime{
+			ID:  cardDue["id"].(string),
+			Due: cardDue["due"].(string),
+		})
+	}
+
+	err := model.SetFlashcardsDueTime(cardDues)
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+	}
+}
+
+func resetRiffCards(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	typ := arg["type"].(string)      // notebook, tree, deck
+	id := arg["id"].(string)         // notebook ID, root ID, deck ID
+	deckID := arg["deckID"].(string) // deck ID
+	blockIDsArg := arg["blockIDs"]   // 如果不传入 blockIDs （或者传入实参为空数组），则重置所有卡片
+	var blockIDs []string
+	if nil != blockIDsArg {
+		for _, blockID := range blockIDsArg.([]interface{}) {
+			blockIDs = append(blockIDs, blockID.(string))
+		}
+	}
+
+	model.ResetFlashcards(typ, id, deckID, blockIDs)
+}
+
 func getNotebookRiffCards(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -38,7 +106,11 @@ func getNotebookRiffCards(c *gin.Context) {
 
 	notebookID := arg["id"].(string)
 	page := int(arg["page"].(float64))
-	blockIDs, total, pageCount := model.GetNotebookFlashcards(notebookID, page)
+	pageSize := 20
+	if nil != arg["pageSize"] {
+		pageSize = int(arg["pageSize"].(float64))
+	}
+	blockIDs, total, pageCount := model.GetNotebookFlashcards(notebookID, page, pageSize)
 	ret.Data = map[string]interface{}{
 		"blocks":    blockIDs,
 		"total":     total,
@@ -57,7 +129,11 @@ func getTreeRiffCards(c *gin.Context) {
 
 	rootID := arg["id"].(string)
 	page := int(arg["page"].(float64))
-	blockIDs, total, pageCount := model.GetTreeFlashcards(rootID, page)
+	pageSize := 20
+	if nil != arg["pageSize"] {
+		pageSize = int(arg["pageSize"].(float64))
+	}
+	blockIDs, total, pageCount := model.GetTreeFlashcards(rootID, page, pageSize)
 	ret.Data = map[string]interface{}{
 		"blocks":    blockIDs,
 		"total":     total,
@@ -76,7 +152,11 @@ func getRiffCards(c *gin.Context) {
 
 	deckID := arg["id"].(string)
 	page := int(arg["page"].(float64))
-	blocks, total, pageCount := model.GetFlashcards(deckID, page)
+	pageSize := 20
+	if nil != arg["pageSize"] {
+		pageSize = int(arg["pageSize"].(float64))
+	}
+	blocks, total, pageCount := model.GetDeckFlashcards(deckID, page, pageSize)
 	ret.Data = map[string]interface{}{
 		"blocks":    blocks,
 		"total":     total,
@@ -98,7 +178,7 @@ func reviewRiffCard(c *gin.Context) {
 	rating := int(arg["rating"].(float64))
 	reviewedCardIDs := getReviewedCards(arg)
 	err := model.ReviewFlashcard(deckID, cardID, riff.Rating(rating), reviewedCardIDs)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -117,7 +197,7 @@ func skipReviewRiffCard(c *gin.Context) {
 	deckID := arg["deckID"].(string)
 	cardID := arg["cardID"].(string)
 	err := model.SkipReviewFlashcard(deckID, cardID)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -135,16 +215,18 @@ func getNotebookRiffDueCards(c *gin.Context) {
 
 	notebookID := arg["notebook"].(string)
 	reviewedCardIDs := getReviewedCards(arg)
-	cards, unreviewedCount, err := model.GetNotebookDueFlashcards(notebookID, reviewedCardIDs)
-	if nil != err {
+	cards, unreviewedCount, unreviewedNewCardCount, unreviewedOldCardCount, err := model.GetNotebookDueFlashcards(notebookID, reviewedCardIDs)
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	ret.Data = map[string]interface{}{
-		"cards":           cards,
-		"unreviewedCount": unreviewedCount,
+		"cards":                  cards,
+		"unreviewedCount":        unreviewedCount,
+		"unreviewedNewCardCount": unreviewedNewCardCount,
+		"unreviewedOldCardCount": unreviewedOldCardCount,
 	}
 }
 
@@ -159,16 +241,18 @@ func getTreeRiffDueCards(c *gin.Context) {
 
 	rootID := arg["rootID"].(string)
 	reviewedCardIDs := getReviewedCards(arg)
-	cards, unreviewedCount, err := model.GetTreeDueFlashcards(rootID, reviewedCardIDs)
-	if nil != err {
+	cards, unreviewedCount, unreviewedNewCardCount, unreviewedOldCardCount, err := model.GetTreeDueFlashcards(rootID, reviewedCardIDs)
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	ret.Data = map[string]interface{}{
-		"cards":           cards,
-		"unreviewedCount": unreviewedCount,
+		"cards":                  cards,
+		"unreviewedCount":        unreviewedCount,
+		"unreviewedNewCardCount": unreviewedNewCardCount,
+		"unreviewedOldCardCount": unreviewedOldCardCount,
 	}
 }
 
@@ -183,16 +267,18 @@ func getRiffDueCards(c *gin.Context) {
 
 	deckID := arg["deckID"].(string)
 	reviewedCardIDs := getReviewedCards(arg)
-	cards, unreviewedCount, err := model.GetDueFlashcards(deckID, reviewedCardIDs)
-	if nil != err {
+	cards, unreviewedCount, unreviewedNewCardCount, unreviewedOldCardCount, err := model.GetDueFlashcards(deckID, reviewedCardIDs)
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	ret.Data = map[string]interface{}{
-		"cards":           cards,
-		"unreviewedCount": unreviewedCount,
+		"cards":                  cards,
+		"unreviewedCount":        unreviewedCount,
+		"unreviewedNewCardCount": unreviewedNewCardCount,
+		"unreviewedOldCardCount": unreviewedOldCardCount,
 	}
 }
 
@@ -239,7 +325,7 @@ func removeRiffCards(c *gin.Context) {
 	}
 
 	model.PerformTransactions(&transactions)
-	model.WaitForWritingFiles()
+	model.FlushTxQueue()
 
 	if "" != deckID {
 		deck := model.Decks[deckID]
@@ -277,7 +363,7 @@ func addRiffCards(c *gin.Context) {
 	}
 
 	model.PerformTransactions(&transactions)
-	model.WaitForWritingFiles()
+	model.FlushTxQueue()
 
 	deck := model.Decks[deckID]
 	ret.Data = deckData(deck)
@@ -295,7 +381,7 @@ func renameRiffDeck(c *gin.Context) {
 	deckID := arg["deckID"].(string)
 	name := arg["name"].(string)
 	err := model.RenameDeck(deckID, name)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -313,7 +399,7 @@ func removeRiffDeck(c *gin.Context) {
 
 	deckID := arg["deckID"].(string)
 	err := model.RemoveDeck(deckID)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -331,7 +417,7 @@ func createRiffDeck(c *gin.Context) {
 
 	name := arg["name"].(string)
 	deck, err := model.CreateDeck(name)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return

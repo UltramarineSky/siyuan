@@ -15,13 +15,14 @@ export const renderBacklink = (protyle: IProtyle, backlinkData: {
 }[]) => {
     protyle.block.showAll = true;
     let html = "";
-    backlinkData.forEach(item => {
-        html += genBreadcrumb(item.blockPaths) + setBacklinkFold(item.dom, item.expand);
+    backlinkData.forEach((item, index) => {
+        html += genBreadcrumb(item.blockPaths, false, index) + setBacklinkFold(item.dom, item.expand);
     });
     protyle.wysiwyg.element.innerHTML = html;
+    improveBreadcrumbAppearance(protyle.wysiwyg.element);
     processRender(protyle.wysiwyg.element);
     highlightRender(protyle.wysiwyg.element);
-    avRender(protyle.wysiwyg.element);
+    avRender(protyle.wysiwyg.element, protyle);
     blockRender(protyle, protyle.wysiwyg.element);
     removeLoading(protyle);
     if (window.siyuan.config.readonly || window.siyuan.config.editor.readOnly) {
@@ -75,7 +76,7 @@ export const loadBreadcrumb = (protyle: IProtyle, element: HTMLElement) => {
         }
         element.parentElement.insertAdjacentHTML("afterend", setBacklinkFold(getResponse.data.content, true));
         processRender(element.parentElement.parentElement);
-        avRender(element.parentElement.parentElement);
+        avRender(element.parentElement.parentElement, protyle);
         blockRender(protyle, element.parentElement.parentElement);
         if (getResponse.data.isSyncing) {
             disabledForeverProtyle(protyle);
@@ -99,7 +100,11 @@ export const getBacklinkHeadingMore = (moreElement: HTMLElement) => {
     moreElement.remove();
 };
 
-export const genBreadcrumb = (blockPaths: IBreadcrumb[], renderFirst = false) => {
+export const genBreadcrumb = (blockPaths: IBreadcrumb[], renderFirst: boolean, parentIndex?: number) => {
+    if (1 > blockPaths.length) {
+        return `<div contenteditable="false" style="border-top: ${parentIndex === 0 ? 0 : 1}px solid var(--b3-border-color);min-height: 0;width: 100%;" class="protyle-breadcrumb__bar"><span></span></div>`;
+    }
+
     let html = "";
     blockPaths.forEach((item, index) => {
         if (index === 0 && !renderFirst) {
@@ -114,4 +119,32 @@ export const genBreadcrumb = (blockPaths: IBreadcrumb[], renderFirst = false) =>
         }
     });
     return `<div contenteditable="false" class="protyle-breadcrumb__bar protyle-breadcrumb__bar--nowrap">${html}</div>`;
+};
+
+export const improveBreadcrumbAppearance = (element: HTMLElement) => {
+    element.querySelectorAll(".protyle-breadcrumb__bar").forEach((item: HTMLElement) => {
+        item.classList.remove("protyle-breadcrumb__bar--nowrap");
+        const itemElements = Array.from(item.querySelectorAll(".protyle-breadcrumb__text"));
+        if (itemElements.length === 0) {
+            return;
+        }
+        let jump = false;
+        while (item.scrollHeight > 30 && !jump && itemElements.length > 1) {
+            itemElements.find((item, index) => {
+                if (index > 0) {
+                    if (!item.classList.contains("protyle-breadcrumb__text--ellipsis")) {
+                        item.classList.add("protyle-breadcrumb__text--ellipsis");
+                        return true;
+                    }
+                    if (index === itemElements.length - 1 && item.classList.contains("protyle-breadcrumb__text--ellipsis")) {
+                        jump = true;
+                    }
+                }
+            });
+        }
+        item.classList.add("protyle-breadcrumb__bar--nowrap");
+        if (item.lastElementChild) {
+            item.scrollLeft = (item.lastElementChild as HTMLElement).offsetLeft - item.clientWidth + 14;
+        }
+    });
 };

@@ -7,7 +7,7 @@
   &--background .b3-list-item {
     border-radius: var(--b3-border-radius);
 
-    &:hover:not(.b3-list-item--focus),
+    &:hover:not(.b3-list-item--focus):not(.dragover):not(.dragover__top):not(.dragover__bottom),
     &--focus:not(.dragover):not(.dragover__top):not(.dragover__bottom) {
       background-color: var(--b3-list-hover);
     }
@@ -27,10 +27,10 @@
       position: relative;
     }
 
-    .b3-list__panel:before {
+    .b3-list__panel::before {
       content: "";
       height: 100%;
-      top: 0px;
+      top: 0;
       position: absolute;
       border-left: 1px solid var(--b3-theme-background-light);
       left: -21px;
@@ -56,7 +56,7 @@
     }
 
     &--narrow {
-      margin: 0;
+      margin: 1px 0;
     }
 
     &--big {
@@ -79,6 +79,7 @@
 
       .b3-list-item__meta {
         margin-left: 0;
+        line-height: 18px;
       }
     }
 
@@ -100,26 +101,31 @@
       padding: 0 4px;
       color: var(--b3-theme-on-surface-light);
       transition: var(--b3-transition);
+      border-radius: var(--b3-border-radius);
 
       &--hl:hover {
         color: var(--b3-theme-on-background);
         background-color: var(--b3-list-icon-hover);
-        border-radius: var(--b3-border-radius);
       }
+    }
+
+    // 大纲中有图片 https://github.com/siyuan-note/siyuan/issues/12993
+    .img img {
+      height: 24px;
+      vertical-align: top;
+      margin: 2px 0;
+      width: auto !important;
     }
 
     &__icon {
       svg, img {
-        float: left;
-        margin: 3px 0;
         height: 16px;
         width: 16px;
         color: var(--b3-theme-on-surface);
-        border-radius: var(--b3-border-radius);
       }
 
       text-align: center;
-      font-size: 16px;
+      font-size: 14px;
       font-family: var(--b3-font-family-emoji);
       margin-right: 4px;
       line-height: 22px;
@@ -127,12 +133,20 @@
       height: 22px;
       padding: 0 4px;
       flex-shrink: 0;
+      border-radius: var(--b3-border-radius);
+      display: flex;
+      align-items: center;
 
       &:hover {
         color: var(--b3-theme-on-background);
         background-color: var(--b3-list-icon-hover);
-        border-radius: var(--b3-border-radius);
       }
+    }
+
+    &__hinttext {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     &__hinticon {
@@ -166,7 +180,7 @@
       flex-shrink: 0;
       height: 10px;
       width: 10px;
-      transition: transform 0.15s cubic-bezier(0, 0, 0.2, 1), opacity 1s cubic-bezier(0, 0, 0.2, 1);
+      transition: transform .15s cubic-bezier(0, 0, .2, 1), opacity 1s cubic-bezier(0, 0, .2, 1);
 
       &--open {
         transform: rotate(90deg);
@@ -183,7 +197,7 @@
       @include text-clamp(1);
 
       // 搜索列表中自定义图标
-      & > img,
+      & > img:not(.emoji),
       & > .custom-icon {
         height: 14px;
         width: 14px;
@@ -198,7 +212,7 @@
     }
 
     &__meta {
-      font-size: 0.75rem;
+      font-size: .75rem;
       margin-left: 8px;
       flex-shrink: 0;
       color: var(--b3-theme-on-surface);
@@ -219,6 +233,8 @@
       padding: 0 4px;
       margin-left: 4px;
       display: flex;
+      translate: var(--b3-transition);
+      border-radius: var(--b3-border-radius);
 
       svg {
         height: 14px;
@@ -228,7 +244,6 @@
       &:hover {
         color: var(--b3-theme-on-background);
         background-color: var(--b3-list-icon-hover);
-        border-radius: var(--b3-border-radius);
       }
     }
 

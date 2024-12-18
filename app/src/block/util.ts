@@ -1,12 +1,15 @@
-import {focusBlock, focusByWbr, getEditorRange} from "../protyle/util/selection";
-import {hasClosestBlock, hasClosestByClassName} from "../protyle/util/hasClosest";
-import {getNextBlock, getTopAloneElement} from "../protyle/wysiwyg/getBlock";
+import {focusByWbr, getEditorRange} from "../protyle/util/selection";
+import {hasClosestBlock} from "../protyle/util/hasClosest";
+import {getTopAloneElement} from "../protyle/wysiwyg/getBlock";
 import {genListItemElement, updateListOrder} from "../protyle/wysiwyg/list";
 import {transaction, updateTransaction} from "../protyle/wysiwyg/transaction";
 import {scrollCenter} from "../util/highlightById";
 import {Constants} from "../constants";
 import {hideElements} from "../protyle/ui/hideElements";
 import {blockRender} from "../protyle/render/blockRender";
+import {fetchPost} from "../util/fetch";
+import {openFileById} from "../editor/util";
+import {openMobileFileById} from "../mobile/editor";
 
 export const cancelSB = (protyle: IProtyle, nodeElement: Element) => {
     const doOperations: IOperation[] = [];
@@ -32,6 +35,10 @@ export const cancelSB = (protyle: IProtyle, nodeElement: Element) => {
                 id,
             });
             nodeElement.lastElementChild.remove();
+            // 超级块中的 html 块需要反转义再赋值 https://github.com/siyuan-note/siyuan/issues/13155
+            nodeElement.querySelectorAll("protyle-html").forEach(item => {
+                item.setAttribute("data-content" , item.getAttribute("data-content").replace(/&lt;/g, "<").replace(/&gt;/g, ">"));
+            });
             nodeElement.outerHTML = nodeElement.innerHTML;
             return;
         }
@@ -72,16 +79,22 @@ export const genSBElement = (layout: string, id?: string, attrHTML?: string) => 
     return sbElement;
 };
 
-export const jumpToParentNext = (protyle: IProtyle, nodeElement: Element) => {
-    const topElement = getTopAloneElement(nodeElement);
-    if (topElement) {
-        const topParentElement = hasClosestByClassName(topElement, "list") || hasClosestByClassName(topElement, "bq") || hasClosestByClassName(topElement, "sb") || topElement;
-        const nextElement = getNextBlock(topParentElement);
-        if (nextElement) {
-            focusBlock(nextElement);
-            scrollCenter(protyle, nextElement);
+export const jumpToParent = (protyle: IProtyle, nodeElement: Element, type: "parent" | "next" | "previous") => {
+    fetchPost("/api/block/getBlockSiblingID", {id: nodeElement.getAttribute("data-node-id")}, (response) => {
+        const targetId = response.data[type];
+        if (!targetId) {
+            return;
         }
-    }
+        /// #if !MOBILE
+        openFileById({
+            app: protyle.app,
+            id: targetId,
+            action: targetId !== protyle.block.rootID && protyle.block.showAll ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS]
+        });
+        /// #else
+        openMobileFileById(protyle.app, targetId, targetId !== protyle.block.rootID && protyle.block.showAll ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS]);
+        /// #endif
+    });
 };
 
 export const insertEmptyBlock = (protyle: IProtyle, position: InsertPosition, id?: string) => {
@@ -166,4 +179,32 @@ export const genEmptyElement = (zwsp = true, wbr = true, id?: string) => {
     element.classList.add("p");
     element.innerHTML = `<div contenteditable="true" spellcheck="${window.siyuan.config.editor.spellcheck}">${zwsp ? Constants.ZWSP : ""}${wbr ? "<wbr>" : ""}</div><div class="protyle-attr" contenteditable="false">${Constants.ZWSP}</div>`;
     return element;
+};
+
+export const getLangByType = (type: string) => {
+    let lang = type;
+    switch (type) {
+        case "NodeIFrame":
+            lang = "IFrame";
+            break;
+        case "NodeAttributeView":
+            lang = window.siyuan.languages.database;
+            break;
+        case "NodeThematicBreak":
+            lang = window.siyuan.languages.line;
+            break;
+        case "NodeWidget":
+            lang = window.siyuan.languages.widget;
+            break;
+        case "NodeVideo":
+            lang = window.siyuan.languages.video;
+            break;
+        case "NodeAudio":
+            lang = window.siyuan.languages.audio;
+            break;
+        case "NodeBlockQueryEmbed":
+            lang = window.siyuan.languages.blockEmbed;
+            break;
+    }
+    return lang;
 };

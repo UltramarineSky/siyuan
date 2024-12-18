@@ -1,4 +1,4 @@
-import {hasClosestBlock, hasClosestByAttribute} from "../util/hasClosest";
+import {hasClosestBlock, hasClosestByAttribute, isInEmbedBlock} from "../util/hasClosest";
 import {Constants} from "../../constants";
 
 export const getPreviousBlock = (element: Element) => {
@@ -19,7 +19,7 @@ export const getPreviousBlock = (element: Element) => {
 export const getLastBlock = (element: Element) => {
     let lastElement;
     Array.from(element.querySelectorAll("[data-node-id]")).reverse().find(item => {
-        if (!hasClosestByAttribute(item.parentElement, "data-type", "NodeBlockQueryEmbed")) {
+        if (!isInEmbedBlock(item)) {
             lastElement = item;
             return true;
         }
@@ -30,7 +30,7 @@ export const getLastBlock = (element: Element) => {
 export const getFirstBlock = (element: Element) => {
     let firstElement;
     Array.from(element.querySelectorAll("[data-node-id]")).find(item => {
-        if (!hasClosestByAttribute(item.parentElement, "data-type", "NodeBlockQueryEmbed") && !item.classList.contains("li")) {
+        if (!isInEmbedBlock(item) && !item.classList.contains("li") && !item.classList.contains("sb")) {
             firstElement = item;
             return true;
         }
@@ -70,7 +70,11 @@ export const getContenteditableElement = (element: Element) => {
     if (!element || (element.getAttribute("contenteditable") === "true") && !element.classList.contains("protyle-wysiwyg")) {
         return element;
     }
-    return element.querySelector('[contenteditable="true"]');
+    const editableElement = element.querySelector('[contenteditable="true"]');
+    if (editableElement && !hasClosestByAttribute(editableElement, "data-type", "NodeBlockQueryEmbed")) {
+        return editableElement;
+    }
+    return undefined;
 };
 
 export const isNotEditBlock = (element: Element) => {
@@ -187,7 +191,7 @@ export const getNextFileLi = (current: Element) => {
             nextElement = nextElement.parentElement;
         } else if (nextElement.nextElementSibling.tagName === "LI") {
             return nextElement.nextElementSibling;
-        } else  if (nextElement.nextElementSibling.tagName === "UL") {
+        } else if (nextElement.nextElementSibling.tagName === "UL") {
             return nextElement.nextElementSibling.firstElementChild;
         }
     }

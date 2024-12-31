@@ -21,6 +21,7 @@ type Sync struct {
 	Enabled             bool    `json:"enabled"`             // 是否开启同步
 	Perception          bool    `json:"perception"`          // 是否开启感知
 	Mode                int     `json:"mode"`                // 同步模式，0：未设置（为兼容已有配置，initConf 函数中会转换为 1），1：自动，2：手动 https://github.com/siyuan-note/siyuan/issues/5089，3：完全手动 https://github.com/siyuan-note/siyuan/issues/7295
+	Interval            int     `json:"interval"`            // 自动同步间隔，单位：秒
 	Synced              int64   `json:"synced"`              // 最近同步时间
 	Stat                string  `json:"stat"`                // 最近同步统计信息
 	GenerateConflictDoc bool    `json:"generateConflictDoc"` // 云端同步冲突时是否生成冲突文档
@@ -37,26 +38,29 @@ func NewSync() *Sync {
 		Mode:                1,
 		GenerateConflictDoc: false,
 		Provider:            ProviderSiYuan,
+		Interval:            30,
 	}
 }
 
 type S3 struct {
-	Endpoint      string `json:"endpoint"`      // 服务端点
-	AccessKey     string `json:"accessKey"`     // Access Key
-	SecretKey     string `json:"secretKey"`     // Secret Key
-	Bucket        string `json:"bucket"`        // 存储空间
-	Region        string `json:"region"`        // 存储区域
-	PathStyle     bool   `json:"pathStyle"`     // 是否使用路径风格
-	SkipTlsVerify bool   `json:"skipTlsVerify"` // 是否跳过 TLS 验证
-	Timeout       int    `json:"timeout"`       // 超时时间，单位：秒
+	Endpoint       string `json:"endpoint"`       // 服务端点
+	AccessKey      string `json:"accessKey"`      // Access Key
+	SecretKey      string `json:"secretKey"`      // Secret Key
+	Bucket         string `json:"bucket"`         // 存储空间
+	Region         string `json:"region"`         // 存储区域
+	PathStyle      bool   `json:"pathStyle"`      // 是否使用路径风格
+	SkipTlsVerify  bool   `json:"skipTlsVerify"`  // 是否跳过 TLS 验证
+	Timeout        int    `json:"timeout"`        // 超时时间，单位：秒
+	ConcurrentReqs int    `json:"concurrentReqs"` // 并发请求数
 }
 
 type WebDAV struct {
-	Endpoint      string `json:"endpoint"`      // 服务端点
-	Username      string `json:"username"`      // 用户名
-	Password      string `json:"password"`      // 密码
-	SkipTlsVerify bool   `json:"skipTlsVerify"` // 是否跳过 TLS 验证
-	Timeout       int    `json:"timeout"`       // 超时时间，单位：秒
+	Endpoint       string `json:"endpoint"`       // 服务端点
+	Username       string `json:"username"`       // 用户名
+	Password       string `json:"password"`       // 密码
+	SkipTlsVerify  bool   `json:"skipTlsVerify"`  // 是否跳过 TLS 验证
+	Timeout        int    `json:"timeout"`        // 超时时间，单位：秒
+	ConcurrentReqs int    `json:"concurrentReqs"` // 并发请求数
 }
 
 const (

@@ -2,10 +2,19 @@
 import {exportLayout} from "../layout/util";
 /// #endif
 import {hideMessage, showMessage} from "../dialog/message";
+import {setStorageVal} from "../protyle/util/compatibility";
+import {Constants} from "../constants";
+import {fetchPost} from "./fetch";
 
 export const processMessage = (response: IWebSocketData) => {
     if ("msg" === response.cmd) {
-        showMessage(response.msg, response.data.closeTimeout, response.code === 0 ? "info" : "error", response.data.id);
+        const id = showMessage(response.msg, response.data.closeTimeout, response.code === 0 ? "info" : "error", response.data.id);
+        document.querySelector("#message #addMicrosoftDefenderExclusion")?.addEventListener("click", (event) => {
+            (event.target as HTMLElement).innerHTML = '<svg class="fn__rotate" style="margin-right: 0;"><use xlink:href="#iconRefresh"></use></svg>';
+            fetchPost("/api/system/addMicrosoftDefenderExclusion", {}, () => {
+                hideMessage(id);
+            });
+        }, {once: true});
         return false;
     }
     if ("cmsg" === response.cmd) {
@@ -20,16 +29,32 @@ export const processMessage = (response: IWebSocketData) => {
         return false;
     }
     if ("reloadui" === response.cmd) {
-        /// #if MOBILE
-        window.location.reload();
-        /// #else
-        exportLayout({
-            reload: true,
-            onlyData: false,
-            errorExit: false,
-            dropEditScroll: response.data?.resetScroll,
-        });
-        /// #endif
+        if (response.data?.resetScroll) {
+            window.siyuan.storage[Constants.LOCAL_FILEPOSITION] = {};
+            setStorageVal(Constants.LOCAL_FILEPOSITION, window.siyuan.storage[Constants.LOCAL_FILEPOSITION], () => {
+                /// #if MOBILE
+                window.location.reload();
+                /// #else
+                exportLayout({
+                    cb() {
+                        window.location.reload();
+                    },
+                    errorExit: false,
+                });
+                /// #endif
+            });
+        } else {
+            /// #if MOBILE
+            window.location.reload();
+            /// #else
+            exportLayout({
+                cb() {
+                    window.location.reload();
+                },
+                errorExit: false,
+            });
+            /// #endif
+        }
         return false;
     }
 

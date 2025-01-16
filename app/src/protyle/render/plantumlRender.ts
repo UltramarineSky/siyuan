@@ -1,9 +1,7 @@
 import {addScript} from "../util/addScript";
 import {Constants} from "../../constants";
-
-declare const plantumlEncoder: {
-    encode(options: string): string,
-};
+import {genIconHTML} from "./util";
+import {hasClosestByClassName} from "../util/hasClosest";
 
 export const plantumlRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
     let plantumlElements: Element[] = [];
@@ -17,16 +15,17 @@ export const plantumlRender = (element: Element, cdn = Constants.PROTYLE_CDN) =>
         return;
     }
     addScript(`${cdn}/js/plantuml/plantuml-encoder.min.js?v=0.0.0`, "protylePlantumlScript").then(() => {
+        const wysiswgElement = hasClosestByClassName(element, "protyle-wysiwyg", true);
         plantumlElements.forEach((e: HTMLDivElement) => {
             if (e.getAttribute("data-render") === "true") {
                 return;
             }
             if (!e.firstElementChild.classList.contains("protyle-icons")) {
-                e.insertAdjacentHTML("afterbegin", '<div class="protyle-icons"><span class="protyle-icon protyle-icon--first protyle-action__edit"><svg><use xlink:href="#iconEdit"></use></svg></span><span class="protyle-icon protyle-action__menu protyle-icon--last"><svg><use xlink:href="#iconMore"></use></svg></span></div>');
+                e.insertAdjacentHTML("afterbegin", genIconHTML(wysiswgElement));
             }
             const renderElement = e.firstElementChild.nextElementSibling as HTMLElement;
             try {
-                renderElement.innerHTML = `<img src=${window.siyuan.config.editor.plantUMLServePath}${plantumlEncoder.encode(Lute.UnEscapeHTMLStr(e.getAttribute("data-content")))}">`;
+                renderElement.innerHTML = `<object type="image/svg+xml" data="${window.siyuan.config.editor.plantUMLServePath}${window.plantumlEncoder.encode(Lute.UnEscapeHTMLStr(e.getAttribute("data-content")))}"/>`;
                 renderElement.classList.remove("ft__error");
                 e.setAttribute("data-render", "true");
             } catch (error) {

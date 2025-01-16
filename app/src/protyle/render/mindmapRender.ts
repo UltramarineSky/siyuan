@@ -1,6 +1,7 @@
 import {addScript} from "../util/addScript";
 import {Constants} from "../../constants";
 import {hasClosestByClassName} from "../util/hasClosest";
+import {genIconHTML} from "./util";
 
 export const mindmapRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
     let mindmapElements: Element[] = [];
@@ -14,29 +15,22 @@ export const mindmapRender = (element: Element, cdn = Constants.PROTYLE_CDN) => 
         return;
     }
     addScript(`${cdn}/js/echarts/echarts.min.js?v=0.0.0`, "protyleEchartsScript").then(() => {
+        const wysiswgElement = hasClosestByClassName(element, "protyle-wysiwyg", true);
         let width: number = undefined;
-        if (mindmapElements[0].firstElementChild.clientWidth === 0) {
-            const tabElement = hasClosestByClassName(mindmapElements[0], "layout-tab-container", true);
-            if (tabElement) {
-                Array.from(tabElement.children).find(item => {
-                    if (item.classList.contains("protyle") && !item.classList.contains("fn__none") && item.querySelector(".protyle-wysiwyg").firstElementChild) {
-                        width = item.querySelector(".protyle-wysiwyg").firstElementChild.clientWidth;
-                        return true;
-                    }
-                });
-            }
+        if (wysiswgElement && wysiswgElement.clientWidth > 0 && mindmapElements[0].firstElementChild.clientWidth === 0 && wysiswgElement.firstElementChild) {
+            width = wysiswgElement.firstElementChild.clientWidth;
         }
         mindmapElements.forEach((e: HTMLDivElement) => {
             if (e.getAttribute("data-render") === "true") {
                 return;
             }
             if (!e.firstElementChild.classList.contains("protyle-icons")) {
-                e.insertAdjacentHTML("afterbegin", '<div class="protyle-icons"><span class="protyle-icon protyle-icon--first protyle-action__edit"><svg><use xlink:href="#iconEdit"></use></svg></span><span class="protyle-icon protyle-action__menu protyle-icon--last"><svg><use xlink:href="#iconMore"></use></svg></span></div>');
+                e.insertAdjacentHTML("afterbegin", genIconHTML(wysiswgElement));
             }
             const renderElement = e.firstElementChild.nextElementSibling as HTMLElement;
             try {
                 renderElement.style.height = e.style.height;
-                echarts.init(renderElement, window.siyuan.config.appearance.mode === 1 ? "dark" : undefined, {
+                window.echarts.init(renderElement, window.siyuan.config.appearance.mode === 1 ? "dark" : undefined, {
                     width,
                 }).setOption({
                     series: [
@@ -63,7 +57,6 @@ export const mindmapRender = (element: Element, cdn = Constants.PROTYLE_CDN) => 
                                 width: 1,
                             },
                             roam: true,
-                            // @ts-ignores
                             symbol: (value: number, params: { data?: { children?: string } }) => {
                                 if (params?.data?.children) {
                                     return "circle";

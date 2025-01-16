@@ -24,10 +24,9 @@ export const openTagMenu = (element: HTMLElement, event: MouseEvent, labelName: 
         click: () => {
             confirmDialog(window.siyuan.languages.deleteOpConfirm, `${window.siyuan.languages.confirmDelete} <b>${escapeHtml(labelName)}</b>?`, () => {
                 fetchPost("/api/tag/removeTag", {label: labelName});
-            });
+            }, undefined, true);
         }
     }).element);
     window.siyuan.menus.menu.element.setAttribute("data-name", "tagMenu");
-    window.siyuan.menus.menu.element.style.zIndex = "221";  // 移动端被右侧栏遮挡
     window.siyuan.menus.menu.popup({x: event.clientX - 11, y: event.clientY + 11, h: 22, w: 12});
 };

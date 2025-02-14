@@ -4,7 +4,7 @@ import {fetchPost} from "../../util/fetch";
 import {updateHotkeyTip} from "../util/compatibility";
 import {hasClosestByClassName} from "../util/hasClosest";
 import {goEnd, goHome} from "../wysiwyg/commonHotkey";
-import {isMobile} from "../../util/functions";
+import {showTooltip} from "../../dialog/tooltip";
 
 export class Scroll {
     public element: HTMLElement;
@@ -16,16 +16,13 @@ export class Scroll {
     constructor(protyle: IProtyle) {
         this.parentElement = document.createElement("div");
         this.parentElement.classList.add("protyle-scroll");
-        if (!isMobile()) {
-            this.parentElement.style.right = "10px";
-        }
-        this.parentElement.innerHTML = `<div class="b3-tooltips b3-tooltips__w protyle-scroll__up" aria-label="${updateHotkeyTip("⌘Home")}">
+        this.parentElement.innerHTML = `<div class="protyle-scroll__up ariaLabel" data-position="right4top" aria-label="${updateHotkeyTip("⌘Home")}">
     <svg><use xlink:href="#iconUp"></use></svg>
 </div>
-<div class="fn__none protyle-scroll__bar b3-tooltips b3-tooltips__s" aria-label="Blocks 1/1">
+<div class="fn__none protyle-scroll__bar ariaLabel" data-position="right18bottom" aria-label="Blocks 1/1">
     <input class="b3-slider" type="range" max="1" min="1" step="1" value="1" />
 </div>
-<div class="b3-tooltips b3-tooltips__w protyle-scroll__down" aria-label="${updateHotkeyTip("⌘End")}">
+<div class="protyle-scroll__down ariaLabel" data-position="right4bottom" aria-label="${updateHotkeyTip("⌘End")}">
     <svg><use xlink:href="#iconDown"></use></svg>
 </div>`;
 
@@ -38,6 +35,7 @@ export class Scroll {
         this.inputElement = this.element.firstElementChild as HTMLInputElement;
         this.inputElement.addEventListener("input", () => {
             this.element.setAttribute("aria-label", `Blocks ${this.inputElement.value}/${protyle.block.blockCount}`);
+            showTooltip(this.element.getAttribute("aria-label"), this.element);
         });
         /// #if BROWSER
         this.inputElement.addEventListener("change", () => {
@@ -57,6 +55,11 @@ export class Scroll {
                 this.setIndex(protyle);
             }
         });
+        this.parentElement.addEventListener("mousewheel", (event: WheelEvent) => {
+            if (event.deltaY !== 0) {
+                protyle.contentElement.scrollTop += event.deltaY;
+            }
+        }, {passive: true});
     }
 
     private setIndex(protyle: IProtyle) {
@@ -74,11 +77,14 @@ export class Scroll {
                 data: getResponse,
                 protyle,
                 action: [Constants.CB_GET_FOCUSFIRST, Constants.CB_GET_UNCHANGEID],
+                afterCB: () => {
+                    showTooltip(this.element.getAttribute("aria-label"), this.element);
+                }
             });
         });
     }
 
-    public updateIndex(protyle: IProtyle, id: string) {
+    public updateIndex(protyle: IProtyle, id: string, cb?: (index: number) => void) {
         fetchPost("/api/block/getBlockIndex", {id}, (response) => {
             if (!response.data) {
                 return;
@@ -86,6 +92,9 @@ export class Scroll {
             const inputElement = protyle.scroll.element.querySelector(".b3-slider") as HTMLInputElement;
             inputElement.value = response.data;
             protyle.scroll.element.setAttribute("aria-label", `Blocks ${response.data}/${protyle.block.blockCount}`);
+            if (cb) {
+                cb(response.data);
+            }
         });
     }
 
@@ -97,7 +106,7 @@ export class Scroll {
         if (protyle.block.showAll) {
             this.element.classList.add("fn__none");
         } else {
-            if (protyle.block.scroll) {
+            if (protyle.block.scroll && !protyle.contentElement.classList.contains("fn__none")) {
                 this.element.classList.remove("fn__none");
             } else {
                 this.element.classList.add("fn__none");

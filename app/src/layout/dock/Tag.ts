@@ -1,7 +1,8 @@
 import {Tab} from "../Tab";
 import {Model} from "../Model";
 import {Tree} from "../../util/Tree";
-import {getDockByType, setPanelFocus} from "../util";
+import {setPanelFocus} from "../util";
+import {getDockByType} from "../tabUtil";
 import {fetchPost} from "../../util/fetch";
 import {updateHotkeyTip} from "../../protyle/util/compatibility";
 import {openGlobalSearch} from "../../search/util";
@@ -52,23 +53,22 @@ export class Tag extends Model {
 
         this.element.innerHTML = `<div class="block__icons">
     <div class="block__logo">
-        <svg><use xlink:href="#iconTags"></use></svg>
-        ${window.siyuan.languages.tag}
+        <svg class="block__logoicon"><use xlink:href="#iconTags"></use></svg>${window.siyuan.languages.tag}
     </div>
     <span class="fn__flex-1"></span>
     <span class="fn__space"></span>
     <span data-type="refresh" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="${window.siyuan.languages.refresh}"><svg><use xlink:href='#iconRefresh'></use></svg></span>
     <span class="fn__space"></span>
+    <span data-type="sort" class="block__icon b3-tooltips b3-tooltips__sw${window.siyuan.config.readonly ? " fn__none" : ""}" aria-label="${window.siyuan.languages.sort}">
+        <svg><use xlink:href="#iconSort"></use></svg>
+    </span>
+    <span class="fn__space${window.siyuan.config.readonly ? " fn__none" : ""}"></span>
     <span data-type="expand" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="${window.siyuan.languages.expand} ${updateHotkeyTip(window.siyuan.config.keymap.editor.general.expand.custom)}">
         <svg><use xlink:href="#iconExpand"></use></svg>
     </span>
     <span class="fn__space"></span>
     <span data-type="collapse" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="${window.siyuan.languages.collapse} ${updateHotkeyTip(window.siyuan.config.keymap.editor.general.collapse.custom)}">
         <svg><use xlink:href="#iconContract"></use></svg>
-    </span>
-    <span class="fn__space${window.siyuan.config.readonly ? " fn__none" : ""}"></span>
-    <span data-type="sort" class="block__icon b3-tooltips b3-tooltips__sw${window.siyuan.config.readonly ? " fn__none" : ""}" aria-label="${window.siyuan.languages.sort}">
-        <svg><use xlink:href="#iconSort"></use></svg>
     </span>
     <span class="fn__space"></span>
     <span data-type="min" class="block__icon b3-tooltips b3-tooltips__sw" aria-label="${window.siyuan.languages.min} ${updateHotkeyTip(window.siyuan.config.keymap.general.closeTab.custom)}"><svg><use xlink:href='#iconMin'></use></svg></span>
@@ -87,7 +87,7 @@ export class Tag extends Model {
                         return;
                     }
                 }
-                openGlobalSearch(app, `#${element.getAttribute("data-label")}#`, !window.siyuan.ctrlIsPressed);
+                openGlobalSearch(app, `#${element.getAttribute("data-label")}#`, !window.siyuan.ctrlIsPressed, {method: 0});
             },
             rightClick: (element: HTMLElement, event: MouseEvent) => {
                 openTagMenu(element, event, element.getAttribute("data-label"));
@@ -110,7 +110,7 @@ export class Tag extends Model {
                     const type = target.getAttribute("data-type");
                     switch (type) {
                         case "min":
-                            getDockByType("tag").toggleModel("tag");
+                            getDockByType("tag").toggleModel("tag", false, true);
                             break;
                         case "sort":
                             window.siyuan.menus.menu.remove();

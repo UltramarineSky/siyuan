@@ -34,7 +34,7 @@ func HandleSignal() {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	s := <-c
 	logging.LogInfof("received os signal [%s], exit kernel process now", s)
-	Close(false, 1)
+	Close(false, true, 1)
 }
 
 var (
@@ -78,7 +78,7 @@ func HookDesktopUIProcJob() {
 	}
 
 	logging.LogWarnf("confirmed no active UI proc, exit kernel process now")
-	Close(false, 1)
+	Close(false, true, 1)
 }
 
 var uiProcNames = []string{"siyuan", "electron"}
@@ -87,13 +87,13 @@ var uiProcNames = []string{"siyuan", "electron"}
 func getAttachedUIProcCount() (ret int) {
 	util.UIProcessIDs.Range(func(uiProcIDArg, _ interface{}) bool {
 		uiProcID, err := strconv.Atoi(uiProcIDArg.(string))
-		if nil != err {
+		if err != nil {
 			logging.LogErrorf("invalid UI proc ID [%s]: %s", uiProcIDArg, err)
 			return true
 		}
 
 		proc, err := goPS.FindProcess(uiProcID)
-		if nil != err {
+		if err != nil {
 			logging.LogErrorf("find UI proc [%d] failed: %s", uiProcID, err)
 			return true
 		}

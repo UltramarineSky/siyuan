@@ -20,31 +20,41 @@ export const initConfigSearch = (element: HTMLElement, app: App) => {
             "historyRetentionDays", "historyRetentionDaysTip", "clearHistory", "katexMacros", "katexMacrosTip",
             "editReadonly", "editReadonlyTip", "embedBlockBreadcrumb", "embedBlockBreadcrumbTip", "outlineOutdentTip",
             "outdent", "floatWindowMode", "floatWindowModeTip", "justify", "justifyTip", "rtl", "rtlTip", "spellcheck",
-            "spellcheckTip", "backlinkExpand", "backlinkExpandTip", "onlySearchForDocTip", "dynamicLoadBlocks",
-            "dynamicLoadBlocksTip", "fontSizeScrollZoom", "fontSizeScrollZoomTip"
+            "spellcheckTip", "backlinkExpand", "backlinkExpandTip", "backmentionExpand", "backmentionExpandTip",
+            "onlySearchForDoc", "onlySearchForDocTip", "dynamicLoadBlocks", "dynamicLoadBlocksTip", "fontSizeScrollZoom", "fontSizeScrollZoomTip",
+            "listItemDotNumberClickFocus", "listItemDotNumberClickFocusTip", "editorMarkdownInlineAsterisk", "editorMarkdownInlineUnderscore",
+            "editorMarkdownInlineSup", "editorMarkdownInlineSupTip", "editorMarkdownInlineSub", "editorMarkdownInlineSubTip",
+            "editorMarkdownInlineTag", "editorMarkdownInlineTagTip", "editorMarkdownInlineMath", "editorMarkdownInlineMathTip",
+            "editorMarkdownInlineStrikethrough", "editorMarkdownInlineStrikethroughTip", "editorMarkdownInlineMark", "editorMarkdownInlineMarkTip",
+            "allowHTMLBLockScript", "allowHTMLBLockScriptTip", "backlinkExpandTip", "backmentionExpandTip",
+            "backlinkContainChildren", "backlinkContainChildrenTip"
         ]),
 
         // 文档树
         getLang(["selectOpen", "tabLimit", "fileTree", "fileTree2", "fileTree3", "fileTree4", "fileTree5",
             "fileTree6", "fileTree7", "fileTree8", "fileTree9", "fileTree10", "fileTree12", "fileTree13", "fileTree15",
-            "fileTree16", "fileTree17"]),
+            "fileTree16", "fileTree17", "fileTree21"]),
 
         // 闪卡
         getLang(["riffCard", "flashcardNewCardLimit", "flashcardNewCardLimitTip", "flashcardReviewCardLimit",
             "flashcardNewCardLimit", "flashcardReviewCardLimitTip", "flashcardMark", "flashcardMarkTip", "flashcardList",
-            "flashcardSuperBlock", "flashcardDeck", "flashcardDeckTip"]),
+            "flashcardSuperBlock", "flashcardHeading", "flashcardDeck", "flashcardDeckTip",
+            "flashcardFSRSParamRequestRetention", "flashcardFSRSParamRequestRetentionTip",
+            "flashcardFSRSParamMaximumInterval", "flashcardFSRSParamMaximumIntervalTip", "flashcardFSRSParamWeights",
+            "flashcardFSRSParamWeightsTip", "reviewMode", "reviewModeTip"]),
 
         // AI
         ["AI"].concat(getLang(["ai", "apiTimeout", "apiTimeoutTip", "apiMaxTokens", "apiMaxTokensTip", "apiKey",
-            "apiKeyTip", "apiProxy", "apiProxyTip", "apiBaseURL", "apiBaseURLTip"])),
+            "apiKeyTip", "apiProxy", "apiProxyTip", "apiBaseURL", "apiBaseURLTip", "apiUserAgentTip", "apiVersion", "apiVersionTip",
+            "apiProvider", "apiProviderTip", "apiTemperature", "apiTemperatureTip", "apiMaxContexts", "apiMaxContextsTip"])),
 
-        // 图片
+        // 资源
         getLang(["assets", "unreferencedAssets", "missingAssets"]),
 
         // 导出
         getLang(["paragraphBeginningSpace", "md4", "export", "export1", "export2", "export5", "export11",
             "export13", "export14", "export15", "export19", "export20", "ref", "blockEmbed", "export17", "export18",
-            "export23", "export24"]),
+            "export23", "export24", "export25", "export26", "export27", "export28", "export29"]),
 
         // 外观
         getLang(["language", "language1", "appearance", "appearance1", "appearance2", "appearance3", "appearance4",
@@ -58,7 +68,8 @@ export const initConfigSearch = (element: HTMLElement, app: App) => {
         // 搜索
         getLang(["search", "searchLimit", "searchLimit1", "memo", "name", "alias", "keywordsLimit",
             "doc", "headings", "list1", "listItem", "code", "math", "table", "quote", "superBlock", "paragraph",
-            "indexAssetPath"]),
+            "indexAssetPath", "embedBlock", "database", "searchBackmention", "searchVirtualRef", "searchBlockAttr",
+            "searchBlockType", "searchCaseSensitive"]),
 
         // 快捷键
         getLang(["keymap", "keymapTip2"].concat(Object.keys(Constants.SIYUAN_KEYMAP.general))
@@ -68,24 +79,30 @@ export const initConfigSearch = (element: HTMLElement, app: App) => {
             .concat(Object.keys(Constants.SIYUAN_KEYMAP.editor.list))
             .concat(Object.keys(Constants.SIYUAN_KEYMAP.editor.table))),
 
-        // 云端
-        getLang(["cloudStorage", "trafficStat", "sync", "backup", "cdn", "total", "sizeLimit", "cloudBackup",
-            "cloudBackupTip", "updatePath", "cloudSync", "upload", "download", "syncMode", "syncModeTip",
-            "generateConflictDoc", "generateConflictDocTip", "syncProvider", "syncProviderTip",
-            "syncMode1", "syncMode2", "reposTip", "openSyncTip1", "openSyncTip2", "cloudSyncDir", "config"]),
-
         // 账号
         getLang(["accountTip", "accountName", "password", "captcha", "forgetPassword", "login", "register",
             "twoFactorCaptcha", "account1", "account2", "account5"]),
 
+        // 云端
+        getLang(["cloudStorage", "trafficStat", "sync", "backup", "cdn", "total", "sizeLimit", "cloudBackup",
+            "cloudBackupTip", "updatePath", "cloudSync", "upload", "download", "syncMode", "syncModeTip",
+            "generateConflictDoc", "generateConflictDocTip", "syncProvider", "syncProviderTip",
+            "syncMode1", "syncMode2", "reposTip", "openSyncTip1", "openSyncTip2", "cloudSyncDir", "cloudSyncDirTip", "config"]),
+
+        // 发布
+        getLang(["publishService", "publishServiceTip", "publishServicePort", "publishServicePortTip",
+            "publishServiceAddresses", "publishServiceAddressesTip", "publishServiceAuth", "publishServiceAuthTip",
+            "publishServiceAuthAccounts", "publishServiceAuthAccountsTip"]),
+
         // 关于
         getLang(["autoLaunch", "autoLaunchTip", "about", "about1", "about2", "about3", "about4", "about5", "about6",
-            "about9", "about10", "about11", "about12", "about13", "about14", "about17", "config", "dataRepoKey",
-            "dataRepoKeyTip1", "dataRepoKeyTip2", "slogan", "currentVer", "checkUpdate", "updatePath", "systemLog",
-            "importKey", "genKey", "genKeyByPW", "copyKey", "resetRepo", "systemLogTip", "export", "visitAnnouncements",
-            "safeQuit", "directConnection", "siyuanNote", "key", "password", "copied", "resetRepoTip",
+            "about7", "about8", "about11", "about12", "about13", "about14", "about17", "config",
+            "dataRepoKey", "dataRepoKeyTip1", "dataRepoKeyTip2", "slogan", "currentVer", "checkUpdate", "updatePath",
+            "systemLog", "importKey", "genKey", "genKeyByPW", "copyKey", "resetRepo", "systemLogTip", "export",
+            "downloadLatestVer", "safeQuit", "directConnection", "siyuanNote", "key", "password", "copied", "resetRepoTip",
             "autoDownloadUpdatePkg", "autoDownloadUpdatePkgTip", "networkProxy", "keyPlaceholder", "initRepoKeyTip",
-            "googleAnalytics", "googleAnalyticsTip"]),
+            "googleAnalytics", "googleAnalyticsTip", "dataRepoPurge", "dataRepoPurgeTip", "dataRepoAutoPurgeIndexRetentionDays",
+            "dataRepoAutoPurgeRetentionIndexesDaily"]),
     ];
     const inputElement = element.querySelector(".b3-form__icon input") as HTMLInputElement;
     /// #if !BROWSER

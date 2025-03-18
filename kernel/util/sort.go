@@ -21,11 +21,31 @@ import (
 	"io"
 	"strings"
 
+	"github.com/facette/natsort"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
 
+func NaturalCompare(str1, str2 string) bool {
+	str1 = RemoveEmojiInvisible(str1)
+	str2 = RemoveEmojiInvisible(str2)
+	return natsort.Compare(str1, str2)
+}
+
+func EmojiPinYinCompare(str1, str2 string) bool {
+	str1_ := strings.TrimSpace(RemoveEmojiInvisible(str1))
+	str2_ := strings.TrimSpace(RemoveEmojiInvisible(str2))
+	if str1_ == str2_ && 0 == len(str1_) {
+		// 全部都是 emoji 的情况按 emoji 字符串排序
+		return strings.Compare(str1, str2) < 0
+	}
+	return PinYinCompare(str1, str2)
+}
+
 func PinYinCompare(str1, str2 string) bool {
+	str1 = RemoveEmojiInvisible(str1)
+	str2 = RemoveEmojiInvisible(str2)
+
 	// Doc tree, backlinks, tags and templates ignores case when sorting alphabetically by name https://github.com/siyuan-note/siyuan/issues/8360
 	str1 = strings.ToLower(str1)
 	str2 = strings.ToLower(str2)

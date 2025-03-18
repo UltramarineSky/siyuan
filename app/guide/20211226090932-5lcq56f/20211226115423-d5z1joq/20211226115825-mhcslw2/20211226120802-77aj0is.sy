@@ -5,7 +5,8 @@
 	"Properties": {
 		"id": "20211226120802-77aj0is",
 		"title": "内容塊屬性",
-		"updated": "20211228141553"
+		"type": "doc",
+		"updated": "20250115150102"
 	},
 	"Children": [
 		{
@@ -60,8 +61,9 @@
 				0
 			],
 			"Properties": {
+				"colgroup": "|",
 				"id": "20211226120833-5n4ui6o",
-				"updated": "20211226020123"
+				"updated": "20230630095210"
 			},
 			"Children": [
 				{
@@ -172,7 +174,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "內容塊的備注"
+									"Data": "內容塊的備註"
 								}
 							]
 						}
@@ -213,7 +215,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20211226120833-347kbz5",
-				"updated": "20211226000642"
+				"updated": "20250115150102"
 			},
 			"Children": [
 				{
@@ -227,7 +229,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20211226120833-a02rthr",
-				"updated": "20211226000642"
+				"updated": "20250115150102"
 			},
 			"Children": [
 				{
@@ -236,21 +238,21 @@
 				},
 				{
 					"Type": "NodeTextMark",
-					"TextMarkType": "code",
+					"TextMarkType": "kbd",
 					"TextMarkTextContent": "塊標菜單"
 				},
 				{
 					"Type": "NodeText",
-					"Data": " - "
+					"Data": "​ - "
 				},
 				{
 					"Type": "NodeTextMark",
-					"TextMarkType": "code",
+					"TextMarkType": "code kbd",
 					"TextMarkTextContent": "屬性"
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 進行設置，屬性名僅允許使用英文字母和阿拉伯數字（例如 "
+					"Data": "​ 進行設置，屬性名僅允許使用英文字母和阿拉伯數字（例如 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -259,7 +261,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "、"
+					"Data": "​、"
 				},
 				{
 					"Type": "NodeTextMark",
@@ -268,7 +270,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "）。設置後，思源會自動在屬性名前加上前綴 "
+					"Data": "​）。設置後，思源會自動在屬性名前加上前綴 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -277,43 +279,14 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "，以區分內置屬性和自定義屬性。"
-				}
-			]
-		},
-		{
-			"ID": "20211226120833-16hxsdz",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20211226120833-16hxsdz",
-				"updated": "20211226000642"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "使用屬性"
-				}
-			]
-		},
-		{
-			"ID": "20211226120833-txlspf2",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20211226120833-txlspf2",
-				"updated": "20211228141553"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "屬性主要有兩個使用場景：根據屬性查詢內容塊和存儲小工具資料。"
+					"Data": "​，以區分內置屬性和自定義屬性。"
 				}
 			]
 		},
 		{
 			"ID": "20211226120833-srr6kys",
 			"Type": "NodeHeading",
-			"HeadingLevel": 3,
+			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20211226120833-srr6kys",
 				"updated": "20211226000642"
@@ -385,35 +358,6 @@
 				{
 					"Type": "NodeCodeBlockFenceCloseMarker",
 					"Data": "```"
-				}
-			]
-		},
-		{
-			"ID": "20211226120833-6qo8iwk",
-			"Type": "NodeHeading",
-			"HeadingLevel": 3,
-			"Properties": {
-				"id": "20211226120833-6qo8iwk",
-				"updated": "20211228141304"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "存儲小工具資料"
-				}
-			]
-		},
-		{
-			"ID": "20211226120833-1jgzrnn",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20211226120833-1jgzrnn",
-				"updated": "20211226000803"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "小工具可以通過接口來設置屬性，具體請參考開發文檔。"
 				}
 			]
 		}

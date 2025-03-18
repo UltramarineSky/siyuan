@@ -5,7 +5,8 @@
 	"Properties": {
 		"id": "20220415232129-shpzg6r",
 		"title": "查詢語法",
-		"updated": "20220502163604"
+		"type": "doc",
+		"updated": "20250115150514"
 	},
 	"Children": [
 		{
@@ -14,7 +15,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220415232130-xmz5ru1",
-				"updated": "20220415232130"
+				"updated": "20250115150350"
 			},
 			"Children": [
 				{
@@ -28,21 +29,30 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220415232130-5qj6u53",
-				"updated": "20220415232309"
+				"updated": "20250115150350"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "全局搜索 "
+					"Data": "全域搜索 "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Ctrl+P"
+					"TextMarkTextContent": "Ctrl"
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 支持通過查詢語法（Query Syntax）進行高級搜索，以便實現一些邏輯操作，比如包含關鍵字 "
+					"Data": "​+"
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "P"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​ 支持通過查詢語法（Query Syntax）進行高級搜索，以便實現一些邏輯操作，比如包含關鍵字 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -51,7 +61,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 並且不包含關鍵字 "
+					"Data": "​ 並且不包含關鍵字 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -60,7 +70,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 的查詢語法為 "
+					"Data": "​ 的查詢語法為 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -69,7 +79,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "。"
+					"Data": "​。"
 				}
 			]
 		},
@@ -626,7 +636,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220415232130-go31ixg",
-				"updated": "20220415232130"
+				"updated": "20230820184809"
 			},
 			"Children": [
 				{
@@ -640,17 +650,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 進行連接。一個短語是由一些記號（Token）有序構成，這些記號由用戶的輸入文本通過分詞器處理得到。思源使用的分詞器為了讓中文搜索好用（支持單字搜索），所以實現方式是按照字分詞的（"
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "a",
-					"TextMarkAHref": "https://github.com/siyuan-note/sqlite-fts5-siyuan-tokenizer",
-					"TextMarkTextContent": "分詞器代碼"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "），也就是說每個漢字或者英文字母都會被拆分為一個記號。這對 "
+					"Data": "​ 進行連接。一個短語是由一些記號（Token）有序構成，這些記號由用戶的輸入文字通過分詞器處理得到。思源使用的分詞器為了讓中文搜索好用（支持單字搜索），所以實現方式是按照字分詞的，也就是說每個漢字或者英文字母都會被拆分為一個記號。這對 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -659,7 +659,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 連接會產生一些影響，所以如果不確定的話，建議不要使用 "
+					"Data": "​ 連接會產生一些影響，所以如果不確定的話，建議不要使用 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -668,7 +668,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 組合多個短語。"
+					"Data": "​ 組合多個短語。"
 				}
 			]
 		},
@@ -916,7 +916,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "使用空格分隔的多個短語默認使用 "
+					"Data": "使用空格分隔的多個短語預設使用 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -962,7 +962,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220415232130-1juhjxd",
-				"updated": "20220415234759"
+				"updated": "20250115150514"
 			},
 			"Children": [
 				{
@@ -991,7 +991,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 實現了全局搜索。"
+					"Data": " 實現了全域搜索。"
 				}
 			]
 		},
@@ -1000,7 +1000,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220415232130-kdii2n4",
-				"updated": "20220415232130"
+				"updated": "20250115150514"
 			},
 			"Children": [
 				{
@@ -1010,11 +1010,11 @@
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "code",
-					"TextMarkTextContent": "MATCH '{content name alias memo}:\" + query"
+					"TextMarkTextContent": "MATCH '{content name alias memo}:\u0026quot; + query"
 				},
 				{
 					"Type": "NodeText",
-					"Data": "，"
+					"Data": "​，"
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1023,7 +1023,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 即用戶輸入部分，對於"
+					"Data": "​ 即用戶輸入部分，對於"
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1042,7 +1042,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 是通過 "
+					"Data": "​ 是通過 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1051,16 +1051,16 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " -"
+					"Data": "​ - "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "kbd",
-					"TextMarkTextContent": " 搜索"
+					"TextMarkTextContent": "搜索"
 				},
 				{
 					"Type": "NodeText",
-					"Data": " - "
+					"Data": "​ - "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1069,7 +1069,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 生成的。"
+					"Data": "​ 生成的。"
 				}
 			]
 		},
@@ -1179,7 +1179,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": " 選項，則搜索會區分大小寫，默認該選項是關閉的，即不區分大小寫。"
+					"Data": " 選項，則搜索會區分大小寫，預設該選項是關閉的，即不區分大小寫。"
 				}
 			]
 		},
@@ -1279,12 +1279,12 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220415232130-yjj7ba6",
-				"updated": "20220415232130"
+				"updated": "20230802221509"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "這樣做的缺點是增加了磁盤空間佔用和降低了索引性能，但是目前暫時沒有更好的方案，所以只能先這樣了。另外，不支持 Unicode 大小寫折疊和變音符號，僅支持英文字母忽略大小寫。"
+					"Data": "這樣做的缺點是增加了磁碟空間佔用和降低了索引性能，但是目前暫時沒有更好的方案，所以只能先這樣了。另外，不支持變音符號，僅支持忽略大小寫。"
 				}
 			]
 		},

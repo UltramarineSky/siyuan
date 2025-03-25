@@ -16,30 +16,34 @@ import {
     processSync,
     progressBackgroundTask,
     progressLoading,
-    progressStatus, reloadSync,
+    progressStatus,
+    reloadSync,
+    setDefRefCount,
+    setRefDynamicText,
     setTitle,
     transactionError
 } from "./dialog/processSystem";
 import {initMessage} from "./dialog/message";
 import {getAllTabs} from "./layout/getAll";
 import {getLocalStorage} from "./protyle/util/compatibility";
-import {updateEditModeElement} from "./layout/topBar";
 import {getSearch} from "./util/functions";
 import {hideAllElements} from "./protyle/ui/hideElements";
-import {loadPlugins} from "./plugin/loader";
+import {loadPlugins, reloadPlugin} from "./plugin/loader";
 import "./assets/scss/base.scss";
+import {reloadEmoji} from "./emoji";
+import {processIOSPurchaseResponse} from "./util/iOSPurchase";
 
 export class App {
     public plugins: import("./plugin").Plugin[] = [];
+    public appId: string;
 
     constructor() {
-        /// #if BROWSER
         registerServiceWorker(`${Constants.SERVICE_WORKER_PATH}?v=${Constants.SIYUAN_VERSION}`);
-        /// #endif
-        addScriptSync(`${Constants.PROTYLE_CDN}/js/lute/lute.min.js?v=${Constants.SIYUAN_VERSION}`, "protyleLuteScript");
-        addScript(`${Constants.PROTYLE_CDN}/js/protyle-html.js?v=${Constants.SIYUAN_VERSION}`, "protyleWcHtmlScript");
         addBaseURL();
+
+        this.appId = Constants.SIYUAN_APPID;
         window.siyuan = {
+            zIndex: 10,
             transactions: [],
             reqIds: {},
             backStack: [],
@@ -58,13 +62,30 @@ export class App {
                     });
                     if (data) {
                         switch (data.cmd) {
+                            case "setDefRefCount":
+                                setDefRefCount(data.data);
+                                break;
+                            case "setRefDynamicText":
+                                setRefDynamicText(data.data);
+                                break;
+                            case "reloadPlugin":
+                                reloadPlugin(this, data.data);
+                                break;
+                            case "reloadEmojiConf":
+                                reloadEmoji();
+                                break;
                             case "syncMergeResult":
                                 reloadSync(this, data.data);
                                 break;
+                            case "reloaddoc":
+                                reloadSync(this, {upsertRootIDs: [data.data], removeRootIDs: []}, false, false, true);
+                                break;
                             case "readonly":
                                 window.siyuan.config.editor.readOnly = data.data;
-                                updateEditModeElement();
                                 hideAllElements(["util"]);
+                                break;
+                            case "setConf":
+                                window.siyuan.config = data.data;
                                 break;
                             case "progress":
                                 progressLoading(data);
@@ -121,7 +142,7 @@ export class App {
                                 transactionError();
                                 break;
                             case "syncing":
-                                processSync(data);
+                                processSync(data, this.plugins);
                                 break;
                             case "backgroundtask":
                                 progressBackgroundTask(data.data.tasks);
@@ -133,9 +154,6 @@ export class App {
                                     (document.getElementById("themeDefaultStyle") as HTMLLinkElement).href = data.data.theme;
                                 }
                                 break;
-                            case "createdailynote":
-                                openFileById({app: this, id: data.data.id, action: [Constants.CB_GET_FOCUS]});
-                                break;
                             case "openFileById":
                                 openFileById({app: this, id: data.data.id, action: [Constants.CB_GET_FOCUS]});
                                 break;
@@ -146,25 +164,13 @@ export class App {
         };
 
         fetchPost("/api/system/getConf", {}, async (response) => {
+            addScriptSync(`${Constants.PROTYLE_CDN}/js/lute/lute.min.js?v=${Constants.SIYUAN_VERSION}`, "protyleLuteScript");
+            addScript(`${Constants.PROTYLE_CDN}/js/protyle-html.js?v=${Constants.SIYUAN_VERSION}`, "protyleWcHtmlScript");
             window.siyuan.config = response.data.conf;
-            // 历史数据兼容，202306后可删除
-            if (window.siyuan.config.uiLayout.left && !window.siyuan.config.uiLayout.left.data) {
-                window.siyuan.config.uiLayout.left = {
-                    pin: true,
-                    data: response.data.conf.uiLayout.left
-                };
-                window.siyuan.config.uiLayout.right = {
-                    pin: true,
-                    data: response.data.conf.uiLayout.right
-                };
-                window.siyuan.config.uiLayout.bottom = {
-                    pin: true,
-                    data: response.data.conf.uiLayout.bottom
-                };
-            }
+            window.siyuan.isPublish = response.data.isPublish;
             await loadPlugins(this);
             getLocalStorage(() => {
-                fetchGet(`/appearance/langs/${window.siyuan.config.appearance.lang}.json?v=${Constants.SIYUAN_VERSION}`, (lauguages) => {
+                fetchGet(`/appearance/langs/${window.siyuan.config.appearance.lang}.json?v=${Constants.SIYUAN_VERSION}`, (lauguages: IObject) => {
                     window.siyuan.languages = lauguages;
                     window.siyuan.menus = new Menus(this);
                     bootSync();
@@ -191,7 +197,7 @@ window.openFileByURL = (openURL) => {
         openFileById({
             app: siyuanApp,
             id: getIdFromSYProtocol(openURL),
-            action: isZoomIn ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT],
+            action: isZoomIn ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT, Constants.CB_GET_ROOTSCROLL],
             zoomIn: isZoomIn
         });
         return true;
@@ -203,4 +209,5 @@ window.openFileByURL = (openURL) => {
 window.showKeyboardToolbar = () => {
     // 防止 Pad 端报错
 };
+window.processIOSPurchaseResponse = processIOSPurchaseResponse;
 /// #endif

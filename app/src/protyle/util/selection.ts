@@ -5,9 +5,10 @@ import {
     hasPreviousSibling,
     isNotEditBlock
 } from "../wysiwyg/getBlock";
-import {hasClosestByAttribute, hasClosestByMatchTag} from "./hasClosest";
+import {hasClosestByAttribute, hasClosestByTag} from "./hasClosest";
 import {countBlockWord, countSelectWord} from "../../layout/status";
 import {hideElements} from "../ui/hideElements";
+import {genRenderFrame} from "../render/util";
 
 const selectIsEditor = (editor: Element, range?: Range) => {
     if (!range) {
@@ -28,8 +29,8 @@ export const fixTableRange = (range: Range) => {
     if (range.toString() !== "" && tableElement && range.commonAncestorContainer.nodeType !== 3) {
         const parentTag = (range.commonAncestorContainer as Element).tagName;
         if (parentTag !== "TH" && parentTag !== "TD") {
-            const startCellElement = hasClosestByMatchTag(range.startContainer, "TD") || hasClosestByMatchTag(range.startContainer, "TH");
-            const endCellElement = hasClosestByMatchTag(range.endContainer, "TD") || hasClosestByMatchTag(range.endContainer, "TH");
+            const startCellElement = hasClosestByTag(range.startContainer, "TD") || hasClosestByTag(range.startContainer, "TH");
+            const endCellElement = hasClosestByTag(range.endContainer, "TD") || hasClosestByTag(range.endContainer, "TH");
             if (!startCellElement && !endCellElement) {
                 const cellElement = tableElement.querySelector("th") || tableElement.querySelector("td");
                 range.setStart(cellElement.firstChild, 0);
@@ -37,12 +38,7 @@ export const fixTableRange = (range: Range) => {
             } else if (startCellElement &&
                 // 不能包含自身元素，否则对 cell 中的部分文字两次高亮后就会选中整个 cell。 https://github.com/siyuan-note/siyuan/issues/3649 第二点
                 !startCellElement.contains(range.endContainer)) {
-                const cloneRange = range.cloneRange();
-                range.setEnd(startCellElement.lastChild, startCellElement.lastChild.textContent.length);
-                if (range.toString() === "" && endCellElement) {
-                    range.setStart(endCellElement.firstChild, 0);
-                    range.setEnd(cloneRange.endContainer, cloneRange.endOffset);
-                }
+                setLastNodeRange(startCellElement, range, false);
             }
         }
     }
@@ -53,7 +49,7 @@ export const selectAll = (protyle: IProtyle, nodeElement: Element, range: Range)
     if (editElement) {
         let position;
         if (editElement.tagName === "TABLE") {
-            const cellElement = hasClosestByMatchTag(range.startContainer, "TD") || hasClosestByMatchTag(range.startContainer, "TH");
+            const cellElement = hasClosestByTag(range.startContainer, "TD") || hasClosestByTag(range.startContainer, "TH");
             if (cellElement) {
                 position = getSelectionOffset(cellElement, nodeElement, range);
                 if (position.start !== 0 || position.end !== cellElement.textContent.length) {
@@ -119,8 +115,11 @@ export const selectAll = (protyle: IProtyle, nodeElement: Element, range: Range)
     hideElements(["select"], protyle);
     const ids: string [] = [];
     Array.from(protyle.wysiwyg.element.children).forEach(item => {
-        item.classList.add("protyle-wysiwyg--select");
-        ids.push(item.getAttribute("data-node-id"));
+        const nodeId = item.getAttribute("data-node-id");
+        if (nodeId) {
+            item.classList.add("protyle-wysiwyg--select");
+            ids.push(nodeId);
+        }
     });
     countBlockWord(ids, protyle.block.rootID);
 };
@@ -136,16 +135,36 @@ export const getRangeByPoint = (x: number, y: number) => {
     return range;
 };
 
-export const getEditorRange = (element: Element) => {
+export const getEditorRange = (element: Element): Range => {
     let range: Range;
     if (getSelection().rangeCount > 0) {
         range = getSelection().getRangeAt(0);
         if (element.isSameNode(range.startContainer) || element.contains(range.startContainer)) {
+            // 有时候点击编辑器头部需要矫正到第一个块中
+            if (range.toString() === "" && range.startContainer.nodeType === 1 && range.startOffset === 0 &&
+                (range.startContainer as HTMLElement).classList.contains("protyle-wysiwyg")) {
+                const focusRange = focusBlock(range.startContainer.firstChild as Element);
+                if (focusRange) {
+                    return focusRange;
+                }
+            }
             return range;
         }
     }
+
+    if (element.classList.contains("li") || element.classList.contains("list")) {
+        const childElement = element.querySelector("[data-node-id]");
+        if (childElement) {
+            return getEditorRange(childElement);
+        }
+    }
+
     // 代码块过长，在代码块的下一个块前删除，代码块会滚动到顶部，因粗需要 preventScroll
     (element as HTMLElement).focus({preventScroll: true});
+    if (!range) {
+        range = document.createRange();
+    }
+
     let targetElement;
     if (element.classList.contains("table")) {
         // 当光标不在表格区域中时表格无法被复制 https://ld246.com/article/1650510736504
@@ -153,13 +172,23 @@ export const getEditorRange = (element: Element) => {
     } else {
         targetElement = getContenteditableElement(element);
         if (!targetElement) {
-            targetElement = element;
+            const type = element.getAttribute("data-type");
+            if (type === "NodeThematicBreak") {
+                targetElement = element.firstElementChild;
+            } else if (type === "NodeBlockQueryEmbed") {
+                targetElement = element.lastElementChild.previousElementSibling?.firstChild;
+            } else if (["NodeMathBlock", "NodeHTMLBlock"].includes(type)) {
+                targetElement = element.lastElementChild.previousElementSibling?.lastElementChild?.firstChild;
+            } else if (type === "NodeVideo") {
+                targetElement = element.firstElementChild.firstChild;
+            } else if (type === "NodeAudio") {
+                targetElement = element.firstElementChild.lastChild;
+            }
         } else if (targetElement.tagName === "TABLE") {
             // 文档中开头为表格，获取错误 https://ld246.com/article/1663408335459?r=88250
             targetElement = targetElement.querySelector("th") || element.querySelector("td");
         }
     }
-    range = targetElement.ownerDocument.createRange();
     range.setStart(targetElement || element, 0);
     range.collapse(true);
     return range;
@@ -179,9 +208,19 @@ export const getSelectionPosition = (nodeElement: Element, range?: Range) => {
     if (range.getClientRects().length === 0) {
         if (range.startContainer.nodeType === 3) {
             // 空行时，会出现没有 br 的情况，需要根据父元素 <p> 获取位置信息
-            const parent = range.startContainer.parentElement;
-            if (parent && parent.getClientRects().length > 0) {
-                cursorRect = parent.getClientRects()[0];
+            const parentRects = range.startContainer.parentElement?.getClientRects();
+            // 连续粘贴图片时
+            const previousRects = (range.startContainer as Element).previousElementSibling?.getClientRects();
+            if (parentRects.length > 0 || previousRects.length > 0) {
+                if (parentRects.length === 0 || (previousRects &&
+                    previousRects.length > 0 && parentRects[0].top < previousRects[previousRects.length - 1].bottom)) {
+                    cursorRect = {
+                        left: previousRects[previousRects.length - 1].left,
+                        top: previousRects[previousRects.length - 1].bottom,
+                    };
+                } else {
+                    cursorRect = parentRects[0];
+                }
             } else {
                 return {
                     left: 0,
@@ -221,10 +260,17 @@ export const getSelectionPosition = (nodeElement: Element, range?: Range) => {
         }
     } else {
         const rects = range.getClientRects(); // 由于长度过长折行，光标在行首时有多个 rects https://github.com/siyuan-note/siyuan/issues/6156
-        return {    // 选中多行不应遮挡第一行 https://github.com/siyuan-note/siyuan/issues/7541
-            left: rects[rects.length - 1].left,
-            top: rects[0].top
-        };
+        if (range.toString()) {
+            return {    // 选中多行不应遮挡第一行 https://github.com/siyuan-note/siyuan/issues/7541
+                left: rects[rects.length - 1].left,
+                top: rects[0].top
+            };
+        } else {
+            return {    // 代码块首 https://github.com/siyuan-note/siyuan/issues/13113
+                left: rects[rects.length - 1].left,
+                top: rects[rects.length - 1].top
+            };
+        }
     }
 
     return {
@@ -256,8 +302,9 @@ export const getSelectionOffset = (selectElement: Node, editorElement?: Element,
         preSelectionRange.selectNodeContents(selectElement);
     }
     preSelectionRange.setEnd(range.startContainer, range.startOffset);
-    position.start = preSelectionRange.toString().length;
-    position.end = position.start + range.toString().length;
+    // 需加上表格内软换行 br 的长度
+    position.start = preSelectionRange.toString().length + preSelectionRange.cloneContents().querySelectorAll("br").length;
+    position.end = position.start + range.toString().length + range.cloneContents().querySelectorAll("br").length;
     return position;
 };
 
@@ -302,19 +349,35 @@ export const setLastNodeRange = (editElement: Element, range: Range, setStart = 
     if (!editElement) {
         return range;
     }
-    let lastNode = editElement.lastChild;
+    let lastNode = editElement.lastChild as Element;
     while (lastNode && lastNode.nodeType !== 3) {
+        if (lastNode.nodeType !== 3 && lastNode.tagName === "BR") {
+            // 防止单元格中 ⇧↓ 全部选中
+            return range;
+        }
+        // https://github.com/siyuan-note/siyuan/issues/12792
+        if (!lastNode.lastChild) {
+            break;
+        }
         // 最后一个为多种行内元素嵌套
-        lastNode = lastNode.lastChild;
+        lastNode = lastNode.lastChild as Element;
     }
+    // https://github.com/siyuan-note/siyuan/issues/12753
     if (!lastNode) {
-        range.selectNodeContents(editElement);
-        return range;
+        lastNode = editElement;
     }
     if (setStart) {
-        range.setStart(lastNode, lastNode.textContent.length);
+        if (lastNode.nodeType !== 3 && lastNode.classList.contains("render-node") && lastNode.innerHTML === "") {
+            range.setStartAfter(lastNode);
+        } else {
+            range.setStart(lastNode, lastNode.textContent.length);
+        }
     } else {
-        range.setEnd(lastNode, lastNode.textContent.length);
+        if (lastNode.nodeType !== 3 && lastNode.classList.contains("render-node") && lastNode.innerHTML === "") {
+            range.setStartAfter(lastNode);
+        } else {
+            range.setEnd(lastNode, lastNode.textContent.length);
+        }
     }
     return range;
 };
@@ -343,7 +406,7 @@ export const setFirstNodeRange = (editElement: Element, range: Range) => {
     return range;
 };
 
-export const focusByOffset = (container: Element, start: number, end: number) => {
+export const focusByOffset = (container: Element, start: number, end: number, isFocus = true) => {
     if (!container) {
         return false;
     }
@@ -351,7 +414,7 @@ export const focusByOffset = (container: Element, start: number, end: number) =>
     const editElement = getContenteditableElement(container);
     if (editElement) {
         container = editElement;
-    } else if (isNotEditBlock(container)) {
+    } else if (isFocus && (isNotEditBlock(container) || container.classList.contains("av"))) {
         return focusBlock(container);
     }
     let startNode;
@@ -411,8 +474,20 @@ export const focusByOffset = (container: Element, start: number, end: number) =>
             setLastNodeRange(getContenteditableElement(container as Element), range, false);
         }
     }
-    focusByRange(range);
+    if (isFocus) {
+        focusByRange(range);
+    }
     return range;
+};
+
+export const setInsertWbrHTML = (nodeElement: HTMLElement, range: Range, protyle: IProtyle) => {
+    const offset = getSelectionOffset(nodeElement, nodeElement, range);
+    const cloneNode = nodeElement.cloneNode(true) as HTMLElement;
+    const cloneRange = focusByOffset(cloneNode, offset.end, offset.end, false);
+    if (cloneRange) {
+        cloneRange.insertNode(document.createElement("wbr"));
+    }
+    protyle.wysiwyg.lastHTMLs[nodeElement.getAttribute("data-node-id")] = cloneNode.outerHTML;
 };
 
 export const focusByWbr = (element: Element, range: Range) => {
@@ -470,17 +545,24 @@ export const focusByRange = (range: Range) => {
     if (!range) {
         return;
     }
+
+    const startNode = range.startContainer.childNodes[range.startOffset] as HTMLElement;
+    if (startNode && startNode.nodeType !== 3 && ["INPUT", "TEXTAREA"].includes(startNode.tagName)) {
+        startNode.focus();
+        return;
+    }
     const selection = window.getSelection();
     selection.removeAllRanges();
     selection.addRange(range);
 };
 
-export const focusBlock = (element: Element, parentElement?: HTMLElement, toStart = true) => {
+export const focusBlock = (element: Element, parentElement?: HTMLElement, toStart = true): false | Range => {
     if (!element) {
         return false;
     }
+
     // hr、嵌入块、数学公式、iframe、音频、视频、图表渲染块等，删除段落块后，光标位置矫正 https://github.com/siyuan-note/siyuan/issues/4143
-    if (element.classList.contains("render-node") || element.classList.contains("iframe") || element.classList.contains("hr")) {
+    if (element.classList.contains("render-node") || element.classList.contains("iframe") || element.classList.contains("hr") || element.classList.contains("av")) {
         const range = document.createRange();
         const type = element.getAttribute("data-type");
         let setRange = false;
@@ -488,30 +570,23 @@ export const focusBlock = (element: Element, parentElement?: HTMLElement, toStar
             range.selectNodeContents(element.firstElementChild);
             setRange = true;
         } else if (type === "NodeBlockQueryEmbed") {
-            if (element.lastElementChild.previousElementSibling?.firstChild) {
-                range.selectNodeContents(element.lastElementChild.previousElementSibling.firstChild);
-                range.collapse(true);
-            } else {
-                // https://github.com/siyuan-note/siyuan/issues/5267
-                range.selectNodeContents(element);
-                range.collapse(true);
-            }
+            genRenderFrame(element);
+            range.setStart(element.lastElementChild.previousElementSibling.firstChild, 0);
+            range.collapse(true);
             setRange = true;
-        } else if (["NodeMathBlock", "NodeHTMLBlock"].includes(type)) {
-            if (element.lastElementChild.previousElementSibling?.lastElementChild?.firstChild) {
-                // https://ld246.com/article/1655714737572
-                range.selectNodeContents(element.lastElementChild.previousElementSibling.lastElementChild.firstChild);
-                range.collapse(true);
-            } else if (element.lastElementChild.previousElementSibling) {
-                range.selectNodeContents(element.lastElementChild.previousElementSibling);
-                range.collapse(true);
-            }
+        } else if (type === "NodeMathBlock") {
+            genRenderFrame(element);
+            range.setStart(element.firstElementChild.lastElementChild.firstChild, 0);
+            setRange = true;
+        } else if (type === "NodeHTMLBlock") {
+            range.setStart(element.lastElementChild.previousElementSibling.lastElementChild.firstChild, 0);
+            range.collapse(true);
             setRange = true;
         } else if (type === "NodeIFrame" || type === "NodeWidget") {
             range.setStart(element, 0);
             setRange = true;
         } else if (type === "NodeVideo") {
-            range.setStart(element.firstElementChild, 0);
+            range.setStart(element.firstElementChild.firstChild, 0);
             setRange = true;
         } else if (type === "NodeAudio") {
             range.setStart(element.firstElementChild.lastChild, 0);
@@ -520,6 +595,18 @@ export const focusBlock = (element: Element, parentElement?: HTMLElement, toStar
             range.selectNodeContents(element);
             range.collapse(true);
             setRange = true;
+        } else if (type === "NodeAttributeView") {
+            /// #if !MOBILE
+            const cursorElement = element.querySelector(".av__cursor");
+            if (cursorElement) {
+                range.setStart(cursorElement.firstChild, 0);
+                setRange = true;
+            } else {
+                return false;
+            }
+            /// #else
+            return false;
+            /// #endif
         }
         if (setRange) {
             focusByRange(range);
@@ -555,14 +642,46 @@ export const focusBlock = (element: Element, parentElement?: HTMLElement, toStar
             range = setFirstNodeRange(cursorElement, getEditorRange(cursorElement));
             range.collapse(true);
         } else {
+            let focusHljs = false;
             // 定位到末尾 https://github.com/siyuan-note/siyuan/issues/5982
-            range = setLastNodeRange(cursorElement, getEditorRange(cursorElement));
+            if (cursorElement.classList.contains("hljs")) {
+                // 代码块末尾定位需在 /n 之前 https://github.com/siyuan-note/siyuan/issues/9141，https://github.com/siyuan-note/siyuan/issues/9189
+                let lastNode = cursorElement.lastChild;
+                if (!lastNode) {
+                    // 粘贴 ``` 报错
+                    cursorElement.innerHTML = "\n";
+                    lastNode = cursorElement.lastChild;
+                }
+                if (lastNode.textContent === "" && lastNode.nodeType === 3) {
+                    lastNode = hasPreviousSibling(cursorElement.lastChild) as HTMLElement;
+                }
+                if (lastNode && lastNode.textContent.endsWith("\n")) {
+                    // https://github.com/siyuan-note/siyuan/issues/11362
+                    if (lastNode.nodeType === 1) {
+                        lastNode = lastNode.lastChild;
+                        while (lastNode && lastNode.textContent.indexOf("\n") === -1) {
+                            lastNode = lastNode.previousSibling;
+                        }
+                    }
+                    range = getEditorRange(cursorElement);
+                    range.setStart(lastNode, lastNode.textContent.length - 1);
+                    focusHljs = true;
+                }
+            }
+            if (!focusHljs) {
+                range = setLastNodeRange(cursorElement, getEditorRange(cursorElement));
+            }
             range.collapse(false);
         }
         focusByRange(range);
         return range;
     } else if (parentElement) {
         parentElement.focus();
+    } else {
+        // li 下面为 hr、嵌入块、数学公式、iframe、音频、视频、图表渲染块等时递归处理
+        if (element.classList.contains("li")) {
+            return focusBlock(element.querySelector("[data-node-id]"), parentElement, toStart);
+        }
     }
     return false;
 };

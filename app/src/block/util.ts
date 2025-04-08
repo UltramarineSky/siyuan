@@ -1,14 +1,17 @@
-import {focusBlock, focusByWbr, getEditorRange} from "../protyle/util/selection";
-import {hasClosestBlock, hasClosestByClassName} from "../protyle/util/hasClosest";
-import {getNextBlock, getTopAloneElement} from "../protyle/wysiwyg/getBlock";
+import {focusByWbr, getEditorRange} from "../protyle/util/selection";
+import {hasClosestBlock} from "../protyle/util/hasClosest";
+import {getContenteditableElement, getTopAloneElement} from "../protyle/wysiwyg/getBlock";
 import {genListItemElement, updateListOrder} from "../protyle/wysiwyg/list";
-import {transaction, updateTransaction} from "../protyle/wysiwyg/transaction";
+import {transaction, turnsIntoOneTransaction, updateTransaction} from "../protyle/wysiwyg/transaction";
 import {scrollCenter} from "../util/highlightById";
 import {Constants} from "../constants";
 import {hideElements} from "../protyle/ui/hideElements";
 import {blockRender} from "../protyle/render/blockRender";
+import {fetchPost, fetchSyncPost} from "../util/fetch";
+import {openFileById} from "../editor/util";
+import {openMobileFileById} from "../mobile/editor";
 
-export const cancelSB = (protyle: IProtyle, nodeElement: Element) => {
+export const cancelSB = async (protyle: IProtyle, nodeElement: Element, range?: Range) => {
     const doOperations: IOperation[] = [];
     const undoOperations: IOperation[] = [];
     let previousId = nodeElement.previousElementSibling ? nodeElement.previousElementSibling.getAttribute("data-node-id") : undefined;
@@ -18,12 +21,23 @@ export const cancelSB = (protyle: IProtyle, nodeElement: Element) => {
     const id = nodeElement.getAttribute("data-node-id");
     const sbElement = nodeElement.cloneNode() as HTMLElement;
     sbElement.innerHTML = nodeElement.lastElementChild.outerHTML;
+    let parentID = nodeElement.parentElement.getAttribute("data-node-id");
+    // 缩放和反链需要接口获取
+    if (!previousId && !parentID) {
+        if (protyle.block.showAll || protyle.options.backlinkData) {
+            const idData = await fetchSyncPost("/api/block/getBlockSiblingID", {id});
+            previousId = idData.data.previous;
+            parentID = idData.data.parent;
+        } else {
+            parentID = protyle.block.rootID;
+        }
+    }
     undoOperations.push({
         action: "insert",
         id,
         data: sbElement.outerHTML,
-        previousID: nodeElement.previousElementSibling ? nodeElement.previousElementSibling.getAttribute("data-node-id") : undefined,
-        parentID: nodeElement.parentElement.getAttribute("data-node-id") || protyle.block.parentID
+        previousID: previousId,
+        parentID,
     });
     Array.from(nodeElement.children).forEach((item, index) => {
         if (index === nodeElement.childElementCount - 1) {
@@ -31,15 +45,25 @@ export const cancelSB = (protyle: IProtyle, nodeElement: Element) => {
                 action: "delete",
                 id,
             });
+            if (range) {
+                getContenteditableElement(nodeElement).insertAdjacentHTML("afterbegin", "<wbr>");
+            }
             nodeElement.lastElementChild.remove();
+            // 超级块中的 html 块需要反转义再赋值 https://github.com/siyuan-note/siyuan/issues/13155
+            nodeElement.querySelectorAll("protyle-html").forEach(item => {
+                item.setAttribute("data-content", item.getAttribute("data-content").replace(/&lt;/g, "<").replace(/&gt;/g, ">"));
+            });
             nodeElement.outerHTML = nodeElement.innerHTML;
+            if (range) {
+                focusByWbr(protyle.wysiwyg.element, range);
+            }
             return;
         }
         doOperations.push({
             action: "move",
             id: item.getAttribute("data-node-id"),
             previousID: previousId,
-            parentID: nodeElement.parentElement.getAttribute("data-node-id") || protyle.block.parentID
+            parentID,
         });
         undoOperations.push({
             action: "move",
@@ -72,16 +96,22 @@ export const genSBElement = (layout: string, id?: string, attrHTML?: string) => 
     return sbElement;
 };
 
-export const jumpToParentNext = (protyle: IProtyle, nodeElement: Element) => {
-    const topElement = getTopAloneElement(nodeElement);
-    if (topElement) {
-        const topParentElement = hasClosestByClassName(topElement, "list") || hasClosestByClassName(topElement, "bq") || hasClosestByClassName(topElement, "sb") || topElement;
-        const nextElement = getNextBlock(topParentElement);
-        if (nextElement) {
-            focusBlock(nextElement);
-            scrollCenter(protyle, nextElement);
+export const jumpToParent = (protyle: IProtyle, nodeElement: Element, type: "parent" | "next" | "previous") => {
+    fetchPost("/api/block/getBlockSiblingID", {id: nodeElement.getAttribute("data-node-id")}, (response) => {
+        const targetId = response.data[type];
+        if (!targetId) {
+            return;
         }
-    }
+        /// #if !MOBILE
+        openFileById({
+            app: protyle.app,
+            id: targetId,
+            action: targetId !== protyle.block.rootID && protyle.block.showAll ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS]
+        });
+        /// #else
+        openMobileFileById(protyle.app, targetId, targetId !== protyle.block.rootID && protyle.block.showAll ? [Constants.CB_GET_ALL, Constants.CB_GET_FOCUS] : [Constants.CB_GET_FOCUS]);
+        /// #endif
+    });
 };
 
 export const insertEmptyBlock = (protyle: IProtyle, position: InsertPosition, id?: string) => {
@@ -141,6 +171,15 @@ export const insertEmptyBlock = (protyle: IProtyle, position: InsertPosition, id
             id: newId,
         }]);
     }
+    if (blockElement.parentElement.classList.contains("sb") &&
+        blockElement.parentElement.getAttribute("data-sb-layout") === "col") {
+        turnsIntoOneTransaction({
+            protyle,
+            selectsElement: position === "afterend" ? [blockElement, blockElement.nextElementSibling] : [blockElement.previousElementSibling, blockElement],
+            type: "BlocksMergeSuperBlock",
+            level: "row"
+        });
+    }
     focusByWbr(protyle.wysiwyg.element, range);
     scrollCenter(protyle);
 };
@@ -166,4 +205,32 @@ export const genEmptyElement = (zwsp = true, wbr = true, id?: string) => {
     element.classList.add("p");
     element.innerHTML = `<div contenteditable="true" spellcheck="${window.siyuan.config.editor.spellcheck}">${zwsp ? Constants.ZWSP : ""}${wbr ? "<wbr>" : ""}</div><div class="protyle-attr" contenteditable="false">${Constants.ZWSP}</div>`;
     return element;
+};
+
+export const getLangByType = (type: string) => {
+    let lang = type;
+    switch (type) {
+        case "NodeIFrame":
+            lang = "IFrame";
+            break;
+        case "NodeAttributeView":
+            lang = window.siyuan.languages.database;
+            break;
+        case "NodeThematicBreak":
+            lang = window.siyuan.languages.line;
+            break;
+        case "NodeWidget":
+            lang = window.siyuan.languages.widget;
+            break;
+        case "NodeVideo":
+            lang = window.siyuan.languages.video;
+            break;
+        case "NodeAudio":
+            lang = window.siyuan.languages.audio;
+            break;
+        case "NodeBlockQueryEmbed":
+            lang = window.siyuan.languages.blockEmbed;
+            break;
+    }
+    return lang;
 };

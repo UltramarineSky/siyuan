@@ -1,14 +1,16 @@
 import {Tab} from "../Tab";
 import {Model} from "../Model";
 import {Tree} from "../../util/Tree";
-import {getDockByType, setPanelFocus} from "../util";
+import {setPanelFocus} from "../util";
+import {getDockByType} from "../tabUtil";
 import {fetchPost} from "../../util/fetch";
 import {updateHotkeyTip} from "../../protyle/util/compatibility";
 import {openFileById} from "../../editor/util";
-import {Constants} from "../../constants";
 import {hasClosestByClassName} from "../../protyle/util/hasClosest";
 import {openBookmarkMenu} from "../../menus/bookmark";
 import {App} from "../../index";
+import {Constants} from "../../constants";
+import {checkFold} from "../../util/noRelyPCFunction";
 
 export class Bookmark extends Model {
     private openNodes: string[];
@@ -54,8 +56,7 @@ export class Bookmark extends Model {
         this.element.classList.add("fn__flex-column", "file-tree", "sy__bookmark");
         this.element.innerHTML = `<div class="block__icons">
     <div class="block__logo">
-        <svg><use xlink:href="#iconBookmark"></use></svg>
-        ${window.siyuan.languages.bookmark}
+        <svg class="block__logoicon"><use xlink:href="#iconBookmark"></use></svg>${window.siyuan.languages.bookmark}
     </div>
     <span class="fn__flex-1"></span>
     <span class="fn__space"></span>
@@ -84,42 +85,52 @@ export class Bookmark extends Model {
                     }
                 }
                 const id = element.getAttribute("data-node-id");
-                if (id) {
-                    fetchPost("/api/block/checkBlockFold", {id}, (foldResponse) => {
-                        openFileById({
-                            app,
-                            id,
-                            action: foldResponse.data ? [Constants.CB_GET_FOCUS, Constants.CB_GET_ALL] : [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT],
-                            zoomIn: foldResponse.data
-                        });
+                checkFold(id, (zoomIn, action: TProtyleAction[]) => {
+                    openFileById({
+                        app,
+                        id,
+                        action,
+                        zoomIn
                     });
-                }
+                });
             },
             rightClick: (element: HTMLElement, event: MouseEvent) => {
                 openBookmarkMenu(element, event, this);
             },
-            ctrlClick(element: HTMLElement) {
-                openFileById({
-                    app,
-                    id: element.getAttribute("data-node-id"),
-                    keepCursor: true,
-                    action: [Constants.CB_GET_CONTEXT]
+            ctrlClick: (element: HTMLElement) => {
+                const id = element.getAttribute("data-node-id");
+                checkFold(id, (zoomIn) => {
+                    openFileById({
+                        app,
+                        id,
+                        keepCursor: true,
+                        action: zoomIn ? [Constants.CB_GET_HL, Constants.CB_GET_ALL] : [Constants.CB_GET_HL, Constants.CB_GET_CONTEXT, Constants.CB_GET_ROOTSCROLL],
+                        zoomIn
+                    });
                 });
             },
-            altClick(element: HTMLElement) {
-                openFileById({
-                    app,
-                    id: element.getAttribute("data-node-id"),
-                    position: "right",
-                    action: [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT]
+            altClick: (element: HTMLElement,) => {
+                const id = element.getAttribute("data-node-id");
+                checkFold(id, (zoomIn, action: TProtyleAction[]) => {
+                    openFileById({
+                        app,
+                        id,
+                        position: "bottom",
+                        action,
+                        zoomIn
+                    });
                 });
             },
-            shiftClick(element: HTMLElement) {
-                openFileById({
-                    app,
-                    id: element.getAttribute("data-node-id"),
-                    position: "bottom",
-                    action: [Constants.CB_GET_FOCUS, Constants.CB_GET_CONTEXT]
+            shiftClick: (element: HTMLElement) => {
+                const id = element.getAttribute("data-node-id");
+                checkFold(id, (zoomIn, action: TProtyleAction[]) => {
+                    openFileById({
+                        app,
+                        id,
+                        position: "bottom",
+                        action,
+                        zoomIn
+                    });
                 });
             },
             blockExtHTML: '<span class="b3-list-item__action"><svg><use xlink:href="#iconMore"></use></svg></span>',
@@ -140,7 +151,7 @@ export class Bookmark extends Model {
                     const type = target.getAttribute("data-type");
                     switch (type) {
                         case "min":
-                            getDockByType("bookmark").toggleModel("bookmark");
+                            getDockByType("bookmark").toggleModel("bookmark", false, true);
                             break;
                         case "refresh":
                             this.update();

@@ -17,6 +17,7 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -35,6 +36,61 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func getUniqueFilename(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	filePath := arg["path"].(string)
+	ret.Data = map[string]interface{}{
+		"path": util.GetUniqueFilename(filePath),
+	}
+}
+
+func globalCopyFiles(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var srcs []string
+	srcsArg := arg["srcs"].([]interface{})
+	for _, s := range srcsArg {
+		srcs = append(srcs, s.(string))
+	}
+
+	for _, src := range srcs {
+		if !filelock.IsExist(src) {
+			msg := fmt.Sprintf("file [%s] does not exist", src)
+			logging.LogErrorf(msg)
+			ret.Code = -1
+			ret.Msg = msg
+			return
+		}
+	}
+
+	destDir := arg["destDir"].(string) // 相对于工作空间的路径
+	destDir = filepath.Join(util.WorkspaceDir, destDir)
+	for _, src := range srcs {
+		dest := filepath.Join(destDir, filepath.Base(src))
+		if err := filelock.Copy(src, dest); err != nil {
+			logging.LogErrorf("copy file [%s] to [%s] failed: %s", src, dest, err)
+			ret.Code = -1
+			ret.Msg = err.Error()
+			return
+		}
+	}
+
+	model.IncSync()
+}
+
 func copyFile(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -46,7 +102,7 @@ func copyFile(c *gin.Context) {
 
 	src := arg["src"].(string)
 	src, err := model.GetAssetAbsPath(src)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("get asset [%s] abs path failed: %s", src, err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -55,7 +111,7 @@ func copyFile(c *gin.Context) {
 	}
 
 	info, err := os.Stat(src)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("stat [%s] failed: %s", src, err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -71,56 +127,84 @@ func copyFile(c *gin.Context) {
 	}
 
 	dest := arg["dest"].(string)
-	if err = filelock.Copy(src, dest); nil != err {
+	if err = filelock.Copy(src, dest); err != nil {
 		logging.LogErrorf("copy file [%s] to [%s] failed: %s", src, dest, err)
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 5000}
 		return
 	}
+
+	model.IncSync()
 }
 
 func getFile(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	arg, ok := util.JsonArg(c, ret)
 	if !ok {
-		c.JSON(http.StatusOK, ret)
+		ret.Code = -1
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 
 	filePath := arg["path"].(string)
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
-	info, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
-		c.JSON(http.StatusOK, ret)
+	fileAbsPath, err := util.GetAbsPathInWorkspace(filePath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	info, err := os.Stat(fileAbsPath)
+	if os.IsNotExist(err) {
+		ret.Code = http.StatusNotFound
 		ret.Msg = err.Error()
-		c.JSON(http.StatusOK, ret)
+		c.JSON(http.StatusAccepted, ret)
+		return
+	}
+	if err != nil {
+		logging.LogErrorf("stat [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
+		ret.Msg = err.Error()
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 	if info.IsDir() {
-		logging.LogErrorf("file [%s] is a directory", filePath)
-		ret.Code = 405
-		ret.Msg = "file is a directory"
-		c.JSON(http.StatusOK, ret)
+		logging.LogErrorf("path [%s] is a directory path", fileAbsPath)
+		ret.Code = http.StatusMethodNotAllowed
+		ret.Msg = "This is a directory path"
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 
-	data, err := filelock.ReadFile(filePath)
-	if nil != err {
-		logging.LogErrorf("read file [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	// REF: https://github.com/siyuan-note/siyuan/issues/11364
+	if role := model.GetGinContextRole(c); !model.IsValidRole(role, []model.Role{
+		model.RoleAdministrator,
+	}) {
+		if relPath, err := filepath.Rel(util.ConfDir, fileAbsPath); err != nil {
+			logging.LogErrorf("Get a relative path from [%s] to [%s] failed: %s", util.ConfDir, fileAbsPath, err)
+			ret.Code = http.StatusInternalServerError
+			ret.Msg = err.Error()
+			c.JSON(http.StatusAccepted, ret)
+			return
+		} else if relPath == "conf.json" {
+			ret.Code = http.StatusForbidden
+			ret.Msg = http.StatusText(http.StatusForbidden)
+			c.JSON(http.StatusAccepted, ret)
+			return
+		}
+	}
+
+	data, err := filelock.ReadFile(fileAbsPath)
+	if err != nil {
+		logging.LogErrorf("read file [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
-		c.JSON(http.StatusOK, ret)
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 
-	contentType := mime.TypeByExtension(filepath.Ext(filePath))
+	contentType := mime.TypeByExtension(filepath.Ext(fileAbsPath))
 	if "" == contentType {
 		if m := mimetype.Detect(data); nil != m {
 			contentType = m.String()
@@ -143,38 +227,54 @@ func readDir(c *gin.Context) {
 	}
 
 	dirPath := arg["path"].(string)
-	dirPath = filepath.Join(util.WorkspaceDir, dirPath)
-	info, err := os.Stat(dirPath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
+	dirAbsPath, err := util.GetAbsPathInWorkspace(dirPath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", dirPath, err)
-		ret.Code = 500
+	info, err := os.Stat(dirAbsPath)
+	if os.IsNotExist(err) {
+		ret.Code = http.StatusNotFound
+		ret.Msg = err.Error()
+		return
+	}
+	if err != nil {
+		logging.LogErrorf("stat [%s] failed: %s", dirAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
 	if !info.IsDir() {
-		logging.LogErrorf("file [%s] is not a directory", dirPath)
-		ret.Code = 405
+		logging.LogErrorf("file [%s] is not a directory", dirAbsPath)
+		ret.Code = http.StatusMethodNotAllowed
 		ret.Msg = "file is not a directory"
 		return
 	}
 
-	entries, err := os.ReadDir(dirPath)
-	if nil != err {
-		logging.LogErrorf("read dir [%s] failed: %s", dirPath, err)
-		ret.Code = 500
+	entries, err := os.ReadDir(dirAbsPath)
+	if err != nil {
+		logging.LogErrorf("read dir [%s] failed: %s", dirAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
 
 	files := []map[string]interface{}{}
 	for _, entry := range entries {
+		path := filepath.Join(dirAbsPath, entry.Name())
+		info, err = os.Stat(path)
+		if err != nil {
+			logging.LogErrorf("stat [%s] failed: %s", path, err)
+			ret.Code = http.StatusInternalServerError
+			ret.Msg = err.Error()
+			return
+		}
 		files = append(files, map[string]interface{}{
-			"name":  entry.Name(),
-			"isDir": entry.IsDir(),
+			"name":      entry.Name(),
+			"isDir":     info.IsDir(),
+			"isSymlink": util.IsSymlink(entry),
+			"updated":   info.ModTime().Unix(),
 		})
 	}
 
@@ -191,35 +291,41 @@ func renameFile(c *gin.Context) {
 		return
 	}
 
-	filePath := arg["path"].(string)
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
+	srcPath := arg["path"].(string)
+	srcAbsPath, err := util.GetAbsPathInWorkspace(srcPath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
 		ret.Msg = err.Error()
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", filePath, err)
-		ret.Code = 500
-		ret.Msg = err.Error()
+	if !filelock.IsExist(srcAbsPath) {
+		ret.Code = http.StatusNotFound
+		ret.Msg = "the [path] file or directory does not exist"
 		return
 	}
 
-	newPath := arg["newPath"].(string)
-	newPath = filepath.Join(util.WorkspaceDir, newPath)
-	if gulu.File.IsExist(newPath) {
-		ret.Code = 409
+	destPath := arg["newPath"].(string)
+	destAbsPath, err := util.GetAbsPathInWorkspace(destPath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
+		c.JSON(http.StatusAccepted, ret)
+		return
+	}
+	if filelock.IsExist(destAbsPath) {
+		ret.Code = http.StatusConflict
 		ret.Msg = "the [newPath] file or directory already exists"
 		return
 	}
 
-	if err = filelock.Rename(filePath, newPath); nil != err {
-		logging.LogErrorf("rename file [%s] to [%s] failed: %s", filePath, newPath, err)
-		ret.Code = 500
+	if err := filelock.Rename(srcAbsPath, destAbsPath); err != nil {
+		logging.LogErrorf("rename file [%s] to [%s] failed: %s", srcAbsPath, destAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
+
+	model.IncSync()
 }
 
 func removeFile(c *gin.Context) {
@@ -233,81 +339,94 @@ func removeFile(c *gin.Context) {
 	}
 
 	filePath := arg["path"].(string)
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
+	fileAbsPath, err := util.GetAbsPathInWorkspace(filePath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	_, err = os.Stat(fileAbsPath)
+	if os.IsNotExist(err) {
+		ret.Code = http.StatusNotFound
+		return
+	}
+	if err != nil {
+		logging.LogErrorf("stat [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
 
-	if err = filelock.Remove(filePath); nil != err {
-		logging.LogErrorf("remove [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	if err = filelock.Remove(fileAbsPath); err != nil {
+		logging.LogErrorf("remove [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
+
+	model.IncSync()
 }
 
 func putFile(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
+	var err error
 	filePath := c.PostForm("path")
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
+	fileAbsPath, err := util.GetAbsPathInWorkspace(filePath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
+		return
+	}
+
 	isDirStr := c.PostForm("isDir")
 	isDir, _ := strconv.ParseBool(isDirStr)
 
-	var err error
 	if isDir {
-		err = os.MkdirAll(filePath, 0755)
-		if nil != err {
-			logging.LogErrorf("make a dir [%s] failed: %s", filePath, err)
+		err = os.MkdirAll(fileAbsPath, 0755)
+		if err != nil {
+			logging.LogErrorf("make dir [%s] failed: %s", fileAbsPath, err)
 		}
 	} else {
 		fileHeader, _ := c.FormFile("file")
 		if nil == fileHeader {
-			logging.LogErrorf("form file is nil [path=%s]", filePath)
-			ret.Code = 400
+			logging.LogErrorf("form file is nil [path=%s]", fileAbsPath)
+			ret.Code = http.StatusBadRequest
 			ret.Msg = "form file is nil"
 			return
 		}
 
 		for {
-			dir := filepath.Dir(filePath)
-			if err = os.MkdirAll(dir, 0755); nil != err {
-				logging.LogErrorf("put a file [%s] make dir [%s] failed: %s", filePath, dir, err)
+			dir := filepath.Dir(fileAbsPath)
+			if err = os.MkdirAll(dir, 0755); err != nil {
+				logging.LogErrorf("put file [%s] make dir [%s] failed: %s", fileAbsPath, dir, err)
 				break
 			}
 
 			var f multipart.File
 			f, err = fileHeader.Open()
-			if nil != err {
+			if err != nil {
 				logging.LogErrorf("open file failed: %s", err)
 				break
 			}
 
 			var data []byte
 			data, err = io.ReadAll(f)
-			if nil != err {
+			if err != nil {
 				logging.LogErrorf("read file failed: %s", err)
 				break
 			}
 
-			err = filelock.WriteFile(filePath, data)
-			if nil != err {
-				logging.LogErrorf("put a file [%s] failed: %s", filePath, err)
+			err = filelock.WriteFile(fileAbsPath, data)
+			if err != nil {
+				logging.LogErrorf("write file [%s] failed: %s", fileAbsPath, err)
 				break
 			}
 			break
 		}
 	}
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -319,18 +438,20 @@ func putFile(c *gin.Context) {
 		modTimeInt, parseErr := strconv.ParseInt(modTimeStr, 10, 64)
 		if nil != parseErr {
 			logging.LogErrorf("parse mod time [%s] failed: %s", modTimeStr, parseErr)
-			ret.Code = 500
+			ret.Code = http.StatusInternalServerError
 			ret.Msg = parseErr.Error()
 			return
 		}
 		modTime = millisecond2Time(modTimeInt)
 	}
-	if err = os.Chtimes(filePath, modTime, modTime); nil != err {
+	if err = os.Chtimes(fileAbsPath, modTime, modTime); err != nil {
 		logging.LogErrorf("change time failed: %s", err)
-		ret.Code = 500
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
+
+	model.IncSync()
 }
 
 func millisecond2Time(t int64) time.Time {

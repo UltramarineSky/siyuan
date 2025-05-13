@@ -23,12 +23,12 @@ import (
 	"path"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/88250/lute/parse"
 	"github.com/siyuan-note/eventbus"
 	"github.com/siyuan-note/logging"
-	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/task"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -36,55 +36,26 @@ import (
 var (
 	operationQueue []*dbQueueOperation
 	dbQueueLock    = sync.Mutex{}
-
-	txLock = sync.Mutex{}
+	txLock         = sync.Mutex{}
 )
 
 type dbQueueOperation struct {
 	inQueueTime                   time.Time
-	action                        string            // upsert/delete/delete_id/rename/rename_sub_tree/delete_box/delete_box_refs/insert_refs/index/delete_ids/update_block_content/delete_assets/av_rebuild
-	indexPath                     string            // index
-	upsertTree                    *parse.Tree       // upsert/insert_refs/update_refs/delete_refs
-	removeTreeBox, removeTreePath string            // delete
-	removeTreeIDBox, removeTreeID string            // delete_id
-	removeTreeIDs                 []string          // delete_ids
-	box                           string            // delete_box/delete_box_refs/index
-	renameTree                    *parse.Tree       // rename/rename_sub_tree
-	block                         *Block            // update_block_content
-	removeAssetHashes             []string          // delete_assets
-	av                            *av.AttributeView // av_rebuild
+	action                        string      // upsert/delete/delete_id/rename/rename_sub_tree/delete_box/delete_box_refs/index/delete_ids/update_block_content/delete_assets
+	indexTree                     *parse.Tree // index
+	upsertTree                    *parse.Tree // upsert/update_refs/delete_refs
+	removeTreeBox, removeTreePath string      // delete
+	removeTreeID                  string      // delete_id
+	removeTreeIDs                 []string    // delete_ids
+	box                           string      // delete_box/delete_box_refs/index
+	renameTree                    *parse.Tree // rename/rename_sub_tree
+	block                         *Block      // update_block_content
+	id                            string      // index_node
+	removeAssetHashes             []string    // delete_assets
 }
 
 func FlushTxJob() {
 	task.AppendTask(task.DatabaseIndexCommit, FlushQueue)
-}
-
-func WaitForWritingDatabase() {
-	var printLog bool
-	var lastPrintLog bool
-	for i := 0; isWritingDatabase(); i++ {
-		time.Sleep(50 * time.Millisecond)
-		if 200 < i && !printLog { // 10s 后打日志
-			logging.LogWarnf("database is writing: \n%s", logging.ShortStack())
-			printLog = true
-		}
-		if 1200 < i && !lastPrintLog { // 60s 后打日志
-			logging.LogWarnf("database is still writing")
-			lastPrintLog = true
-		}
-	}
-}
-
-func isWritingDatabase() bool {
-	time.Sleep(util.SQLFlushInterval + 50*time.Millisecond)
-	if 0 < len(operationQueue) || util.IsMutexLocked(&txLock) {
-		return true
-	}
-	return false
-}
-
-func IsEmptyQueue() bool {
-	return 1 > len(operationQueue) && !util.IsMutexLocked(&txLock)
 }
 
 func ClearQueue() {
@@ -93,19 +64,26 @@ func ClearQueue() {
 	operationQueue = nil
 }
 
+var flushingTx = atomic.Bool{}
+
 func FlushQueue() {
-	ops := mergeUpsertTrees()
-	if 1 > len(ops) {
+	ops := getOperations()
+	total := len(ops)
+	if 1 > total && !flushingTx.Load() {
 		return
 	}
 
 	txLock.Lock()
-	defer txLock.Unlock()
+	flushingTx.Store(true)
+	defer func() {
+		flushingTx.Store(false)
+		txLock.Unlock()
+	}()
+
 	start := time.Now()
 
 	context := map[string]interface{}{eventbus.CtxPushMsg: eventbus.CtxPushMsgToStatusBar}
-	total := len(ops)
-	if 512 < total {
+	if 512 < len(ops) {
 		disableCache()
 		defer enableCache()
 	}
@@ -117,27 +95,27 @@ func FlushQueue() {
 
 	groupOpsCurrent := map[string]int{}
 	for i, op := range ops {
-		if util.IsExiting {
+		if util.IsExiting.Load() {
 			return
 		}
 
 		tx, err := beginTx()
-		if nil != err {
+		if err != nil {
 			return
 		}
 
 		groupOpsCurrent[op.action]++
 		context["current"] = groupOpsCurrent[op.action]
 		context["total"] = groupOpsTotal[op.action]
-		if err = execOp(op, tx, context); nil != err {
+		if err = execOp(op, tx, context); err != nil {
 			tx.Rollback()
 			logging.LogErrorf("queue operation [%s] failed: %s", op.action, err)
 			continue
 		}
 
-		if err = commitTx(tx); nil != err {
+		if err = commitTx(tx); err != nil {
 			logging.LogErrorf("commit tx failed: %s", err)
-			return
+			continue
 		}
 
 		if 16 < i && 0 == i%128 {
@@ -145,7 +123,7 @@ func FlushQueue() {
 		}
 	}
 
-	if 128 < len(ops) {
+	if 128 < total {
 		debug.FreeOSMemory()
 	}
 
@@ -153,12 +131,17 @@ func FlushQueue() {
 	if 7000 < elapsed {
 		logging.LogInfof("database op tx [%dms]", elapsed)
 	}
+
+	// Push database index commit event https://github.com/siyuan-note/siyuan/issues/8814
+	util.BroadcastByType("main", "databaseIndexCommit", 0, "", nil)
+
+	eventbus.Publish(eventbus.EvtSQLIndexFlushed)
 }
 
 func execOp(op *dbQueueOperation, tx *sql.Tx, context map[string]interface{}) (err error) {
 	switch op.action {
 	case "index":
-		err = indexTree(tx, op.box, op.indexPath, context)
+		err = indexTree(tx, op.indexTree, context)
 	case "upsert":
 		err = upsertTree(tx, op.upsertTree, context)
 	case "delete":
@@ -168,19 +151,17 @@ func execOp(op *dbQueueOperation, tx *sql.Tx, context map[string]interface{}) (e
 	case "delete_ids":
 		err = batchDeleteByRootIDs(tx, op.removeTreeIDs, context)
 	case "rename":
-		err = batchUpdateHPath(tx, op.renameTree.Box, op.renameTree.ID, op.renameTree.HPath, context)
-		if nil != err {
+		err = batchUpdateHPath(tx, op.renameTree, context)
+		if err != nil {
 			break
 		}
 		err = updateRootContent(tx, path.Base(op.renameTree.HPath), op.renameTree.Root.IALAttr("updated"), op.renameTree.ID)
 	case "rename_sub_tree":
-		err = batchUpdateHPath(tx, op.renameTree.Box, op.renameTree.ID, op.renameTree.HPath, context)
+		err = batchUpdatePath(tx, op.renameTree, context)
 	case "delete_box":
 		err = deleteByBoxTx(tx, op.box)
 	case "delete_box_refs":
 		err = deleteRefsByBoxTx(tx, op.box)
-	case "insert_refs":
-		err = insertRefs(tx, op.upsertTree)
 	case "update_refs":
 		err = upsertRefs(tx, op.upsertTree)
 	case "delete_refs":
@@ -189,8 +170,8 @@ func execOp(op *dbQueueOperation, tx *sql.Tx, context map[string]interface{}) (e
 		err = updateBlockContent(tx, op.block)
 	case "delete_assets":
 		err = deleteAssetsByHashes(tx, op.removeAssetHashes)
-	case "av_rebuild":
-		err = av.RebuildAttributeViewTable(tx, op.av)
+	case "index_node":
+		err = indexNode(tx, op.id)
 	default:
 		msg := fmt.Sprintf("unknown operation [%s]", op.action)
 		logging.LogErrorf(msg)
@@ -199,18 +180,18 @@ func execOp(op *dbQueueOperation, tx *sql.Tx, context map[string]interface{}) (e
 	return
 }
 
-func RebuildAttributeViewQueue(av *av.AttributeView) {
-	//dbQueueLock.Lock()
-	//defer dbQueueLock.Unlock()
-	//
-	//newOp := &dbQueueOperation{av: av, inQueueTime: time.Now(), action: "av_rebuild"}
-	//for i, op := range operationQueue {
-	//	if "av_rebuild" == op.action && op.av.ID == av.ID {
-	//		operationQueue[i] = newOp
-	//		return
-	//	}
-	//}
-	//operationQueue = append(operationQueue, newOp)
+func IndexNodeQueue(id string) {
+	dbQueueLock.Lock()
+	defer dbQueueLock.Unlock()
+
+	newOp := &dbQueueOperation{id: id, inQueueTime: time.Now(), action: "index_node"}
+	for i, op := range operationQueue {
+		if "index_node" == op.action && op.id == id {
+			operationQueue[i] = newOp
+			return
+		}
+	}
+	appendOperation(newOp)
 }
 
 func BatchRemoveAssetsQueue(hashes []string) {
@@ -222,7 +203,7 @@ func BatchRemoveAssetsQueue(hashes []string) {
 	defer dbQueueLock.Unlock()
 
 	newOp := &dbQueueOperation{removeAssetHashes: hashes, inQueueTime: time.Now(), action: "delete_assets"}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func UpdateBlockContentQueue(block *Block) {
@@ -236,7 +217,7 @@ func UpdateBlockContentQueue(block *Block) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func DeleteRefsTreeQueue(tree *parse.Tree) {
@@ -250,7 +231,7 @@ func DeleteRefsTreeQueue(tree *parse.Tree) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func UpdateRefsTreeQueue(tree *parse.Tree) {
@@ -264,21 +245,7 @@ func UpdateRefsTreeQueue(tree *parse.Tree) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
-}
-
-func InsertRefsTreeQueue(tree *parse.Tree) {
-	dbQueueLock.Lock()
-	defer dbQueueLock.Unlock()
-
-	newOp := &dbQueueOperation{upsertTree: tree, inQueueTime: time.Now(), action: "insert_refs"}
-	for i, op := range operationQueue {
-		if "insert_refs" == op.action && op.upsertTree.ID == tree.ID {
-			operationQueue[i] = newOp
-			return
-		}
-	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func DeleteBoxRefsQueue(boxID string) {
@@ -292,7 +259,7 @@ func DeleteBoxRefsQueue(boxID string) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func DeleteBoxQueue(boxID string) {
@@ -306,21 +273,21 @@ func DeleteBoxQueue(boxID string) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
-func IndexTreeQueue(box, p string) {
+func IndexTreeQueue(tree *parse.Tree) {
 	dbQueueLock.Lock()
 	defer dbQueueLock.Unlock()
 
-	newOp := &dbQueueOperation{indexPath: p, box: box, inQueueTime: time.Now(), action: "index"}
+	newOp := &dbQueueOperation{indexTree: tree, inQueueTime: time.Now(), action: "index"}
 	for i, op := range operationQueue {
-		if "index" == op.action && op.indexPath == p && op.box == box { // 相同树则覆盖
+		if "index" == op.action && op.indexTree.ID == tree.ID { // 相同树则覆盖
 			operationQueue[i] = newOp
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func UpsertTreeQueue(tree *parse.Tree) {
@@ -334,7 +301,7 @@ func UpsertTreeQueue(tree *parse.Tree) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func RenameTreeQueue(tree *parse.Tree) {
@@ -352,7 +319,7 @@ func RenameTreeQueue(tree *parse.Tree) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func RenameSubTreeQueue(tree *parse.Tree) {
@@ -370,21 +337,21 @@ func RenameSubTreeQueue(tree *parse.Tree) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
-func RemoveTreeQueue(box, rootID string) {
+func RemoveTreeQueue(rootID string) {
 	dbQueueLock.Lock()
 	defer dbQueueLock.Unlock()
 
-	newOp := &dbQueueOperation{removeTreeIDBox: box, removeTreeID: rootID, inQueueTime: time.Now(), action: "delete_id"}
+	newOp := &dbQueueOperation{removeTreeID: rootID, inQueueTime: time.Now(), action: "delete_id"}
 	for i, op := range operationQueue {
-		if "delete_id" == op.action && op.removeTreeIDBox == box && op.removeTreeID == rootID {
+		if "delete_id" == op.action && op.removeTreeID == rootID {
 			operationQueue[i] = newOp
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func BatchRemoveTreeQueue(rootIDs []string) {
@@ -396,7 +363,7 @@ func BatchRemoveTreeQueue(rootIDs []string) {
 	defer dbQueueLock.Unlock()
 
 	newOp := &dbQueueOperation{removeTreeIDs: rootIDs, inQueueTime: time.Now(), action: "delete_ids"}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
 func RemoveTreePathQueue(treeBox, treePathPrefix string) {
@@ -410,14 +377,19 @@ func RemoveTreePathQueue(treeBox, treePathPrefix string) {
 			return
 		}
 	}
-	operationQueue = append(operationQueue, newOp)
+	appendOperation(newOp)
 }
 
-func mergeUpsertTrees() (ops []*dbQueueOperation) {
+func getOperations() (ops []*dbQueueOperation) {
 	dbQueueLock.Lock()
 	defer dbQueueLock.Unlock()
 
 	ops = operationQueue
 	operationQueue = nil
 	return
+}
+
+func appendOperation(op *dbQueueOperation) {
+	operationQueue = append(operationQueue, op)
+	eventbus.Publish(eventbus.EvtSQLIndexChanged)
 }

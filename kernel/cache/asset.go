@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -40,7 +41,10 @@ func GetAssets() (ret map[string]*Asset) {
 	assetsLock.Lock()
 	defer assetsLock.Unlock()
 
-	ret = assetsCache
+	ret = map[string]*Asset{}
+	for k, v := range assetsCache {
+		ret[k] = v
+	}
 	return
 }
 
@@ -49,6 +53,14 @@ func RemoveAsset(path string) {
 	defer assetsLock.Unlock()
 
 	delete(assetsCache, path)
+}
+
+func ExistAsset(path string) (ret bool) {
+	assetsLock.Lock()
+	defer assetsLock.Unlock()
+
+	_, ret = assetsCache[path]
+	return
 }
 
 func LoadAssets() {
@@ -60,26 +72,32 @@ func LoadAssets() {
 
 	assetsCache = map[string]*Asset{}
 	assets := util.GetDataAssetsAbsPath()
-	filepath.Walk(assets, func(path string, info fs.FileInfo, err error) error {
-		if nil == info {
+	filelock.Walk(assets, func(path string, d fs.DirEntry, err error) error {
+		if nil != err || nil == d {
 			return err
 		}
-		if info.IsDir() {
-			if strings.HasPrefix(info.Name(), ".") {
+		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if strings.HasSuffix(info.Name(), ".sya") || strings.HasPrefix(info.Name(), ".") {
+		if strings.HasSuffix(d.Name(), ".sya") || strings.HasPrefix(d.Name(), ".") || filelock.IsHidden(path) {
 			return nil
 		}
 
-		hName := util.RemoveID(info.Name())
+		info, err := d.Info()
+		if nil != err {
+			logging.LogErrorf("load assets failed: %s", err)
+			return nil
+		}
+
+		hName := util.RemoveID(d.Name())
 		path = "assets" + filepath.ToSlash(strings.TrimPrefix(path, assets))
 		assetsCache[path] = &Asset{
 			HName:   hName,
 			Path:    path,
-			Updated: info.ModTime().UnixMilli(),
+			Updated: info.ModTime().Unix(),
 		}
 		return nil
 	})

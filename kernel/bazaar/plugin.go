@@ -17,7 +17,6 @@
 package bazaar
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,7 +24,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dustin/go-humanize"
+	"github.com/88250/go-humanize"
 	ants "github.com/panjf2000/ants/v2"
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
@@ -40,12 +39,21 @@ type Plugin struct {
 func Plugins(frontend string) (plugins []*Plugin) {
 	plugins = []*Plugin{}
 
+	isOnline := isBazzarOnline()
+	if !isOnline {
+		return
+	}
+
 	stageIndex, err := getStageIndex("plugins")
-	if nil != err {
+	if err != nil {
 		return
 	}
 	bazaarIndex := getBazaarIndex()
+	if 1 > len(bazaarIndex) {
+		return
+	}
 
+	requestFailed := false
 	waitGroup := &sync.WaitGroup{}
 	lock := &sync.Mutex{}
 	p, _ := ants.NewPoolWithFunc(8, func(arg interface{}) {
@@ -54,15 +62,28 @@ func Plugins(frontend string) (plugins []*Plugin) {
 		repo := arg.(*StageRepo)
 		repoURL := repo.URL
 
+		if pkg, found := packageCache.Get(repoURL); found {
+			lock.Lock()
+			plugins = append(plugins, pkg.(*Plugin))
+			lock.Unlock()
+			return
+		}
+
+		if requestFailed {
+			return
+		}
+
 		plugin := &Plugin{}
 		innerU := util.BazaarOSSServer + "/package/" + repoURL + "/plugin.json"
 		innerResp, innerErr := httpclient.NewBrowserRequest().SetSuccessResult(plugin).Get(innerU)
 		if nil != innerErr {
 			logging.LogErrorf("get bazaar package [%s] failed: %s", repoURL, innerErr)
+			requestFailed = true
 			return
 		}
 		if 200 != innerResp.StatusCode {
 			logging.LogErrorf("get bazaar package [%s] failed: %d", innerU, innerResp.StatusCode)
+			requestFailed = true
 			return
 		}
 
@@ -81,13 +102,16 @@ func Plugins(frontend string) (plugins []*Plugin) {
 		plugin.IconURL = util.BazaarOSSServer + "/package/" + repoURL + "/icon.png"
 		plugin.Funding = repo.Package.Funding
 		plugin.PreferredFunding = getPreferredFunding(plugin.Funding)
-		plugin.PreferredName = getPreferredName(plugin.Package)
+		plugin.PreferredName = GetPreferredName(plugin.Package)
 		plugin.PreferredDesc = getPreferredDesc(plugin.Description)
 		plugin.Updated = repo.Updated
 		plugin.Stars = repo.Stars
 		plugin.OpenIssues = repo.OpenIssues
 		plugin.Size = repo.Size
-		plugin.HSize = humanize.Bytes(uint64(plugin.Size))
+		plugin.HSize = humanize.BytesCustomCeil(uint64(plugin.Size), 2)
+		plugin.InstallSize = repo.InstallSize
+		plugin.HInstallSize = humanize.BytesCustomCeil(uint64(plugin.InstallSize), 2)
+		packageInstallSizeCache.SetDefault(plugin.RepoURL, plugin.InstallSize)
 		plugin.HUpdated = formatUpdated(plugin.Updated)
 		pkg := bazaarIndex[strings.Split(repoURL, "@")[0]]
 		if nil != pkg {
@@ -96,6 +120,8 @@ func Plugins(frontend string) (plugins []*Plugin) {
 		lock.Lock()
 		plugins = append(plugins, plugin)
 		lock.Unlock()
+
+		packageCache.SetDefault(repoURL, plugin)
 	})
 	for _, repo := range stageIndex.Repos {
 		waitGroup.Add(1)
@@ -115,7 +141,7 @@ func ParseInstalledPlugin(name, frontend string) (found bool, displayName string
 	}
 
 	pluginDirs, err := os.ReadDir(pluginsPath)
-	if nil != err {
+	if err != nil {
 		logging.LogWarnf("read plugins folder failed: %s", err)
 		return
 	}
@@ -135,7 +161,7 @@ func ParseInstalledPlugin(name, frontend string) (found bool, displayName string
 		}
 
 		found = true
-		displayName = getPreferredName(plugin.Package)
+		displayName = GetPreferredName(plugin.Package)
 		incompatible = isIncompatiblePlugin(plugin, frontend)
 	}
 	return
@@ -150,7 +176,7 @@ func InstalledPlugins(frontend string, checkUpdate bool) (ret []*Plugin) {
 	}
 
 	pluginDirs, err := os.ReadDir(pluginsPath)
-	if nil != err {
+	if err != nil {
 		logging.LogWarnf("read plugins folder failed: %s", err)
 		return
 	}
@@ -178,7 +204,7 @@ func InstalledPlugins(frontend string, checkUpdate bool) (ret []*Plugin) {
 		plugin.PreviewURLThumb = "/plugins/" + dirName + "/preview.png"
 		plugin.IconURL = "/plugins/" + dirName + "/icon.png"
 		plugin.PreferredFunding = getPreferredFunding(plugin.Funding)
-		plugin.PreferredName = getPreferredName(plugin.Package)
+		plugin.PreferredName = GetPreferredName(plugin.Package)
 		plugin.PreferredDesc = getPreferredDesc(plugin.Description)
 		info, statErr := os.Stat(filepath.Join(installPath, "README.md"))
 		if nil != statErr {
@@ -186,9 +212,14 @@ func InstalledPlugins(frontend string, checkUpdate bool) (ret []*Plugin) {
 			continue
 		}
 		plugin.HInstallDate = info.ModTime().Format("2006-01-02")
-		installSize, _ := util.SizeOfDirectory(installPath)
-		plugin.InstallSize = installSize
-		plugin.HInstallSize = humanize.Bytes(uint64(installSize))
+		if installSize, ok := packageInstallSizeCache.Get(plugin.RepoURL); ok {
+			plugin.InstallSize = installSize.(int64)
+		} else {
+			is, _ := util.SizeOfDirectory(installPath)
+			plugin.InstallSize = is
+			packageInstallSizeCache.SetDefault(plugin.RepoURL, is)
+		}
+		plugin.HInstallSize = humanize.BytesCustomCeil(uint64(plugin.InstallSize), 2)
 		readmeFilename := getPreferredReadme(plugin.Readme)
 		readme, readErr := os.ReadFile(filepath.Join(installPath, readmeFilename))
 		if nil != readErr {
@@ -196,7 +227,7 @@ func InstalledPlugins(frontend string, checkUpdate bool) (ret []*Plugin) {
 			continue
 		}
 
-		plugin.PreferredReadme, _ = renderREADME(plugin.URL, readme)
+		plugin.PreferredReadme, _ = renderLocalREADME("/plugins/"+dirName+"/", readme)
 		plugin.Outdated = isOutdatedPlugin(plugin, bazaarPlugins)
 		plugin.Incompatible = isIncompatiblePlugin(plugin, frontend)
 		ret = append(ret, plugin)
@@ -207,19 +238,14 @@ func InstalledPlugins(frontend string, checkUpdate bool) (ret []*Plugin) {
 func InstallPlugin(repoURL, repoHash, installPath string, systemID string) error {
 	repoURLHash := repoURL + "@" + repoHash
 	data, err := downloadPackage(repoURLHash, true, systemID)
-	if nil != err {
+	if err != nil {
 		return err
 	}
-	return installPackage(data, installPath)
+	return installPackage(data, installPath, repoURLHash)
 }
 
 func UninstallPlugin(installPath string) error {
-	if err := os.RemoveAll(installPath); nil != err {
-		logging.LogErrorf("remove plugin [%s] failed: %s", installPath, err)
-		return errors.New("remove community plugin failed")
-	}
-	//logging.Logger.Infof("uninstalled plugin [%s]", installPath)
-	return nil
+	return uninstallPackage(installPath)
 }
 
 func isIncompatiblePlugin(plugin *Plugin, currentFrontend string) bool {
@@ -253,6 +279,8 @@ func getCurrentBackend() string {
 		return "ios"
 	case util.ContainerAndroid:
 		return "android"
+	case util.ContainerHarmony:
+		return "harmony"
 	default:
 		return runtime.GOOS
 	}

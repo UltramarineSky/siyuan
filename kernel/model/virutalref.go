@@ -31,7 +31,9 @@ import (
 	"github.com/dgraph-io/ristretto"
 	"github.com/siyuan-note/siyuan/kernel/search"
 	"github.com/siyuan-note/siyuan/kernel/sql"
+	"github.com/siyuan-note/siyuan/kernel/task"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
+	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
 // virtualBlockRefCache 用于保存块关联的虚拟引用关键字。
@@ -51,20 +53,20 @@ func getBlockVirtualRefKeywords(root *ast.Node) (ret []string) {
 				return ast.WalkContinue
 			}
 
-			content := treenode.NodeStaticContent(n, nil, false, false)
+			content := sql.NodeStaticContent(n, nil, false, false, false)
 			buf.WriteString(content)
 			return ast.WalkContinue
 		})
 		content := buf.String()
-		ret = putBlockVirtualRefKeywords(content, root.ID, root.IALAttr("title"))
+		ret = putBlockVirtualRefKeywords(content, root)
 		return
 	}
 	ret = val.([]string)
 	return
 }
 
-func putBlockVirtualRefKeywords(blockContent, blockID, docTitle string) (ret []string) {
-	keywords := getVirtualRefKeywords(docTitle)
+func putBlockVirtualRefKeywords(blockContent string, root *ast.Node) (ret []string) {
+	keywords := getVirtualRefKeywords(root)
 	if 1 > len(keywords) {
 		return
 	}
@@ -94,27 +96,61 @@ func putBlockVirtualRefKeywords(blockContent, blockID, docTitle string) (ret []s
 	}
 
 	ret = gulu.Str.RemoveDuplicatedElem(ret)
-	virtualBlockRefCache.SetWithTTL(blockID, ret, 1, 10*time.Minute)
+	virtualBlockRefCache.SetWithTTL(root.ID, ret, 1, 10*time.Minute)
 	return
 }
 
 func CacheVirtualBlockRefJob() {
-	virtualBlockRefCache.Del("virtual_ref")
 	if !Conf.Editor.VirtualBlockRef {
 		return
 	}
-
-	keywords := sql.QueryVirtualRefKeywords(Conf.Search.VirtualRefName, Conf.Search.VirtualRefAlias, Conf.Search.VirtualRefAnchor, Conf.Search.VirtualRefDoc)
-	virtualBlockRefCache.Set("virtual_ref", keywords, 1)
+	task.AppendTask(task.CacheVirtualBlockRef, ResetVirtualBlockRefCache)
 }
 
 func ResetVirtualBlockRefCache() {
 	virtualBlockRefCache.Clear()
-	CacheVirtualBlockRefJob()
+	if !Conf.Editor.VirtualBlockRef {
+		return
+	}
+
+	searchIgnoreLines := getSearchIgnoreLines()
+	refSearchIgnoreLines := getRefSearchIgnoreLines()
+	keywords := sql.QueryVirtualRefKeywords(Conf.Search.VirtualRefName, Conf.Search.VirtualRefAlias, Conf.Search.VirtualRefAnchor, Conf.Search.VirtualRefDoc, searchIgnoreLines, refSearchIgnoreLines)
+	virtualBlockRefCache.Set("virtual_ref", keywords, 1)
+}
+
+func AddVirtualBlockRefInclude(keyword []string) {
+	if 1 > len(keyword) {
+		return
+	}
+
+	include := strings.ReplaceAll(Conf.Editor.VirtualBlockRefInclude, "\\,", "__comma@sep__")
+	includes := strings.Split(include, ",")
+	includes = append(includes, keyword...)
+	includes = gulu.Str.RemoveDuplicatedElem(includes)
+	Conf.Editor.VirtualBlockRefInclude = strings.Join(includes, ",")
+	Conf.Save()
+
+	ResetVirtualBlockRefCache()
+}
+
+func AddVirtualBlockRefExclude(keyword []string) {
+	if 1 > len(keyword) {
+		return
+	}
+
+	exclude := strings.ReplaceAll(Conf.Editor.VirtualBlockRefExclude, "\\,", "__comma@sep__")
+	excludes := strings.Split(exclude, ",")
+	excludes = append(excludes, keyword...)
+	excludes = gulu.Str.RemoveDuplicatedElem(excludes)
+	Conf.Editor.VirtualBlockRefExclude = strings.Join(excludes, ",")
+	Conf.Save()
+
+	ResetVirtualBlockRefCache()
 }
 
 func processVirtualRef(n *ast.Node, unlinks *[]*ast.Node, virtualBlockRefKeywords []string, refCount map[string]int, luteEngine *lute.Lute) bool {
-	if !Conf.Editor.VirtualBlockRef {
+	if !Conf.Editor.VirtualBlockRef || 1 > len(virtualBlockRefKeywords) {
 		return false
 	}
 
@@ -123,16 +159,19 @@ func processVirtualRef(n *ast.Node, unlinks *[]*ast.Node, virtualBlockRefKeyword
 	}
 
 	parentBlock := treenode.ParentBlock(n)
-	if nil == parentBlock || 0 < refCount[parentBlock.ID] {
+	if nil == parentBlock {
 		return false
 	}
 
-	if 1 > len(virtualBlockRefKeywords) {
-		return false
+	if 0 < refCount[parentBlock.ID] {
+		// 如果块被引用过，则将其自身的文本排除在虚拟引用关键字之外
+		// Referenced blocks support rendering virtual references https://github.com/siyuan-note/siyuan/issues/10960
+		parentText := getNodeRefText(parentBlock)
+		virtualBlockRefKeywords = gulu.Str.RemoveElem(virtualBlockRefKeywords, parentText)
 	}
 
 	content := string(n.Tokens)
-	tmp := gulu.Str.RemoveInvisible(content)
+	tmp := util.RemoveInvalid(content)
 	tmp = strings.TrimSpace(tmp)
 	if "" == tmp {
 		return false
@@ -157,8 +196,6 @@ func processVirtualRef(n *ast.Node, unlinks *[]*ast.Node, virtualBlockRefKeyword
 			}
 		}
 
-		// Wrong parsing virtual reference with `\` before it https://github.com/siyuan-note/siyuan/issues/7821
-		newContent = strings.ReplaceAll(newContent, "\\"+search.GetMarkSpanStart(search.VirtualBlockRefDataType), "\\\\"+search.GetMarkSpanStart(search.VirtualBlockRefDataType))
 		n.Tokens = []byte(newContent)
 		linkTree := parse.Inline("", n.Tokens, luteEngine.ParseOptions)
 		var children []*ast.Node
@@ -174,7 +211,7 @@ func processVirtualRef(n *ast.Node, unlinks *[]*ast.Node, virtualBlockRefKeyword
 	return false
 }
 
-func getVirtualRefKeywords(docName string) (ret []string) {
+func getVirtualRefKeywords(root *ast.Node) (ret []string) {
 	if !Conf.Editor.VirtualBlockRef {
 		return
 	}
@@ -225,7 +262,18 @@ func getVirtualRefKeywords(docName string) (ret []string) {
 	}
 
 	// 虚拟引用排除当前文档名 https://github.com/siyuan-note/siyuan/issues/4537
-	ret = gulu.Str.ExcludeElem(ret, []string{docName})
+	// Virtual references exclude the name and aliases from the current document https://github.com/siyuan-note/siyuan/issues/9204
+	title := root.IALAttr("title")
+	ret = gulu.Str.ExcludeElem(ret, []string{title})
+	if name := root.IALAttr("name"); "" != name {
+		ret = gulu.Str.ExcludeElem(ret, []string{name})
+	}
+	if alias := root.IALAttr("alias"); "" != alias {
+		for _, a := range strings.Split(alias, ",") {
+			ret = gulu.Str.ExcludeElem(ret, []string{a})
+		}
+	}
+
 	ret = prepareMarkKeywords(ret)
 	return
 }
@@ -234,7 +282,7 @@ func prepareMarkKeywords(keywords []string) (ret []string) {
 	ret = gulu.Str.RemoveDuplicatedElem(keywords)
 	var tmp []string
 	for _, k := range ret {
-		if "" != k {
+		if "" != k && "*" != k { // 提及和虚引排除 * Ignore `*` back mentions and virtual references https://github.com/siyuan-note/siyuan/issues/10873
 			tmp = append(tmp, k)
 		}
 	}

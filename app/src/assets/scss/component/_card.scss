@@ -16,9 +16,7 @@
   }
 
   &:hover {
-    background-color: var(--b3-theme-surface-lighter);
-    transform: translate(0px, -4px);
-    box-shadow: var(--b3-dialog-shadow);
+    background-color: var(--b3-list-hover);
   }
 
   &s {

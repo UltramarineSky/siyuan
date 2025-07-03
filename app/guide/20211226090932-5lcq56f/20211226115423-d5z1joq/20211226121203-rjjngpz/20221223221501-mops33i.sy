@@ -3,9 +3,11 @@
 	"Spec": "1",
 	"Type": "NodeDocument",
 	"Properties": {
+		"icon": "1f4f8",
 		"id": "20221223221501-mops33i",
 		"title": "閃卡",
-		"updated": "20230328100340"
+		"type": "doc",
+		"updated": "20241018105514"
 	},
 	"Children": [
 		{
@@ -28,22 +30,12 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20221223221502-wolnn20",
-				"updated": "20221223221743"
+				"updated": "20230820185212"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "將內容塊設置為閃卡後會自動通過間隔重複算法 "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "a",
-					"TextMarkAHref": "https://github.com/open-spaced-repetition/free-spaced-repetition-scheduler",
-					"TextMarkTextContent": "FSRS"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " 安排複習。"
+					"Data": "將內容塊設置為閃卡後會自動通過間隔重複算法 FSRS (github repo: open-spaced-repetition/free-spaced-repetition-scheduler) 安排複習。"
 				}
 			]
 		},
@@ -97,7 +89,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230219092911-8074ovh",
-				"updated": "20230219092911"
+				"updated": "20240326165451"
 			},
 			"Children": [
 				{
@@ -188,6 +180,34 @@
 								{
 									"Type": "NodeText",
 									"Data": "如果將列表或者列表項設置為閃卡，則非子列表會被視問題，子列表會被視作答案"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20231013104042-7impulf",
+					"Type": "NodeListItem",
+					"ListData": {
+						"BulletChar": 42,
+						"Marker": "Kg=="
+					},
+					"Properties": {
+						"id": "20231013104042-7impulf",
+						"updated": "20240326165451"
+					},
+					"Children": [
+						{
+							"ID": "20231013104042-wzwhxmr",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20231013104042-wzwhxmr",
+								"updated": "20240326165451"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "如果將標題塊設為閃卡，則該標題塊會被視為問題，其下方塊會被視為答案"
 								}
 							]
 						}
@@ -465,7 +485,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "該使用方式默認關閉，如果需要可以在 "
+					"Data": "該使用方式預設關閉，如果需要可以在 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -493,6 +513,217 @@
 				{
 					"Type": "NodeText",
 					"Data": "​ 中開啟。但建議不要基於卡包使用閃卡，因為卡包是固定的，沒有基於文檔使用閃卡靈活。"
+				}
+			]
+		},
+		{
+			"ID": "20240128111751-bb41541",
+			"Type": "NodeHeading",
+			"HeadingLevel": 2,
+			"Properties": {
+				"id": "20240128111751-bb41541",
+				"updated": "20241018105514"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "設置"
+				}
+			]
+		},
+		{
+			"ID": "20240128111910-2n2j702",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20240128111910-2n2j702",
+				"updated": "20241018105514"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "在 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "設置"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​ - "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "閃卡"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​ 中可以調整閃卡相關的全域配置，其中 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "新卡上限"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​ 和 "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "kbd",
+					"TextMarkTextContent": "舊卡上限"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​ 可以使用文檔塊自訂屬性進行覆寫："
+				}
+			]
+		},
+		{
+			"ID": "20240128111910-utitmr7",
+			"Type": "NodeList",
+			"ListData": {},
+			"Properties": {
+				"id": "20240128111910-utitmr7",
+				"updated": "20240128111910"
+			},
+			"Children": [
+				{
+					"ID": "20240128111910-fm03lqa",
+					"Type": "NodeListItem",
+					"ListData": {
+						"BulletChar": 42,
+						"Marker": "Kg=="
+					},
+					"Properties": {
+						"id": "20240128111910-fm03lqa",
+						"updated": "20240128111910"
+					},
+					"Children": [
+						{
+							"ID": "20240128111910-l3gn3xk",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240128111910-l3gn3xk",
+								"updated": "20240128111910"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "​"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "riff-new-card-limit"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
+								}
+							]
+						}
+					]
+				},
+				{
+					"ID": "20240128111910-jm5o4fb",
+					"Type": "NodeListItem",
+					"ListData": {
+						"BulletChar": 42,
+						"Marker": "Kg=="
+					},
+					"Properties": {
+						"id": "20240128111910-jm5o4fb",
+						"updated": "20240128111910"
+					},
+					"Children": [
+						{
+							"ID": "20240128111910-b9hb5w9",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240128111910-b9hb5w9",
+								"updated": "20240128111910"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "​"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "riff-review-card-limit"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		{
+			"ID": "20240128111824-6gfrt8e",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20240128111824-6gfrt8e",
+				"updated": "20240128113519"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "​"
+				},
+				{
+					"Type": "NodeImage",
+					"Data": "span",
+					"Children": [
+						{
+							"Type": "NodeBang"
+						},
+						{
+							"Type": "NodeOpenBracket"
+						},
+						{
+							"Type": "NodeLinkText",
+							"Data": "image"
+						},
+						{
+							"Type": "NodeCloseBracket"
+						},
+						{
+							"Type": "NodeOpenParen"
+						},
+						{
+							"Type": "NodeLinkDest",
+							"Data": "assets/image-20240128113232-ny2q076.png"
+						},
+						{
+							"Type": "NodeCloseParen"
+						}
+					]
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​"
+				}
+			]
+		},
+		{
+			"ID": "20240128111957-wa0cjkq",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20240128111957-wa0cjkq",
+				"updated": "20240128111957"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "不同文檔上單獨配置，相互獨立不影響，例如父文檔上配置為 5，子文檔為 10，那麼從父文檔複習的時候就是 5，不會疊加子文檔的配置。"
 				}
 			]
 		},
@@ -526,7 +757,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20221223221502-n4qqurn",
-				"updated": "20221223221502"
+				"updated": "20240128112842"
 			},
 			"Children": [
 				{
@@ -556,6 +787,34 @@
 							]
 						}
 					]
+				},
+				{
+					"ID": "20240128112426-7avqfo1",
+					"Type": "NodeListItem",
+					"ListData": {
+						"BulletChar": 42,
+						"Marker": "Kg=="
+					},
+					"Properties": {
+						"id": "20240128112426-7avqfo1",
+						"updated": "20240128112842"
+					},
+					"Children": [
+						{
+							"ID": "20240128112426-gzlcn7u",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240128112426-gzlcn7u",
+								"updated": "20240128112842"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "不建議啟用卡包，該方式已經棄用，繼續使用可能會遇到無法解決的問題"
+								}
+							]
+						}
+					]
 				}
 			]
 		},
@@ -580,7 +839,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20221223221502-2rwr82o",
-				"updated": "20221223221852"
+				"updated": "20230630132735"
 			},
 			"Children": [
 				{
@@ -605,7 +864,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "卡包數據通過 MessagePack 序列化協議存儲在 "
+									"Data": "卡包資料通過 MessagePack 序列化協議存儲在 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -629,7 +888,7 @@
 					},
 					"Properties": {
 						"id": "20221223221502-vrom8jb",
-						"updated": "20221223221502"
+						"updated": "20230630132735"
 					},
 					"Children": [
 						{
@@ -637,12 +896,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20221223221502-yfedqlh",
-								"updated": "20221223221502"
+								"updated": "20230630132735"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "啟動時加載所有卡包數據到內存，數據同步下載後重新加載一次"
+									"Data": "啟動時加載所有卡包資料到記憶體，資料同步下載後重新加載一次"
 								}
 							]
 						}

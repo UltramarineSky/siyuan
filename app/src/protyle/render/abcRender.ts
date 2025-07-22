@@ -1,8 +1,27 @@
 import {addScript} from "../util/addScript";
 import {Constants} from "../../constants";
+import {genIconHTML} from "./util";
+import {hasClosestByClassName} from "../util/hasClosest";
+import {looseJsonParse} from "../../util/functions";
 
-declare const ABCJS: {
-    renderAbc(element: Element, text: string, options: { responsive: string }): void;
+const ABCJS_PARAMS_KEY = "%%params";
+
+// Read the abcjsParams from the content if it exists.
+// The params *must* be the first line of the content in the form:
+// %%params JSON
+const getAbcParams = (abcString: string): any => {
+    let params = {
+        responsive: "resize",
+    };
+    const firstLine = abcString.substring(0, abcString.indexOf("\n"));
+    if (firstLine.startsWith(ABCJS_PARAMS_KEY)) {
+        try {
+            params = looseJsonParse(firstLine.substring(ABCJS_PARAMS_KEY.length));
+        } catch (e) {
+            console.error(`Failed to parse ABCJS params: ${e}`);
+        }
+    }
+    return params;
 };
 
 export const abcRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
@@ -17,22 +36,19 @@ export const abcRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
         return;
     }
     if (abcElements.length > 0) {
-        addScript(`${cdn}/js/abcjs/abcjs-basic-min.js?v=6.2.2`, "protyleAbcjsScript").then(() => {
+        addScript(`${cdn}/js/abcjs/abcjs-basic-min.js?v=6.5.0`, "protyleAbcjsScript").then(() => {
+            const wysiwygElement = hasClosestByClassName(element, "protyle-wysiwyg", true);
             abcElements.forEach((e: HTMLDivElement) => {
                 if (e.getAttribute("data-render") === "true") {
                     return;
                 }
-                if(!e.firstElementChild.classList.contains("protyle-icons")) {
-                    e.insertAdjacentHTML("afterbegin", '<div class="protyle-icons"><span class="protyle-icon protyle-icon--first protyle-action__edit"><svg><use xlink:href="#iconEdit"></use></svg></span><span class="protyle-icon protyle-action__menu protyle-icon--last"><svg><use xlink:href="#iconMore"></use></svg></span></div>');
-                }
-                if (e.childElementCount < 4) {
-                    e.lastElementChild.insertAdjacentHTML("beforebegin", `<span style="position: absolute">${Constants.ZWSP}</span>`);
+                if (!e.firstElementChild.classList.contains("protyle-icons")) {
+                    e.insertAdjacentHTML("afterbegin", genIconHTML(wysiwygElement));
                 }
                 const renderElement = e.firstElementChild.nextElementSibling as HTMLElement;
-                ABCJS.renderAbc(renderElement, Lute.UnEscapeHTMLStr(e.getAttribute("data-content")), {
-                    responsive: "resize"
-                });
-                renderElement.setAttribute("contenteditable", "false");
+                renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span><div contenteditable="false"></div>`;
+                const abcString = Lute.UnEscapeHTMLStr(e.getAttribute("data-content"));
+                window.ABCJS.renderAbc(renderElement.lastElementChild, abcString, getAbcParams(abcString));
                 e.setAttribute("data-render", "true");
             });
         });

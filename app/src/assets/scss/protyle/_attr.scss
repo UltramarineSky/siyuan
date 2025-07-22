@@ -9,6 +9,10 @@
   align-items: center;
   line-height: 16px;
 
+  &--av span:hover {
+    color: var(--b3-protyle-inline-blockref-color);
+  }
+
   & > div.protyle-attr--bookmark {
     flex: 1;
   }
@@ -30,14 +34,14 @@
     svg {
       height: 12px;
       width: 12px;
-      margin: 2px 2px 0 0;
+      margin: 2px 2px 2px 0;
       float: left;
     }
   }
 
   &--refcount {
     right: -16px;
-    top: 18px;
+    top: 12px; // https://github.com/siyuan-note/siyuan/issues/8784
     position: absolute;
     line-height: 16px;
     padding: 0 4px;

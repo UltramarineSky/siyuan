@@ -59,6 +59,12 @@ func watchAssets() {
 
 				// 重新缓存资源文件，以便使用 /资源 搜索
 				go cache.LoadAssets()
+
+				if watcher.Remove == event.Op {
+					HandleAssetsRemoveEvent(event.Path)
+				} else {
+					HandleAssetsChangeEvent(event.Path)
+				}
 			case err, ok := <-assetsWatcher.Error:
 				if !ok {
 					return
@@ -70,13 +76,13 @@ func watchAssets() {
 		}
 	}()
 
-	if err := assetsWatcher.Add(assetsDir); nil != err {
+	if err := assetsWatcher.Add(assetsDir); err != nil {
 		logging.LogErrorf("add assets watcher for folder [%s] failed: %s", assetsDir, err)
 		return
 	}
 
 	//logging.LogInfof("added file watcher [%s]", assetsDir)
-	if err := assetsWatcher.Start(10 * time.Second); nil != err {
+	if err := assetsWatcher.Start(10 * time.Second); err != nil {
 		logging.LogErrorf("start assets watcher for folder [%s] failed: %s", assetsDir, err)
 		return
 	}

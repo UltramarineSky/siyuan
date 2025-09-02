@@ -1,32 +1,46 @@
 import {App} from "../index";
 import {Plugin} from "../plugin";
+/// #if !MOBILE
 import {getAllModels} from "../layout/getAll";
-import {exportLayout, resizeTopbar} from "../layout/util";
+import {resizeTopBar} from "../layout/util";
+/// #endif
 import {Constants} from "../constants";
+import {setStorageVal} from "../protyle/util/compatibility";
+import {getAllEditor} from "../layout/getAll";
 
-export const uninstall = (app: App, name: string) => {
+export const uninstall = (app: App, name: string, isUninstall = false) => {
     app.plugins.find((plugin: Plugin, index) => {
         if (plugin.name === name) {
             // rm command
             try {
                 plugin.onunload();
+                if (isUninstall) {
+                    plugin.uninstall();
+                    window.siyuan.storage[Constants.LOCAL_PLUGIN_DOCKS][plugin.name] = {};
+                    setStorageVal(Constants.LOCAL_PLUGIN_DOCKS, window.siyuan.storage[Constants.LOCAL_PLUGIN_DOCKS]);
+                }
             } catch (e) {
                 console.error(`plugin ${plugin.name} onunload error:`, e);
             }
             // rm tab
+            /// #if !MOBILE
             const modelsKeys = Object.keys(plugin.models);
             getAllModels().custom.forEach(custom => {
                 if (modelsKeys.includes(custom.type)) {
                     custom.parent.parent.removeTab(custom.parent.id);
                 }
             });
+            /// #endif
             // rm topBar
-            plugin.topBarIcons.forEach(item => {
+            for (let i = 0; i < plugin.topBarIcons.length; i++) {
+                const item = plugin.topBarIcons[i];
                 item.remove();
-            });
-            resizeTopbar();
-            // rm statusBar
+                plugin.topBarIcons.splice(i, 1);
+                i--;
+            }
             /// #if !MOBILE
+            resizeTopBar();
+            // rm statusBar
             plugin.statusBarIcons.forEach(item => {
                 item.remove();
             });
@@ -51,14 +65,14 @@ export const uninstall = (app: App, name: string) => {
             });
             // rm plugin
             app.plugins.splice(index, 1);
-
-            setTimeout(() => {
-                exportLayout({
-                    reload: false,
-                    onlyData: false,
-                    errorExit: false
-                });
-            }, Constants.TIMEOUT_LOAD); // 移除页签时切换到新的文档页签，需等待新页签初始化完成，才有 editor.protyle.block 等数据
+            // rm icons
+            document.querySelector(`svg[data-name="${plugin.name}"]`)?.remove();
+            // rm protyle toolbar
+            getAllEditor().forEach(editor => {
+                editor.protyle.toolbar.update(editor.protyle);
+            });
+            // rm style
+            document.getElementById("pluginsStyle" + name)?.remove();
             return true;
         }
     });

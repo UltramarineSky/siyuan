@@ -3,14 +3,8 @@ import {addStyle} from "../util/addStyle";
 import {Constants} from "../../constants";
 import {hasNextSibling, hasPreviousSibling} from "../wysiwyg/getBlock";
 import {hasClosestBlock} from "../util/hasClosest";
-
-declare const katex: {
-    renderToString(math: string, option: {
-        displayMode: boolean;
-        output: string;
-        macros: IObject
-    }): string;
-};
+import {looseJsonParse} from "../../util/functions";
+import {genRenderFrame} from "./util";
 
 export const mathRender = (element: Element, cdn = Constants.PROTYLE_CDN, maxWidth = false) => {
     let mathElements: Element[] = [];
@@ -23,48 +17,48 @@ export const mathRender = (element: Element, cdn = Constants.PROTYLE_CDN, maxWid
     if (mathElements.length === 0) {
         return;
     }
-    addStyle(`${cdn}/js/katex/katex.min.css?v=0.16.0`, "protyleKatexStyle");
-    addScript(`${cdn}/js/katex/katex.min.js?v=0.16.0`, "protyleKatexScript").then(() => {
-        addScript(`${cdn}/js/katex/mhchem.min.js?v=0.16.0`, "protyleKatexMhchemScript").then(() => {
+    addStyle(`${cdn}/js/katex/katex.min.css?v=0.16.9`, "protyleKatexStyle");
+    addScript(`${cdn}/js/katex/katex.min.js?v=0.16.9`, "protyleKatexScript").then(() => {
+        addScript(`${cdn}/js/katex/mhchem.min.js?v=0.16.9`, "protyleKatexMhchemScript").then(() => {
             mathElements.forEach((mathElement: HTMLElement) => {
                 if (mathElement.getAttribute("data-render") === "true") {
                     return;
                 }
                 mathElement.setAttribute("data-render", "true");
-                let renderElement = mathElement;
-                if (mathElement.tagName === "DIV") {
-                    renderElement = mathElement.firstElementChild as HTMLElement;
-                }
                 let macros = {};
                 try {
-                    macros = JSON.parse(window.siyuan.config.editor.katexMacros || "{}");
+                    macros = looseJsonParse(window.siyuan.config.editor.katexMacros || "{}");
                 } catch (e) {
                     console.warn("KaTex macros is not JSON", e);
                 }
+                const isBlock = mathElement.tagName === "DIV";
                 try {
-                    renderElement.innerHTML = katex.renderToString(Lute.UnEscapeHTMLStr(mathElement.getAttribute("data-content")), {
-                        displayMode: mathElement.tagName === "DIV",
+                    const mathHTML = window.katex.renderToString(Lute.UnEscapeHTMLStr(mathElement.getAttribute("data-content")), {
+                        displayMode: isBlock,
                         output: "html",
-                        macros
+                        macros,
+                        trust: true, // REF: https://katex.org/docs/supported#html
+                        strict: (errorCode) => errorCode === "unicodeTextInMathMode" ? "ignore" : "warn",
                     });
-                    renderElement.classList.remove("ft__error");
                     const blockElement = hasClosestBlock(mathElement);
-                    if (mathElement.tagName === "DIV") {
-                        renderElement.firstElementChild.setAttribute("contenteditable", "false");
-                        if (renderElement.childElementCount < 2) {
-                            renderElement.insertAdjacentHTML("beforeend", `<span style="position: absolute">${Constants.ZWSP}</span>`);
-                        }
+                    if (isBlock) {
+                        genRenderFrame(mathElement);
+                        mathElement.firstElementChild.firstElementChild.classList.remove("ft__error");
+                        mathElement.firstElementChild.firstElementChild.setAttribute("contenteditable", "false");
+                        mathElement.firstElementChild.firstElementChild.innerHTML = mathHTML;
                         // https://github.com/siyuan-note/siyuan/issues/3541
-                        const baseElements = renderElement.querySelectorAll(".base");
+                        const baseElements = mathElement.querySelectorAll(".base");
                         if (baseElements.length > 0) {
                             baseElements[baseElements.length - 1].insertAdjacentHTML("afterend", "<span class='fn__flex-1'></span>");
                         }
                         // https://github.com/siyuan-note/siyuan/issues/4334
-                        const newlineElement = renderElement.querySelector(".katex-html > .newline");
+                        const newlineElement = mathElement.querySelector(".katex-html > .newline");
                         if (newlineElement) {
                             newlineElement.parentElement.style.display = "block";
                         }
                     } else {
+                        mathElement.classList.remove("ft__error");
+                        mathElement.innerHTML = mathHTML;
                         if (blockElement && mathElement.getBoundingClientRect().width > blockElement.clientWidth) {
                             mathElement.style.maxWidth = "100%";
                             mathElement.style.overflowX = "auto";
@@ -76,7 +70,7 @@ export const mathRender = (element: Element, cdn = Constants.PROTYLE_CDN, maxWid
                             mathElement.style.overflowY = "";
                             mathElement.style.display = "";
                         }
-                        const nextSibling = hasNextSibling(mathElement);
+                        const nextSibling = hasNextSibling(mathElement) as HTMLElement;
                         if (!nextSibling) {
                             // 表格编辑问题 https://ld246.com/article/1629191424824
                             if (mathElement.parentElement.tagName !== "TH" && mathElement.parentElement.tagName !== "TD") {
@@ -87,7 +81,11 @@ export const mathRender = (element: Element, cdn = Constants.PROTYLE_CDN, maxWid
                                 // 随着浏览器的升级，从 beforeend 修改为 afterend
                                 mathElement.insertAdjacentText("afterend", Constants.ZWSP);
                             }
-                        } else if (nextSibling && nextSibling.nodeType !== 3 && (nextSibling as HTMLElement).getAttribute("data-type")?.indexOf("inline-math") > -1) {
+                        } else if (nextSibling && nextSibling.nodeType !== 3 &&
+                            (
+                                nextSibling.getAttribute("data-type")?.indexOf("inline-math") > -1 ||
+                                nextSibling.classList.contains("img")
+                            )) {
                             // 相邻的数学公式删除或光标移动有问题
                             mathElement.after(document.createTextNode(Constants.ZWSP));
                         } else if (nextSibling &&
@@ -110,7 +108,7 @@ export const mathRender = (element: Element, cdn = Constants.PROTYLE_CDN, maxWid
                     // export pdf
                     if (maxWidth) {
                         setTimeout(() => {
-                            if (mathElement.tagName === "DIV") {
+                            if (isBlock) {
                                 const katexElement = mathElement.querySelector(".katex-display");
                                 if (katexElement.clientWidth < katexElement.scrollWidth) {
                                     katexElement.firstElementChild.setAttribute("style", `font-size:${katexElement.clientWidth * 100 / katexElement.scrollWidth}%`);
@@ -123,8 +121,15 @@ export const mathRender = (element: Element, cdn = Constants.PROTYLE_CDN, maxWid
                         });
                     }
                 } catch (e) {
-                    renderElement.innerHTML = e.message;
-                    renderElement.classList.add("ft__error");
+                    if (isBlock) {
+                        genRenderFrame(mathElement);
+                        mathElement.firstElementChild.firstElementChild.setAttribute("contenteditable", "false");
+                        mathElement.firstElementChild.firstElementChild.innerHTML = e.message;
+                        mathElement.firstElementChild.firstElementChild.classList.add("ft__error");
+                    } else {
+                        mathElement.innerHTML = e.message;
+                        mathElement.classList.add("ft__error");
+                    }
                 }
             });
         });

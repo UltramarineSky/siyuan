@@ -25,7 +25,7 @@ export const genCardItem = (item: ICardPackage) => {
 <span data-type="view" class="b3-list-item__action b3-tooltips b3-tooltips__w" aria-label="${window.siyuan.languages.cardPreview}">
     <svg><use xlink:href="#iconEye"></use></svg>
 </span>
-<span data-type="remove" class="b3-list-item__action b3-tooltips b3-tooltips__w" aria-label="${window.siyuan.languages.removeDeck}">
+<span data-type="remove" class="b3-list-item__action b3-list-item__action--warning b3-tooltips b3-tooltips__w" aria-label="${window.siyuan.languages.removeDeck}">
     <svg><use xlink:href="#iconMin"></use></svg>
 </span>
 <span data-type="add" style="display: flex" class="b3-list-item__action b3-tooltips b3-tooltips__w" aria-label="${window.siyuan.languages.addDeck}">
@@ -37,7 +37,7 @@ export const genCardItem = (item: ICardPackage) => {
 
 export const makeCard = (app: App, ids: string[]) => {
     window.siyuan.dialogs.find(item => {
-        if (item.element.getAttribute("data-key") === "makeCard") {
+        if (item.element.getAttribute("data-key") === Constants.DIALOG_MAKECARD) {
             hideElements(["dialog"]);
             return true;
         }
@@ -48,6 +48,7 @@ export const makeCard = (app: App, ids: string[]) => {
             html += genCardItem(item);
         });
         const dialog = new Dialog({
+            positionId: Constants.DIALOG_MAKECARD,
             width: isMobile() ? "92vw" : "50vw",
             height: "70vh",
             title: window.siyuan.languages.riffCard,
@@ -67,11 +68,10 @@ export const makeCard = (app: App, ids: string[]) => {
     <ul class="b3-list b3-list--background fn__flex-1">${html}</ul>
 </div>`,
         });
-        dialog.element.setAttribute("data-key", "makeCard");
-        dialog.element.style.zIndex = "200";
+        dialog.element.setAttribute("data-key", Constants.DIALOG_MAKECARD);
         dialog.element.addEventListener("click", (event) => {
             let target = event.target as HTMLElement;
-            while (target && !target.isSameNode(dialog.element)) {
+            while (target && target !== dialog.element) {
                 const type = target.getAttribute("data-type");
                 if (type === "create") {
                     let msgId = "";
@@ -112,13 +112,13 @@ export const makeCard = (app: App, ids: string[]) => {
                     event.preventDefault();
                     break;
                 } else if (type === "delete") {
-                    confirmDialog(window.siyuan.languages.confirm, `${window.siyuan.languages.confirmDelete} <b>${escapeHtml(target.parentElement.getAttribute("data-name"))}</b>?`, () => {
+                    confirmDialog(window.siyuan.languages.deleteOpConfirm, `${window.siyuan.languages.confirmDelete} <b>${escapeHtml(target.parentElement.getAttribute("data-name"))}</b>?`, () => {
                         fetchPost("/api/riff/removeRiffDeck", {
                             deckID: target.parentElement.getAttribute("data-id"),
                         }, () => {
                             target.parentElement.remove();
                         });
-                    });
+                    }, undefined, true);
                     event.stopPropagation();
                     event.preventDefault();
                     break;
@@ -184,7 +184,7 @@ export const quickMakeCard = (protyle: IProtyle, nodeElement: Element[]) => {
         }
         item.classList.remove("protyle-wysiwyg--select");
         ids.push(item.getAttribute("data-node-id"));
-        if ((item.getAttribute("custom-riff-decks") || "").indexOf(Constants.QUICK_DECK_ID) === -1) {
+        if ((item.getAttribute(Constants.CUSTOM_RIFF_DECKS) || "").indexOf(Constants.QUICK_DECK_ID) === -1) {
             isRemove = false;
         }
     });

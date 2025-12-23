@@ -17,14 +17,13 @@
 package bazaar
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/dustin/go-humanize"
+	"github.com/88250/go-humanize"
 	ants "github.com/panjf2000/ants/v2"
 	"github.com/siyuan-note/httpclient"
 	"github.com/siyuan-note/logging"
@@ -40,11 +39,21 @@ type Theme struct {
 func Themes() (ret []*Theme) {
 	ret = []*Theme{}
 
+	isOnline := isBazzarOnline()
+	if !isOnline {
+		return
+	}
+
 	stageIndex, err := getStageIndex("themes")
-	if nil != err {
+	if err != nil {
 		return
 	}
 	bazaarIndex := getBazaarIndex()
+	if 1 > len(bazaarIndex) {
+		return
+	}
+
+	requestFailed := false
 	waitGroup := &sync.WaitGroup{}
 	lock := &sync.Mutex{}
 	p, _ := ants.NewPoolWithFunc(8, func(arg interface{}) {
@@ -53,15 +62,28 @@ func Themes() (ret []*Theme) {
 		repo := arg.(*StageRepo)
 		repoURL := repo.URL
 
+		if pkg, found := packageCache.Get(repoURL); found {
+			lock.Lock()
+			ret = append(ret, pkg.(*Theme))
+			lock.Unlock()
+			return
+		}
+
+		if requestFailed {
+			return
+		}
+
 		theme := &Theme{}
 		innerU := util.BazaarOSSServer + "/package/" + repoURL + "/theme.json"
 		innerResp, innerErr := httpclient.NewBrowserRequest().SetSuccessResult(theme).Get(innerU)
 		if nil != innerErr {
 			logging.LogErrorf("get bazaar package [%s] failed: %s", innerU, innerErr)
+			requestFailed = true
 			return
 		}
 		if 200 != innerResp.StatusCode {
 			logging.LogErrorf("get bazaar package [%s] failed: %d", innerU, innerResp.StatusCode)
+			requestFailed = true
 			return
 		}
 
@@ -78,13 +100,16 @@ func Themes() (ret []*Theme) {
 		theme.IconURL = util.BazaarOSSServer + "/package/" + repoURL + "/icon.png"
 		theme.Funding = repo.Package.Funding
 		theme.PreferredFunding = getPreferredFunding(theme.Funding)
-		theme.PreferredName = getPreferredName(theme.Package)
+		theme.PreferredName = GetPreferredName(theme.Package)
 		theme.PreferredDesc = getPreferredDesc(theme.Description)
 		theme.Updated = repo.Updated
 		theme.Stars = repo.Stars
 		theme.OpenIssues = repo.OpenIssues
 		theme.Size = repo.Size
-		theme.HSize = humanize.Bytes(uint64(theme.Size))
+		theme.HSize = humanize.BytesCustomCeil(uint64(theme.Size), 2)
+		theme.InstallSize = repo.InstallSize
+		theme.HInstallSize = humanize.BytesCustomCeil(uint64(theme.InstallSize), 2)
+		packageInstallSizeCache.SetDefault(theme.RepoURL, theme.InstallSize)
 		theme.HUpdated = formatUpdated(theme.Updated)
 		pkg := bazaarIndex[strings.Split(repoURL, "@")[0]]
 		if nil != pkg {
@@ -93,6 +118,8 @@ func Themes() (ret []*Theme) {
 		lock.Lock()
 		ret = append(ret, theme)
 		lock.Unlock()
+
+		packageCache.SetDefault(repoURL, theme)
 	})
 	for _, repo := range stageIndex.Repos {
 		waitGroup.Add(1)
@@ -113,7 +140,7 @@ func InstalledThemes() (ret []*Theme) {
 	}
 
 	themeDirs, err := os.ReadDir(util.ThemesPath)
-	if nil != err {
+	if err != nil {
 		logging.LogWarnf("read appearance themes folder failed: %s", err)
 		return
 	}
@@ -142,25 +169,23 @@ func InstalledThemes() (ret []*Theme) {
 		theme.PreviewURLThumb = "/appearance/themes/" + dirName + "/preview.png"
 		theme.IconURL = "/appearance/themes/" + dirName + "/icon.png"
 		theme.PreferredFunding = getPreferredFunding(theme.Funding)
-		theme.PreferredName = getPreferredName(theme.Package)
+		theme.PreferredName = GetPreferredName(theme.Package)
 		theme.PreferredDesc = getPreferredDesc(theme.Description)
-		info, statErr := os.Stat(filepath.Join(installPath, "README.md"))
+		info, statErr := os.Stat(filepath.Join(installPath, "theme.json"))
 		if nil != statErr {
-			logging.LogWarnf("stat install theme README.md failed: %s", statErr)
+			logging.LogWarnf("stat install theme.json failed: %s", statErr)
 			continue
 		}
 		theme.HInstallDate = info.ModTime().Format("2006-01-02")
-		installSize, _ := util.SizeOfDirectory(installPath)
-		theme.InstallSize = installSize
-		theme.HInstallSize = humanize.Bytes(uint64(installSize))
-		readmeFilename := getPreferredReadme(theme.Readme)
-		readme, readErr := os.ReadFile(filepath.Join(installPath, readmeFilename))
-		if nil != readErr {
-			logging.LogWarnf("read installed README.md failed: %s", readErr)
-			continue
+		if installSize, ok := packageInstallSizeCache.Get(theme.RepoURL); ok {
+			theme.InstallSize = installSize.(int64)
+		} else {
+			is, _ := util.SizeOfDirectory(installPath)
+			theme.InstallSize = is
+			packageInstallSizeCache.SetDefault(theme.RepoURL, is)
 		}
-
-		theme.PreferredReadme, _ = renderREADME(theme.URL, readme)
+		theme.HInstallSize = humanize.BytesCustomCeil(uint64(theme.InstallSize), 2)
+		theme.PreferredReadme = loadInstalledReadme(installPath, "/appearance/themes/"+dirName+"/", theme.Readme)
 		theme.Outdated = isOutdatedTheme(theme, bazaarThemes)
 		ret = append(ret, theme)
 	}
@@ -174,17 +199,12 @@ func isBuiltInTheme(dirName string) bool {
 func InstallTheme(repoURL, repoHash, installPath string, systemID string) error {
 	repoURLHash := repoURL + "@" + repoHash
 	data, err := downloadPackage(repoURLHash, true, systemID)
-	if nil != err {
+	if err != nil {
 		return err
 	}
-	return installPackage(data, installPath)
+	return installPackage(data, installPath, repoURLHash)
 }
 
 func UninstallTheme(installPath string) error {
-	if err := os.RemoveAll(installPath); nil != err {
-		logging.LogErrorf("remove theme [%s] failed: %s", installPath, err)
-		return errors.New("remove community theme failed")
-	}
-	//logging.Logger.Infof("uninstalled theme [%s]", installPath)
-	return nil
+	return uninstallPackage(installPath)
 }

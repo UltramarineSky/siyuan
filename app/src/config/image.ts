@@ -1,10 +1,12 @@
 import {escapeHtml} from "../util/escape";
 import {confirmDialog} from "../dialog/confirmDialog";
 import {pathPosix} from "../util/pathName";
-import {isBrowser} from "../util/functions";
+import {isBrowser, isMobile} from "../util/functions";
 import {hasClosestByClassName} from "../protyle/util/hasClosest";
 import {fetchPost} from "../util/fetch";
+/// #if !MOBILE
 import {getAllModels} from "../layout/getAll";
+/// #endif
 import {openBy} from "../editor/util";
 import {renderAssetsPreview} from "../asset/renderAssets";
 import {writeText} from "../protyle/util/compatibility";
@@ -12,6 +14,7 @@ import {writeText} from "../protyle/util/compatibility";
 export const image = {
     element: undefined as Element,
     genHTML: () => {
+        const isM = isMobile();
         return `<div class="fn__flex-column" style="height: 100%">
     <div class="layout-tab-bar fn__flex">
         <div class="item item--full item--focus" data-type="remove">
@@ -26,22 +29,22 @@ export const image = {
         </div>
     </div>
     <div class="fn__flex-1">
-        <div class="config-assets" data-type="remove" data-init="true">
+        <div class="config-assets${isM ? " b3-list--mobile" : ""}" data-type="remove" data-init="true">
             <div class="fn__hr--b"></div>
-            <label class="fn__flex">
+            <div class="fn__flex">
                 <div class="fn__space"></div>
                 <button id="removeAll" class="b3-button b3-button--outline fn__flex-center fn__size200">
                     <svg class="svg"><use xlink:href="#iconTrashcan"></use></svg>
                     ${window.siyuan.languages.delete}
                 </button>
-            </label>
+            </div>
             <div class="fn__hr"></div>
             <ul class="b3-list b3-list--background config-assets__list">
                 <li class="fn__loading"><img src="/stage/loading-pure.svg"></li>
             </ul>
             <div class="config-assets__preview"></div>
         </div>
-        <div class="fn__none config-assets" data-type="missing">
+        <div class="fn__none config-assets${isM ? " b3-list--mobile" : ""}" data-type="missing">
             <div class="fn__hr"></div>
             <ul class="b3-list b3-list--background config-assets__list">
                 <li class="fn__loading"><img src="/stage/loading-pure.svg"></li>
@@ -60,15 +63,17 @@ export const image = {
                 if (target.id === "removeAll") {
                     confirmDialog(window.siyuan.languages.deleteOpConfirm, `${window.siyuan.languages.clearAll}`, () => {
                         fetchPost("/api/asset/removeUnusedAssets", {}, response => {
+                            /// #if !MOBILE
                             getAllModels().asset.forEach(item => {
                                 if (response.data.paths.includes(item.path)) {
                                     item.parent.close();
                                 }
                             });
+                            /// #endif
                             assetsListElement.innerHTML = `<li class="b3-list--empty">${window.siyuan.languages.emptyContent}</li>`;
                             image.element.querySelector(".config-assets__preview").innerHTML = "";
                         });
-                    });
+                    }, undefined, true);
                 } else if (target.classList.contains("item") && !target.classList.contains("item--focus")) {
                     image.element.querySelector(".layout-tab-bar .item--focus").classList.remove("item--focus");
                     target.classList.add("item--focus");
@@ -89,7 +94,7 @@ export const image = {
                     event.stopPropagation();
                     break;
                 } else if (type === "copy") {
-                    writeText(target.parentElement.querySelector(".b3-list-item__text").textContent.trim());
+                    writeText(target.parentElement.querySelector(".b3-list-item__text").textContent.trim().replace("assets/", ""));
                 } else if (type === "open") {
                     /// #if !BROWSER
                     openBy(target.parentElement.getAttribute("data-path"), "folder");
@@ -100,11 +105,13 @@ export const image = {
                         fetchPost("/api/asset/removeUnusedAsset", {
                             path: pathString,
                         }, response => {
+                            /// #if !MOBILE
                             getAllModels().asset.forEach(item => {
                                 if (response.data.path === item.path) {
                                     item.parent.parent.removeTab(item.parent.id);
                                 }
                             });
+                            /// #endif
                             const liElement = target.parentElement;
                             if (liElement.parentElement.querySelectorAll("li").length === 1) {
                                 liElement.parentElement.innerHTML = `<li class="b3-list--empty">${window.siyuan.languages.emptyContent}</li>`;
@@ -113,7 +120,7 @@ export const image = {
                             }
                             image.element.querySelector(".config-assets__preview").innerHTML = "";
                         });
-                    });
+                    }, undefined, true);
                     event.preventDefault();
                     event.stopPropagation();
                     break;
@@ -138,25 +145,25 @@ export const image = {
         let html = "";
         let boxOpenHTML = "";
         if (!isBrowser() && action) {
-            boxOpenHTML = `<span data-type="open" class="b3-tooltips b3-tooltips__w b3-list-item__action" aria-label="${window.siyuan.languages.showInFolder}">
+            boxOpenHTML = `<span data-type="open" class="ariaLabel b3-list-item__action" aria-label="${window.siyuan.languages.showInFolder}">
     <svg><use xlink:href="#iconFolder"></use></svg>
 </span>`;
         }
         let boxClearHTML = "";
         if (action) {
-            boxClearHTML = `<span data-type="clear" class="b3-tooltips b3-tooltips__w b3-list-item__action" aria-label="${window.siyuan.languages.delete}">
+            boxClearHTML = `<span data-type="clear" class="ariaLabel b3-list-item__action" aria-label="${window.siyuan.languages.delete}">
     <svg><use xlink:href="#iconTrashcan"></use></svg>
 </span>`;
-        } else {
-            boxClearHTML = `<span data-type="copy" class="b3-tooltips b3-tooltips__w b3-list-item__action" aria-label="${window.siyuan.languages.copy}">
-    <svg><use xlink:href="#iconCopy"></use></svg>
-</span>`;
         }
+        const isM = isMobile();
         data.forEach((item) => {
             const idx = item.indexOf("assets/");
             const dataPath = item.substr(idx);
-            html += `<li data-path="${dataPath}"  class="b3-list-item b3-list-item--hide-action">
+            html += `<li data-path="${dataPath}"  class="b3-list-item${isM ? "" : " b3-list-item--hide-action"}">
     <span class="b3-list-item__text">${escapeHtml(item)}</span>
+    <span data-type="copy" class="ariaLabel b3-list-item__action" aria-label="${window.siyuan.languages.copy}">
+        <svg><use xlink:href="#iconCopy"></use></svg>
+    </span>
     ${boxOpenHTML}
     ${boxClearHTML}
 </li>`;

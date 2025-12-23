@@ -1,12 +1,12 @@
-@import "content";
-@import "toolbar";
-@import "wysiwyg";
-@import "attr";
+@use "content" as *;
+@use "toolbar" as *;
+@use "wysiwyg" as *;
+@use "attr" as *;
 
 .protyle-scroll {
   --b3-dynamicscroll-width: 200px;
   position: absolute;
-  right: 0;
+  right: 12px;
   top: 30px;
   width: 16px;
   bottom: 9px; // 下图标 hover 时，需要留出一定的空间
@@ -55,6 +55,18 @@
     .b3-slider {
       width: var(--b3-dynamicscroll-width);
       display: block;
+
+      &::-webkit-slider-runnable-track,
+      &::-webkit-slider-thumb {
+        background-color: var(--b3-border-color);
+        box-shadow: none;
+      }
+
+      &::-moz-range-track,
+      &::-moz-range-thumb {
+        background-color: var(--b3-border-color);
+        box-shadow: none;
+      }
     }
   }
 }
@@ -71,8 +83,8 @@
     border: 0;
     background-color: transparent;
     padding: 4px;
-    transition: var(--b3-transition);
     cursor: pointer;
+    position: relative;
 
     &:hover svg {
       color: var(--b3-theme-on-surface);
@@ -81,20 +93,30 @@
     &:active {
       cursor: grabbing;
     }
+
+    span {
+      z-index: 2;
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+    }
   }
 
   svg {
-    height: 14px;
     color: var(--b3-theme-on-surface-light);
+    height: calc(var(--b3-font-size-editor) * 1.625);
     width: 14px;
     float: left;
-    transition: var(--b3-transition);
+    transition: var(--b3-color-transition);
   }
 }
 
 .protyle-select {
   position: fixed;
   background-color: var(--b3-theme-primary-lightest);
+  z-index: 3; // 需大于 database header and footer
 }
 
 .protyle-breadcrumb {
@@ -105,15 +127,25 @@
   box-sizing: border-box;
   min-height: 30px;
   z-index: 1;
+  font-size: 14px;
+
+  .block__icon {
+    opacity: 1;
+    margin-left: 8px;
+
+    &:disabled {
+      opacity: .38;
+    }
+  }
 
   &__space {
-    flex: 1;
     min-width: 8px;
     transition: var(--b3-transition);
     color: var(--b3-theme-on-surface);
     text-align: center;
     padding: 6px 0;
     line-height: 18px;
+    flex: 1;
   }
 
   &__bar {
@@ -143,6 +175,19 @@
     }
   }
 
+  &__icon {
+    opacity: 1;
+    border: 0;
+    line-height: 24px;
+    border-radius: var(--b3-border-radius);
+    align-self: center;
+    padding: 0 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--b3-theme-on-background);
+    background-color: var(--b3-list-hover);
+  }
+
   &__arrow {
     height: 10px;
     width: 10px;
@@ -169,13 +214,15 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    padding: 4px;
-    line-height: 16px;
-    height: 16px;
+    padding: 0 4px;
+    line-height: 24px;
+    height: 24px;
     border-radius: var(--b3-border-radius);
     margin: 3px 0;
     color: var(--b3-theme-on-surface);
-    max-width: 70%;
+    border: 0;
+    background-color: transparent;
+    box-sizing: inherit;
 
     &.b3-tooltips svg {
       margin-right: 0;
@@ -203,52 +250,74 @@
 .protyle-content {
   overflow: auto;
   flex: 1;
+  scrollbar-gutter: stable;
 
   &--transition {
     .protyle-wysiwyg {
-      transition: padding .3s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0ms;
+      transition: padding .3s cubic-bezier(.25, .46, .45, .94) 0ms;
     }
 
-    .protyle-title {
-      transition: margin .3s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0ms;
+    .protyle-title,
+    .protyle-background__ia {
+      transition: margin .3s cubic-bezier(.25, .46, .45, .94) 0ms;
     }
+  }
+}
 
-    .protyle-background__iconw {
-      transition: left .3s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0ms;
-    }
+.protyle-top:hover .protyle-background--enable {
+  .protyle-background__action,
+  .protyle-background__img .protyle-icons {
+    opacity: .86;
   }
 }
 
 .protyle-background {
   position: relative;
-  padding-bottom: 40px;
+
+  &:not(.protyle-background--enable) {
+    .protyle-background__img .protyle-icons,
+    .b3-chips__doctag .b3-chip__close,
+    .protyle-background__action {
+      display: none;
+    }
+
+    .protyle-background__icon {
+      cursor: default;
+    }
+  }
 
   &--enable {
     .protyle-background__img:hover .protyle-icons,
-    &:hover > .protyle-background__iconw > .protyle-icons,
     .protyle-background__icon:hover {
       opacity: .86;
     }
   }
 
-
   &--mobileshow {
-    .protyle-background__iconw > .protyle-icons,
+    .protyle-background__action,
     .protyle-background__img .protyle-icons {
       opacity: .86;
     }
   }
 
+  &__action {
+    transition: opacity 150ms linear;
+    opacity: 0;
+  }
+
   &__icon {
     height: 80px;
     width: 80px;
-    transition: var(--b3-transition);
+    transition: opacity 150ms linear;
     cursor: pointer;
     font-size: 68px; // 🔪显示不完整
     line-height: 80px;
     text-align: center;
     font-family: var(--b3-font-family-emoji);
-    margin-right: 16px;
+    z-index: 1;
+    position: relative;
+    margin-top: -48px;
+    margin-bottom: 8px;
 
     img, svg {
       height: 80px;
@@ -258,13 +327,13 @@
     }
 
     &:not(.fn__none) + .protyle-icons {
-      margin-top: 57px;
+      margin-top: 56px;
     }
   }
 
   &__img {
-    position: absolute;
     width: 100%;
+    margin-bottom: 8px;
 
     img {
       object-fit: cover;
@@ -275,30 +344,17 @@
     }
 
     .protyle-icons {
-      bottom: 8px;
-      top: auto;
-      margin-left: -44px;
-      left: auto;
-      right: 32px; // 仅 iPone，设置 index 也无效 https://github.com/siyuan-note/siyuan/issues/6926
+      position: absolute;
+      top: 8px;
+      right: 8px;
 
       &:nth-child(3) {
-        right: auto;
-        left: 48%;
-        opacity: .86;
-        top: 50%;
-        bottom: auto;
-        margin-top: -11px;
+        left: 50%;
+        opacity: 0.86;
+        top: 15vh;
+        margin-top: -12px;
+        margin-left: -70px;
       }
-    }
-  }
-
-  &__iconw {
-    bottom: 0;
-    display: flex;
-    position: absolute;
-
-    .protyle-icons {
-      position: initial;
     }
   }
 }
@@ -306,7 +362,9 @@
 .protyle-title {
   margin: 34px 16px 0 24px;
   position: relative;
-  font-size: 16px;
+  font-size: var(--b3-font-size-editor);
+  font-family: var(--b3-font-family-protyle);
+  padding-left: 2px;
   border-radius: var(--b3-border-radius);
 
   &:hover .protyle-title__icon {
@@ -314,7 +372,7 @@
   }
 
   &[custom-riff-decks] {
-    box-shadow: -3px 0px 0px -1px var(--b3-protyle-inline-mark-background) inset;
+    box-shadow: 2px 0 0 0 var(--b3-protyle-inline-mark-background) inset;
   }
 
   &__icon {
@@ -348,12 +406,12 @@
     font-size: 2em;
     font-weight: bold;
     line-height: 1.625;
-    padding: 0 4px;
+    padding: 0 4px 0 2px;
     white-space: break-spaces;
 
-    &:empty:after {
+    &:empty::after {
       content: attr(data-tip);
-      color: var(--b3-theme-on-surface);
+      color: var(--b3-empty-color);
       cursor: text;
     }
 
@@ -363,7 +421,11 @@
   }
 }
 
-.protyle-action__table {
+table[contenteditable="false"] + .protyle-action__table > .table__resize {
+  display: none !important;
+}
+
+table + .protyle-action__table {
   position: absolute;
   top: 4px;
   height: 0;
@@ -375,12 +437,13 @@
     top: 0;
     width: 6px;
     cursor: col-resize;
+    z-index: 2;
 
-    &:hover:after {
+    &:hover::after {
       background-color: var(--b3-theme-primary-light);
     }
 
-    &:after {
+    &::after {
       top: 0;
       width: 2px;
       left: 2px;
@@ -396,5 +459,6 @@
     background: var(--b3-theme-primary-lightest);
     position: relative;
     transition: var(--b3-transition);
+    z-index: 3;
   }
 }

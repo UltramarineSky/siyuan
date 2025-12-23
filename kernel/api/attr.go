@@ -22,6 +22,7 @@ import (
 	"github.com/88250/gulu"
 	"github.com/gin-gonic/gin"
 	"github.com/siyuan-note/siyuan/kernel/model"
+	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -31,6 +32,24 @@ func getBookmarkLabels(c *gin.Context) {
 	defer c.JSON(http.StatusOK, ret)
 
 	ret.Data = model.BookmarkLabels()
+}
+
+func batchGetBlockAttrs(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	ids := arg["ids"].([]interface{})
+	var idList []string
+	for _, id := range ids {
+		idList = append(idList, id.(string))
+	}
+
+	ret.Data = sql.BatchGetBlockAttrs(idList)
 }
 
 func getBlockAttrs(c *gin.Context) {
@@ -47,7 +66,7 @@ func getBlockAttrs(c *gin.Context) {
 		return
 	}
 
-	ret.Data = model.GetBlockAttrs(id)
+	ret.Data = sql.GetBlockAttrs(id)
 }
 
 func setBlockAttrs(c *gin.Context) {
@@ -81,7 +100,49 @@ func setBlockAttrs(c *gin.Context) {
 		}
 	}
 	err := model.SetBlockAttrs(id, nameValues)
-	if nil != err {
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+}
+
+func batchSetBlockAttrs(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	blockAttrsArg := arg["blockAttrs"].([]interface{})
+	var blockAttrs []map[string]interface{}
+	for _, blockAttrArg := range blockAttrsArg {
+		blockAttr := blockAttrArg.(map[string]interface{})
+		id := blockAttr["id"].(string)
+		if util.InvalidIDPattern(id, ret) {
+			return
+		}
+
+		attrs := blockAttr["attrs"].(map[string]interface{})
+		nameValues := map[string]string{}
+		for name, value := range attrs {
+			if nil == value {
+				nameValues[name] = ""
+			} else {
+				nameValues[name] = value.(string)
+			}
+		}
+
+		blockAttrs = append(blockAttrs, map[string]interface{}{
+			"id":    id,
+			"attrs": nameValues,
+		})
+	}
+
+	err := model.BatchSetBlockAttrs(blockAttrs)
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -104,7 +165,7 @@ func resetBlockAttrs(c *gin.Context) {
 		nameValues[name] = value.(string)
 	}
 	err := model.ResetBlockAttrs(id, nameValues)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return

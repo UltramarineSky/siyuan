@@ -1,11 +1,7 @@
 import {addScript} from "../util/addScript";
 import {Constants} from "../../constants";
-
-declare class Viz {
-    public renderSVGElement: (code: string) => Promise<any>;
-
-    constructor(worker: { worker: Worker });
-}
+import {genIconHTML} from "./util";
+import {hasClosestByClassName} from "../util/hasClosest";
 
 export const graphvizRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
     let graphvizElements: Element[] = [];
@@ -18,32 +14,26 @@ export const graphvizRender = (element: Element, cdn = Constants.PROTYLE_CDN) =>
     if (graphvizElements.length === 0) {
         return;
     }
-    addScript(`${cdn}/js/graphviz/viz.js?v=0.0.0`, "protyleGraphVizScript").then(() => {
+    addScript(`${cdn}/js/graphviz/viz.js?v=3.11.0`, "protyleGraphVizScript").then(() => {
+        const wysiswgElement = hasClosestByClassName(element, "protyle-wysiwyg", true);
         graphvizElements.forEach((e: HTMLDivElement) => {
             if (e.getAttribute("data-render") === "true") {
                 return;
             }
             if (!e.firstElementChild.classList.contains("protyle-icons")) {
-                e.insertAdjacentHTML("afterbegin", '<div class="protyle-icons"><span class="protyle-icon protyle-icon--first protyle-action__edit"><svg><use xlink:href="#iconEdit"></use></svg></span><span class="protyle-icon protyle-action__menu protyle-icon--last"><svg><use xlink:href="#iconMore"></use></svg></span></div>');
+                e.insertAdjacentHTML("afterbegin", genIconHTML(wysiswgElement));
             }
             const renderElement = e.firstElementChild.nextElementSibling as HTMLElement;
+            if (!e.getAttribute("data-content")) {
+                renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span>`;
+                return;
+            }
             try {
-                const blob = new Blob([`importScripts('${(document.getElementById("protyleGraphVizScript") as HTMLScriptElement).src.replace("viz.js", "full.render.js")}');`],
-                    {type: "application/javascript"});
-                const url = window.URL || window.webkitURL;
-                const blobUrl = url.createObjectURL(blob);
-                const worker = new Worker(blobUrl);
-                new Viz({worker})
-                    .renderSVGElement(Lute.UnEscapeHTMLStr(e.getAttribute("data-content"))).then((result: HTMLElement) => {
-                    renderElement.innerHTML = result.outerHTML;
-                    renderElement.classList.remove("ft__error");
-                    renderElement.setAttribute("contenteditable", "false");
-                    if (!e.textContent.endsWith(Constants.ZWSP)) {
-                        e.insertAdjacentHTML("beforeend", `<span style="position: absolute">${Constants.ZWSP}</span>`);
-                    }
+                Viz.instance().then((viz) => {
+                    const svgElement = viz.renderSVGElement(Lute.UnEscapeHTMLStr(e.getAttribute("data-content")));
+                    renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span><div contenteditable="false">${svgElement.outerHTML}</div>`;
                 }).catch((error) => {
-                    renderElement.innerHTML = `graphviz render error: <br>${error}`;
-                    renderElement.classList.add("ft__error");
+                    renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span><div class="ft__error" contenteditable="false">graphviz render error: <br>${error}</div>`;
                 });
             } catch (e) {
                 console.error("Graphviz error", e);

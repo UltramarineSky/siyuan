@@ -19,6 +19,15 @@
       width: 16px;
     }
 
+    &-list {
+      height: 28px;
+      width: 42px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+    }
+
     &-input {
       padding-left: 35px !important;
     }
@@ -37,9 +46,25 @@
     }
   }
 
+  &__icon-clear {
+    position: absolute;
+    height: 18px;
+    width: 16px;
+    opacity: .68;
+    transition: var(--b3-transition);
+    right: 0;
+    cursor: pointer;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  // repo password & av description
   &__icona {
     position: relative;
     color: var(--b3-theme-on-surface);
+    line-height: normal;
 
     &-icon {
       position: absolute;
@@ -86,7 +111,8 @@
     left: 0;
     opacity: .001;
     overflow: hidden;
-    cursor: pointer
+    cursor: pointer;
+    font-size: 0;
   }
 }
 
@@ -113,11 +139,41 @@
 
   &--inner {
     border-bottom: 0;
-    padding: 0 !important;
+    padding: 0 0 16px 0;
+
+    &:last-child {
+      padding-bottom: 0;
+    }
   }
 
   &:last-child,
   &--noborder {
     border-bottom: 0;
+  }
+
+  &--bordr {
+    border-bottom: 1px solid var(--b3-border-color) !important;
+  }
+}
+
+
+@media screen and (max-width: 750px) {
+  .b3-label--inner {
+    flex-wrap: wrap;
+
+    & > .b3-text-field,
+    & > .b3-select,
+    & > .b3-form__icona {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    & > .b3-button {
+      width: 100%;
+
+      &:not(:first-child) {
+        margin-top: 16px;
+      }
+    }
   }
 }

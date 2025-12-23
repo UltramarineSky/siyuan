@@ -1,26 +1,7 @@
-/// #if !BROWSER
-import {getCurrentWindow} from "@electron/remote";
-/// #endif
 import {Dialog} from "../../dialog";
 import {isMobile} from "../../util/functions";
 import {fetchPost} from "../../util/fetch";
-
-export const setProxy = () => {
-    /// #if !BROWSER
-    if ("" === window.siyuan.config.system.networkProxy.scheme) {
-        console.log("network proxy [system]");
-        return;
-    }
-
-    const session = getCurrentWindow().webContents.session;
-    session.closeAllConnections().then(() => {
-        const proxyURL = `${window.siyuan.config.system.networkProxy.scheme}://${window.siyuan.config.system.networkProxy.host}:${window.siyuan.config.system.networkProxy.port}`;
-        session.setProxy({proxyRules: proxyURL}).then(
-            () => console.log("network proxy [" + proxyURL + "]"),
-        );
-    });
-    /// #endif
-};
+import {Constants} from "../../constants";
 
 export const setAccessAuthCode = () => {
     const dialog = new Dialog({
@@ -37,6 +18,7 @@ export const setAccessAuthCode = () => {
     });
     const inputElement = dialog.element.querySelector("input") as HTMLInputElement;
     const btnsElement = dialog.element.querySelectorAll(".b3-button");
+    dialog.element.setAttribute("data-key", Constants.DIALOG_ACCESSAUTHCODE);
     dialog.bindInput(inputElement, () => {
         (btnsElement[1] as HTMLButtonElement).click();
     });
@@ -51,5 +33,13 @@ export const setAccessAuthCode = () => {
 
 export const getCloudURL = (key: string) => {
     const origin = window.siyuan.config.cloudRegion === 0 ? "https://ld246.com" : "https://liuyun.io";
+    if (!key || "" === key) {
+        return origin;
+    }
     return `${origin}/${key}`;
+};
+
+export const getIndexURL = (key: string) => {
+    const lang = "zh_CN" === window.siyuan.config.lang ? "" : "/en";
+    return "https://b3log.org/siyuan" + `${lang}/${key}`;
 };

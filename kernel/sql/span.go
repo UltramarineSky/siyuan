@@ -39,7 +39,7 @@ type Span struct {
 
 func SelectSpansRawStmt(stmt string, limit int) (ret []*Span) {
 	parsedStmt, err := sqlparser.Parse(stmt)
-	if nil != err {
+	if err != nil {
 		//logging.LogErrorf("select [%s] failed: %s", stmt, err)
 		return
 	}
@@ -65,7 +65,7 @@ func SelectSpansRawStmt(stmt string, limit int) (ret []*Span) {
 	stmt = strings.ReplaceAll(stmt, "\\\\*", "\\*")
 	stmt = strings.ReplaceAll(stmt, "from dual", "")
 	rows, err := query(stmt)
-	if nil != err {
+	if err != nil {
 		if strings.Contains(err.Error(), "syntax error") {
 			return
 		}
@@ -83,7 +83,7 @@ func SelectSpansRawStmt(stmt string, limit int) (ret []*Span) {
 func QueryTagSpansByLabel(label string) (ret []*Span) {
 	stmt := "SELECT * FROM spans WHERE type LIKE '%tag%' AND content LIKE '%" + label + "%' GROUP BY block_id"
 	rows, err := query(stmt)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("sql query failed: %s", err)
 		return
 	}
@@ -96,10 +96,18 @@ func QueryTagSpansByLabel(label string) (ret []*Span) {
 }
 
 func QueryTagSpansByKeyword(keyword string, limit int) (ret []*Span) {
-	stmt := "SELECT * FROM spans WHERE type LIKE '%tag%' AND content LIKE '%" + keyword + "%' GROUP BY markdown"
-	stmt += " LIMIT " + strconv.Itoa(limit)
+	// 标签搜索支持空格分隔关键字 Tag search supports space-separated keywords https://github.com/siyuan-note/siyuan/issues/14580
+	keywords := strings.Split(keyword, " ")
+	contentLikes := ""
+	for _, k := range keywords {
+		if contentLikes != "" {
+			contentLikes += " AND "
+		}
+		contentLikes += "content LIKE '%" + k + "%'"
+	}
+	stmt := "SELECT * FROM spans WHERE type LIKE '%tag%' AND (" + contentLikes + ") GROUP BY markdown LIMIT " + strconv.Itoa(limit)
 	rows, err := query(stmt)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("sql query failed: %s", err)
 		return
 	}
@@ -117,7 +125,7 @@ func QueryTagSpans(p string) (ret []*Span) {
 		stmt += " AND path = '" + p + "'"
 	}
 	rows, err := query(stmt)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("sql query failed: %s", err)
 		return
 	}
@@ -131,7 +139,7 @@ func QueryTagSpans(p string) (ret []*Span) {
 
 func scanSpanRows(rows *sql.Rows) (ret *Span) {
 	var span Span
-	if err := rows.Scan(&span.ID, &span.BlockID, &span.RootID, &span.Box, &span.Path, &span.Content, &span.Markdown, &span.Type, &span.IAL); nil != err {
+	if err := rows.Scan(&span.ID, &span.BlockID, &span.RootID, &span.Box, &span.Path, &span.Content, &span.Markdown, &span.Type, &span.IAL); err != nil {
 		logging.LogErrorf("query scan field failed: %s", err)
 		return
 	}

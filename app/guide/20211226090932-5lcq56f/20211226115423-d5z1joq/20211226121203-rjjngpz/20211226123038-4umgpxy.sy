@@ -1,11 +1,12 @@
 {
 	"ID": "20211226123038-4umgpxy",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20211226123038-4umgpxy",
 		"title": "資料文件",
-		"updated": "20230604120825"
+		"type": "doc",
+		"updated": "20250115152754"
 	},
 	"Children": [
 		{
@@ -52,7 +53,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20211226123051-ddr3yub",
-				"updated": "20220824172704"
+				"updated": "20250115152732"
 			},
 			"Children": [
 				{
@@ -71,7 +72,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "在編輯器中可以直接粘貼系統剪切板中復制好的圖片或文件（Linux 端不支持），或者通過拖拽圖片或文件到編輯器中也可以實現插入。插入時有兩個選擇："
+					"Data": "在編輯器中可以直接貼上系統剪切板中復制好的圖片或文件（Linux 端不支持），或者通過拖拽圖片或文件到編輯器中也可以實現插入。插入時有兩個選擇："
 				}
 			]
 		},
@@ -81,7 +82,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220824172728-jpp1e8c",
-				"updated": "20220902220120"
+				"updated": "20250115152732"
 			},
 			"Children": [
 				{
@@ -93,7 +94,7 @@
 					},
 					"Properties": {
 						"id": "20220824172728-wiu7i7u",
-						"updated": "20220824172728"
+						"updated": "20250115152728"
 					},
 					"Children": [
 						{
@@ -101,22 +102,30 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220824172728-scx3qge",
-								"updated": "20220824172728"
+								"updated": "20250115152728"
 							},
 							"Children": [
 								{
+									"Type": "NodeText",
+									"Data": "複製為資源文件並插入：將圖片或文件複製為資源文件並插入，快捷鍵 "
+								},
+								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "複製為資源文件並插入"
+									"TextMarkTextContent": "Ctrl"
 								},
 								{
 									"Type": "NodeText",
-									"Data": "：將圖片或文件複製為資源文件並插入，快捷鍵 "
+									"Data": "​+"
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Ctrl+V"
+									"TextMarkTextContent": "V"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
 								}
 							]
 						}
@@ -131,7 +140,7 @@
 					},
 					"Properties": {
 						"id": "20220824172728-deq7vh0",
-						"updated": "20220902220120"
+						"updated": "20250115152732"
 					},
 					"Children": [
 						{
@@ -139,26 +148,48 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220824172728-2gnv8ox",
-								"updated": "20220902220120"
+								"updated": "20250115152732"
 							},
 							"Children": [
 								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "使用 file:// 絕對路徑並鏈接"
-								},
-								{
 									"Type": "NodeText",
-									"Data": "：將圖片或文件以本地絕對路徑方式插入超鏈接，快捷鍵 "
+									"Data": "​​使用 "
 								},
 								{
 									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Ctrl+Shift+V"
+									"TextMarkType": "code",
+									"TextMarkTextContent": "file://"
 								},
 								{
 									"Type": "NodeText",
-									"Data": "，或者按住 "
+									"Data": "​ 絕對路徑並連結：將圖片或文件以本地絕對路徑方式插入超連結，快捷鍵 "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "Ctrl"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​+"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "Shift"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​+"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "V"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​，或者按住 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -167,7 +198,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 後拖入"
+									"Data": "​ 後拖入"
 								}
 							]
 						}
@@ -261,7 +292,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​：插入圖片不會進行壓縮處理，所有圖片和文件都以原始數據進行保存。"
+					"Data": "​：插入圖片不會進行壓縮處理，所有圖片和文件都以原始資料進行保存。"
 				}
 			]
 		},
@@ -271,7 +302,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20211226123051-5250xg7",
-				"updated": "20211228104709"
+				"updated": "20241027164144"
 			},
 			"Children": [
 				{
@@ -329,7 +360,7 @@
 			},
 			"Properties": {
 				"id": "20211226123051-1qp7a9g",
-				"updated": "20220715092951"
+				"updated": "20241027164144"
 			},
 			"Children": [
 				{
@@ -343,7 +374,7 @@
 					},
 					"Properties": {
 						"id": "20211226123051-mmn60x5",
-						"updated": "20220715092951"
+						"updated": "20241027164144"
 					},
 					"Children": [
 						{
@@ -351,23 +382,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20211226123051-p8dr1dy",
-								"updated": "20220715092951"
+								"updated": "20241027164144"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "引用具體的資料文件，比如圖片或者文件。如果資料文件是 PDF 且做過"
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "block-ref",
-									"TextMarkBlockRefID": "20211226122955-ganeraz",
-									"TextMarkBlockRefSubtype": "s",
-									"TextMarkTextContent": "標註"
-								},
-								{
-									"Type": "NodeText",
-									"Data": "，那麼無論它是否被引用都不會計入清理"
+									"Data": "引用具體的資料文件，比如圖片或者文件"
 								}
 							]
 						}
@@ -466,7 +486,7 @@
 					"TextMarkType": "block-ref",
 					"TextMarkBlockRefID": "20211226122720-u1qd8zw",
 					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "回滾（Rollback）"
+					"TextMarkTextContent": "回復（Rollback）"
 				},
 				{
 					"Type": "NodeText",
@@ -503,7 +523,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230604120454-cxz64oc",
-				"updated": "20230604120454"
+				"updated": "20250115152754"
 			},
 			"Children": [
 				{
@@ -517,12 +537,12 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230604120454-k7wee90",
-				"updated": "20230604120520"
+				"updated": "20250115152754"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "在"
+					"Data": "在 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -540,7 +560,7 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​中可以查看丟失的資源，複製路徑後可以在全局搜索中找到引用處。"
+					"Data": "​中可以查看丟失的資源，複製路徑後可以在全域搜索中找到引用處。"
 				}
 			]
 		},
@@ -609,7 +629,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220503122338-a69glac",
-				"updated": "20220715092913"
+				"updated": "20241024163151"
 			},
 			"Children": [
 				{
@@ -628,7 +648,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "如果需要默認將插入的資料文件放置在文檔同級 assets 文件夾下，則需要先手動創建名為 assets 的文件夾，這樣思源會優先選擇該 assets 文件夾來存放資料文件。"
+					"Data": "如果需要預設將插入的資料文件放置在文檔同級 assets 文件夾下，則需要先手動建立名為 assets 的文件夾，這樣思源會優先選擇該 assets 文件夾來存放資料文件。"
 				}
 			]
 		},
@@ -652,7 +672,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220503122338-jmr7c2k",
-				"updated": "20220715105038"
+				"updated": "20241024163151"
 			},
 			"Children": [
 				{
@@ -664,7 +684,7 @@
 					},
 					"Properties": {
 						"id": "20220503122338-4zg71qe",
-						"updated": "20220715092936"
+						"updated": "20241024163151"
 					},
 					"Children": [
 						{
@@ -672,20 +692,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220503122338-t6apzrh",
-								"updated": "20220715092936"
+								"updated": "20241024163151"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "刪除該筆記本時，為保證跨筆記本資料文件引用正常工作，該筆記本下的資料文件會被批量複製到全局 "
-								},
-								{
-									"Type": "NodeText",
-									"Data": "assets"
-								},
-								{
-									"Type": "NodeText",
-									"Data": " 中"
+									"Data": "刪除該筆記時，為確保跨筆記本資源檔案引用正常運作，該筆記引用的資源檔案會被批次複製到全域 assets 中"
 								}
 							]
 						}
@@ -717,7 +729,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "數據歷史"
+									"Data": "資料歷史"
 								},
 								{
 									"Type": "NodeText",
@@ -805,7 +817,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "圖片 OCR 提取文本"
+					"Data": "圖片 OCR 提取文字"
 				}
 			]
 		},
@@ -814,7 +826,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230117003901-5pfzttc",
-				"updated": "20230117003908"
+				"updated": "20230820185516"
 			},
 			"Children": [
 				{
@@ -823,8 +835,7 @@
 				},
 				{
 					"Type": "NodeTextMark",
-					"TextMarkType": "a",
-					"TextMarkAHref": "https://github.com/tesseract-ocr/tesseract",
+					"TextMarkType": "em",
 					"TextMarkTextContent": "Tesseract OCR"
 				},
 				{
@@ -862,7 +873,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230202231516-o6k9mj1",
-				"updated": "20230211103259"
+				"updated": "20231110112927"
 			},
 			"Children": [
 				{
@@ -874,7 +885,7 @@
 					},
 					"Properties": {
 						"id": "20230202231516-pwj2ndg",
-						"updated": "20230211103259"
+						"updated": "20231110112927"
 					},
 					"Children": [
 						{
@@ -882,7 +893,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20230202231516-8trf08t",
-								"updated": "20230211103259"
+								"updated": "20231110112927"
 							},
 							"Children": [
 								{
@@ -905,12 +916,21 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 命令進行圖片 OCR 提取文本。如果安裝正常的話，在內核啟動日誌中可以搜索到 "
+									"Data": "​ 命令進行圖片 OCR 提取文字。如果安裝正常的話，在Kernel啟動日誌中可以搜索到 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "code",
 									"TextMarkTextContent": "tesseract-ocr enabled"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​；如果要停用 OCR，請設定環境變量 "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "SIYUAN_TESSERACT_ENABLED=false"
 								},
 								{
 									"Type": "NodeText",
@@ -942,7 +962,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "思源並不會啟用所有已安裝的語言包，因為語言包太多的話會導致 OCR 緩慢甚至超時返回空結果，並且佔用過多的系統資源，所以默認最多只會啟用 "
+									"Data": "思源並不會啟用所有已安裝的語言包，因為語言包太多的話會導致 OCR 緩慢甚至超時返回空結果，並且佔用過多的系統資源，所以預設最多只會啟用 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1078,7 +1098,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "默認只對 2MB 以下的圖片進行處理，如果需要調整，可以通過環境變量 "
+									"Data": "預設只對 2MB 以下的圖片進行處理，如果需要調整，可以通過環境變量 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1087,7 +1107,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 設置，值的單位是字節，比如："
+									"Data": "​ 設置，值的單位是位元組，比如："
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1114,7 +1134,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "圖片 OCR 提取文本過程是自動在後台進行的，目前僅支持 PNG、JPG 圖片。提取的文本會被用於搜索功能，這樣就能通過文本關鍵字來定位圖片。"
+					"Data": "圖片 OCR 提取文字過程是自動在後台進行的，目前僅支持 PNG、JPG 圖片。提取的文字會被用於搜索功能，這樣就能通過文字關鍵字來定位圖片。"
 				}
 			]
 		},
@@ -1187,7 +1207,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "退出思源後下在文件系統上修改該文件（請注意 JSON 格式的正確性）"
+									"Data": "退出思源後在文件系統上修改該文件（請注意 JSON 格式的正確性）"
 								}
 							]
 						}

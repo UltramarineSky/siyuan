@@ -6,20 +6,23 @@ import {zoomOut} from "../../menus/protyle";
 import {processRender} from "../../protyle/util/processCode";
 import {highlightRender} from "../../protyle/render/highlightRender";
 import {blockRender} from "../../protyle/render/blockRender";
-import {disabledForeverProtyle, disabledProtyle, enableProtyle} from "../../protyle/util/onGet";
+import {disabledForeverProtyle, setReadonlyByConfig} from "../../protyle/util/onGet";
 import {setStorageVal} from "../../protyle/util/compatibility";
 import {closePanel} from "./closePanel";
 import {showMessage} from "../../dialog/message";
 import {getCurrentEditor} from "../editor";
 import {avRender} from "../../protyle/render/av/render";
+import {setTitle} from "../../dialog/processSystem";
 
 const forwardStack: IBackStack[] = [];
 
 const focusStack = (backStack: IBackStack) => {
     const protyle = getCurrentEditor().protyle;
+    // 前进后快速后退会导致滚动错位 https://ld246.com/article/1734018624070
+    protyle.observerLoad?.disconnect();
+
     window.siyuan.storage[Constants.LOCAL_DOCINFO] = {
         id: backStack.id,
-        action: backStack.callback,
     };
     setStorageVal(Constants.LOCAL_DOCINFO, window.siyuan.storage[Constants.LOCAL_DOCINFO]);
     hideElements(["toolbar", "hint", "util"], protyle);
@@ -43,12 +46,13 @@ const focusStack = (backStack: IBackStack) => {
         fetchPost("/api/block/getDocInfo", {
             id: backStack.id,
         }, (response) => {
-            (document.getElementById("toolbarName") as HTMLInputElement).value = response.data.name === "Untitled" ? "" : response.data.name;
+            setTitle(response.data.name);
+            protyle.title.setTitle(response.data.name);
             protyle.background.render(response.data.ial, protyle.block.rootID);
             protyle.wysiwyg.renderCustom(response.data.ial);
         });
     }
-
+    const exitFocusElement = protyle.breadcrumb.element.parentElement.querySelector('[data-type="exit-focus"]');
     if (backStack.zoomId) {
         if (backStack.zoomId !== protyle.block.id) {
             fetchPost("/api/block/checkBlockExist", {id: backStack.id}, existResponse => {
@@ -66,6 +70,7 @@ const focusStack = (backStack: IBackStack) => {
         } else {
             protyle.contentElement.scrollTop = backStack.scrollTop;
         }
+        exitFocusElement.classList.remove("fn__none");
         return;
     }
 
@@ -86,36 +91,43 @@ const focusStack = (backStack: IBackStack) => {
         protyle.wysiwyg.element.innerHTML = getResponse.data.content;
         processRender(protyle.wysiwyg.element);
         highlightRender(protyle.wysiwyg.element);
-        avRender(protyle.wysiwyg.element);
+        avRender(protyle.wysiwyg.element, protyle);
         blockRender(protyle, protyle.wysiwyg.element, backStack.scrollTop);
         if (getResponse.data.isSyncing) {
             disabledForeverProtyle(protyle);
         } else {
-            if (protyle.disabled) {
-                disabledProtyle(protyle);
-            } else {
-                enableProtyle(protyle);
-            }
+            setReadonlyByConfig(protyle, true);
         }
         protyle.contentElement.scrollTop = backStack.scrollTop;
-        protyle.breadcrumb?.render(protyle);
+        // 等待 av 等加载 https://ld246.com/article/1734018624070
+        setTimeout(() => {
+            protyle.contentElement.scrollTop = backStack.scrollTop;
+        }, Constants.TIMEOUT_LOAD);
+
+        protyle.app.plugins.forEach(item => {
+            item.eventBus.emit("switch-protyle", {protyle});
+            item.eventBus.emit("loaded-protyle-static", {protyle});
+        });
+        exitFocusElement.classList.add("fn__none");
     });
 };
 
 export const pushBack = () => {
     const protyle = getCurrentEditor().protyle;
-    window.siyuan.backStack.push({
-        id: protyle.block.showAll ? protyle.block.id : protyle.block.rootID,
-        data: {
-            startId: protyle.wysiwyg.element.firstElementChild.getAttribute("data-node-id"),
-            endId: protyle.wysiwyg.element.lastElementChild.getAttribute("data-node-id"),
-            notebookId: protyle.notebookId,
-            path: protyle.path,
-        },
-        scrollTop: protyle.contentElement.scrollTop,
-        callback: protyle.block.action,
-        zoomId: protyle.block.showAll ? protyle.block.id : undefined
-    });
+    if (protyle.wysiwyg.element.firstElementChild) {
+        window.siyuan.backStack.push({
+            id: protyle.block.showAll ? protyle.block.id : protyle.block.rootID,
+            data: {
+                startId: protyle.wysiwyg.element.firstElementChild.getAttribute("data-node-id"),
+                endId: protyle.wysiwyg.element.lastElementChild.getAttribute("data-node-id"),
+                notebookId: protyle.notebookId,
+                path: protyle.path,
+            },
+            scrollTop: protyle.contentElement.scrollTop,
+            callback: protyle.block.action,
+            zoomId: protyle.block.showAll ? protyle.block.id : undefined
+        });
+    }
 };
 
 export const goBack = () => {
@@ -125,7 +137,12 @@ export const goBack = () => {
         window.siyuan.menus.menu.element.dispatchEvent(new CustomEvent("click", {detail: "back"}));
         return;
     } else if (document.getElementById("model").style.transform === "translateY(0px)") {
-        document.getElementById("model").style.transform = "";
+        const searchAssetsPanelElement = document.getElementById("searchAssetsPanel");
+        if (!searchAssetsPanelElement || searchAssetsPanelElement.classList.contains("fn__none")) {
+            document.getElementById("model").style.transform = "";
+        } else {
+            searchAssetsPanelElement.classList.add("fn__none");
+        }
         return;
     } else if (window.siyuan.viewer && !window.siyuan.viewer.destroyed) {
         window.siyuan.viewer.destroy();
@@ -143,9 +160,13 @@ export const goBack = () => {
         closePanel();
         return;
     }
-    if (window.JSAndroid && window.siyuan.backStack.length < 1) {
+    if ((window.JSAndroid || window.JSHarmony) && window.siyuan.backStack.length < 1) {
         if (document.querySelector('#message [data-id="exitTip"]')) {
-            window.JSAndroid.returnDesktop();
+            if (window.JSAndroid) {
+                window.JSAndroid.returnDesktop();
+            } else if (window.JSHarmony) {
+                window.JSHarmony.returnDesktop();
+            }
         } else {
             showMessage(window.siyuan.languages.returnDesktop, 3000, "info", "exitTip");
         }

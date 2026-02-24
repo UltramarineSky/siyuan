@@ -1,13 +1,13 @@
 {
 	"ID": "20200923234731-h3zkwm2",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"icon": "2753",
 		"id": "20200923234731-h3zkwm2",
 		"title": "FAQ",
 		"type": "doc",
-		"updated": "20230627215826"
+		"updated": "20250518103440"
 	},
 	"Children": [
 		{
@@ -442,7 +442,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220808181753-3ligpvz",
-				"updated": "20220808181753"
+				"updated": "20250518103440"
 			},
 			"Children": [
 				{
@@ -470,173 +470,23 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20221112205611-eafvvel",
-				"updated": "20221112205652"
+				"updated": "20230805233206"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "Although it does not support third-party sync disks, it supports third-party cloud storage services, which can be configured in "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Settings"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "​ - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Cloud"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "​ - "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Cloud Storage Provider"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "​, currently supported:"
-				}
-			]
-		},
-		{
-			"ID": "20221112205611-b4zhc8p",
-			"Type": "NodeList",
-			"ListData": {},
-			"Properties": {
-				"id": "20221112205611-b4zhc8p",
-				"updated": "20221112205611"
-			},
-			"Children": [
-				{
-					"ID": "20221112205611-97prfc9",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20221112205611-97prfc9",
-						"updated": "20221112205611"
-					},
-					"Children": [
-						{
-							"ID": "20221112205611-uzrdaj3",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20221112205611-uzrdaj3",
-								"updated": "20221112210327"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "S3 compatible object storage services, such as "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://s.qiniu.com/VbQfeu",
-									"TextMarkTextContent": "Qiniu"
-								},
-								{
-									"Type": "NodeText",
-									"Data": ", "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://www.aliyun.com/product/oss?userCode=yqovuas2",
-									"TextMarkTextContent": "Aliyun OSS"
-								},
-								{
-									"Type": "NodeText",
-									"Data": ", "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://www.cloudflare.com/",
-									"TextMarkTextContent": "Cloudflare R2"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20221112205611-2igreuz",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20221112205611-2igreuz",
-						"updated": "20221112205611"
-					},
-					"Children": [
-						{
-							"ID": "20221112205611-j3l9b8r",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20221112205611-j3l9b8r",
-								"updated": "20221112210118"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "WebDAV protocol, such as "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://infini-cloud.net/",
-									"TextMarkTextContent": "InfiniCLOUD"
-								},
-								{
-									"Type": "NodeText",
-									"Data": ", "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://koofr.eu/",
-									"TextMarkTextContent": "Koofr"
-								}
-							]
-						}
-					]
-				}
-			]
-		},
-		{
-			"ID": "20221112205611-5r7862d",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20221112205611-5r7862d",
-				"updated": "20221112211041"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Synchronizing data through third-party cloud storage services is also "
+					"Data": "Although it does not support third-party sync disks, it supports "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
-					"TextMarkBlockRefID": "20210721112229-fp97j3c",
+					"TextMarkBlockRefID": "20230805232018-hgrq0ju",
 					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "end-to-end encrypted"
+					"TextMarkTextContent": "Connect with third-party cloud storage"
 				},
 				{
 					"Type": "NodeText",
-					"Data": ", and third-party cloud storage service providers cannot obtain our plaintext data."
+					"Data": "."
 				}
 			]
 		},
@@ -758,7 +608,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​​ - "
+									"Data": "​ - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -767,7 +617,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​​ - "
+									"Data": "​ - "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -776,7 +626,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​​ / "
+									"Data": "​ / "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -785,11 +635,25 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​​"
+									"Data": "​"
 								}
 							]
 						}
 					]
+				}
+			]
+		},
+		{
+			"ID": "20250518103412-4mf2mer",
+			"Type": "NodeParagraph",
+			"Properties": {
+				"id": "20250518103412-4mf2mer",
+				"updated": "20250518103440"
+			},
+			"Children": [
+				{
+					"Type": "NodeText",
+					"Data": "On macOS, SiYuan will access the Desktop, Documents, and iCloud drive folders to detect whether the workspace is placed under the iCloud synchronization path. Please rest assured that SiYuan will never snoop on your personal data."
 				}
 			]
 		},
@@ -813,165 +677,12 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220526112843-3ufaqy8",
-				"updated": "20220526112843"
+				"updated": "20230820183340"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "SiYuan is completely open source, and contributions are welcome:"
-				}
-			]
-		},
-		{
-			"ID": "20220526112843-xbvl2ni",
-			"Type": "NodeList",
-			"ListData": {},
-			"Properties": {
-				"id": "20220526112843-xbvl2ni",
-				"updated": "20221202214406"
-			},
-			"Children": [
-				{
-					"ID": "20220526112843-p7zhonk",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20220526112843-p7zhonk",
-						"updated": "20220526112843"
-					},
-					"Children": [
-						{
-							"ID": "20220526112843-ivai3f9",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20220526112843-ivai3f9",
-								"updated": "20220526112843"
-							},
-							"Children": [
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://github.com/siyuan-note/siyuan",
-									"TextMarkTextContent": "User Interface and Kernel"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20221202214345-gctwcoa",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20221202214345-gctwcoa",
-						"updated": "20221202214406"
-					},
-					"Children": [
-						{
-							"ID": "20221202214345-4p4zmco",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20221202214345-4p4zmco",
-								"updated": "20221202214406"
-							},
-							"Children": [
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://github.com/siyuan-note/siyuan-android",
-									"TextMarkTextContent": "Android"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20221202214348-poddvse",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20221202214348-poddvse"
-					},
-					"Children": [
-						{
-							"ID": "20221202214348-tk7i2le",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20221202214348-tk7i2le"
-							},
-							"Children": [
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://github.com/siyuan-note/siyuan-ios",
-									"TextMarkTextContent": "iOS"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20220526112843-gruql45",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20220526112843-gruql45",
-						"updated": "20220526112843"
-					},
-					"Children": [
-						{
-							"ID": "20220526112843-fncmbjl",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20220526112843-fncmbjl",
-								"updated": "20220526112843"
-							},
-							"Children": [
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "a",
-									"TextMarkAHref": "https://github.com/siyuan-note/siyuan-chrome",
-									"TextMarkTextContent": "Chrome Clipping Extension"
-								}
-							]
-						}
-					]
-				}
-			]
-		},
-		{
-			"ID": "20220526112843-epfwhb9",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20220526112843-epfwhb9",
-				"updated": "20220526112843"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "For more details, please refer to "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "a",
-					"TextMarkAHref": "https://github.com/siyuan-note/siyuan/blob/master/.github/CONTRIBUTING.md",
-					"TextMarkTextContent": "Development Guide"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "."
+					"Data": "SiYuan is completely open source, and the complete source code can be found on GitHub."
 				}
 			]
 		},
@@ -1117,7 +828,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20220909100946-9eyc3uh",
-				"updated": "20230617085510"
+				"updated": "20230820182932"
 			},
 			"Children": [
 				{
@@ -1158,126 +869,17 @@
 				},
 				{
 					"Type": "NodeText",
-					"Data": "​, or by following "
+					"Data": "​, or pay attention to "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "a",
-					"TextMarkAHref": "https ://github.com/siyuan-note/siyuan/releases",
-					"TextMarkTextContent": "GitHub Releases"
+					"TextMarkAHref": "https://b3log.org/siyuan/",
+					"TextMarkTextContent": "Official website"
 				},
 				{
 					"Type": "NodeText",
 					"Data": " to get the new version."
-				}
-			]
-		},
-		{
-			"ID": "20220909100946-k0d6ska",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20220909100946-k0d6ska",
-				"updated": "20220909100946"
-			},
-			"Children": [
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "tag",
-					"TextMarkTextContent": "Note"
-				},
-				{
-					"Type": "NodeText",
-					"Data": ": Do not place the workspace in the installation directory, because the updated version will clear all files in the installation directory"
-				}
-			]
-		},
-		{
-			"ID": "20201224120448-ygu8bzx",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20201224120448-ygu8bzx",
-				"updated": "20211009092454"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Is there any "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "tag",
-					"TextMarkTextContent": "Note"
-				},
-				{
-					"Type": "NodeText",
-					"Data": " for deleting docs?"
-				}
-			]
-		},
-		{
-			"ID": "20210615213114-fq2uew0",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20210615213114-fq2uew0",
-				"updated": "20220502163309"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "After deletion, the doc will not appear in the operating system's recycle bin, but will be deleted directly. When deleted, SiYuan will generate "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "block-ref",
-					"TextMarkBlockRefID": "20210615213222-vs5tzbd",
-					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "data history"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "."
-				}
-			]
-		},
-		{
-			"ID": "20210106192438-on2fb5k",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20210106192438-on2fb5k"
-			},
-			"Children": [
-				{
-					"Type": "NodeHeadingC8hMarker",
-					"Data": "## "
-				},
-				{
-					"Type": "NodeText",
-					"Data": "How can I just wrap and not start a new paragraph?"
-				}
-			]
-		},
-		{
-			"ID": "20210106192504-pgryxb1",
-			"Type": "NodeParagraph",
-			"Properties": {
-				"id": "20210106192504-pgryxb1",
-				"updated": "20210417112701"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "Please use "
-				},
-				{
-					"Type": "NodeTextMark",
-					"TextMarkType": "kbd",
-					"TextMarkTextContent": "Shift+Enter"
-				},
-				{
-					"Type": "NodeText",
-					"Data": "."
 				}
 			]
 		},
@@ -1320,199 +922,12 @@
 			]
 		},
 		{
-			"ID": "20220615153446-i8gpnt2",
-			"Type": "NodeHeading",
-			"HeadingLevel": 2,
-			"Properties": {
-				"id": "20220615153446-i8gpnt2",
-				"updated": "20220615153446"
-			},
-			"Children": [
-				{
-					"Type": "NodeText",
-					"Data": "How to share notes?"
-				}
-			]
-		},
-		{
-			"ID": "20220615153446-zufy5mm",
-			"Type": "NodeList",
-			"ListData": {},
-			"Properties": {
-				"id": "20220615153446-zufy5mm",
-				"updated": "20230104152515"
-			},
-			"Children": [
-				{
-					"ID": "20230104152308-nwfyw9q",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20230104152308-nwfyw9q",
-						"updated": "20230104152515"
-					},
-					"Children": [
-						{
-							"ID": "20230104152308-v9kzfgg",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20230104152308-v9kzfgg",
-								"updated": "20230104152515"
-							},
-							"Children": [
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "block-ref",
-									"TextMarkBlockRefID": "20230104152135-1iei0xa",
-									"TextMarkBlockRefSubtype": "s",
-									"TextMarkTextContent": "Share document to Liandi"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20220615153446-j8izdpx",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20220615153446-j8izdpx",
-						"updated": "20220615153525"
-					},
-					"Children": [
-						{
-							"ID": "20220615153446-mm04qjn",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20220615153446-mm04qjn",
-								"updated": "20220615153525"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "Export and import "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "code",
-									"TextMarkTextContent": ".sy.zip"
-								},
-								{
-									"Type": "NodeText",
-									"Data": "​ package"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20220615153446-xatayy7",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20220615153446-xatayy7",
-						"updated": "20220615153512"
-					},
-					"Children": [
-						{
-							"ID": "20220615153446-2f54afd",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20220615153446-2f54afd",
-								"updated": "20220615153512"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "Via network hosting"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20220615153446-dlcpq8t",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20220615153446-dlcpq8t",
-						"updated": "20220615153515"
-					},
-					"Children": [
-						{
-							"ID": "20220615153446-vp4d7u6",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20220615153446-vp4d7u6",
-								"updated": "20220615153515"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "Export and import Markdown"
-								}
-							]
-						}
-					]
-				},
-				{
-					"ID": "20220615153446-gnwpvme",
-					"Type": "NodeListItem",
-					"ListData": {
-						"BulletChar": 42,
-						"Marker": "Kg=="
-					},
-					"Properties": {
-						"id": "20220615153446-gnwpvme",
-						"updated": "20220615153446"
-					},
-					"Children": [
-						{
-							"ID": "20220615153446-p54g6hl",
-							"Type": "NodeParagraph",
-							"Properties": {
-								"id": "20220615153446-p54g6hl",
-								"updated": "20220615153446"
-							},
-							"Children": [
-								{
-									"Type": "NodeText",
-									"Data": "​"
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Export Preview"
-								},
-								{
-									"Type": "NodeText",
-									"Data": "​​ to copy to third-party online services"
-								}
-							]
-						}
-					]
-				}
-			]
-		},
-		{
 			"ID": "20220708111435-xmj42q4",
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220708111435-xmj42q4",
-				"updated": "20220708111439"
+				"updated": "20250115163037"
 			},
 			"Children": [
 				{
@@ -1527,7 +942,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220708111435-a2z4tpd",
-				"updated": "20220708111614"
+				"updated": "20250115163037"
 			},
 			"Children": [
 				{
@@ -1603,7 +1018,7 @@
 					},
 					"Properties": {
 						"id": "20220708111435-ptoqng0",
-						"updated": "20220708111603"
+						"updated": "20250115163037"
 					},
 					"Children": [
 						{
@@ -1628,7 +1043,7 @@
 							},
 							"Properties": {
 								"id": "20220708111435-w2hbl28",
-								"updated": "20220708111603"
+								"updated": "20250115163037"
 							},
 							"Children": [
 								{
@@ -1642,7 +1057,7 @@
 									},
 									"Properties": {
 										"id": "20220708111435-nev43mp",
-										"updated": "20220708111435"
+										"updated": "20250115163037"
 									},
 									"Children": [
 										{
@@ -1650,7 +1065,7 @@
 											"Type": "NodeParagraph",
 											"Properties": {
 												"id": "20220708111435-zrahxh3",
-												"updated": "20220708111435"
+												"updated": "20250115163037"
 											},
 											"Children": [
 												{
@@ -1664,16 +1079,16 @@
 												},
 												{
 													"Type": "NodeText",
-													"Data": " or directly copy the "
+													"Data": "​ or directly copy the "
 												},
 												{
 													"Type": "NodeTextMark",
-													"TextMarkType": "kbd",
+													"TextMarkType": "code",
 													"TextMarkTextContent": "workspace/data/"
 												},
 												{
 													"Type": "NodeText",
-													"Data": " folder on the file system"
+													"Data": "​ folder on the file system"
 												}
 											]
 										}
@@ -1852,12 +1267,12 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230406111519-ro0o3iv",
-				"updated": "20230406111521"
+				"updated": "20230802130902"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "All local features are free, even for commercial use."
+					"Data": "Most features are free, even for commercial use."
 				}
 			]
 		},
@@ -1866,19 +1281,29 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230627215819-kfmomdw",
-				"updated": "20230627215826"
+				"updated": "20230806004444"
 			},
 			"Children": [
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
-					"TextMarkBlockRefID": "20210808180303-v9awwp0",
+					"TextMarkBlockRefID": "20230805231614-vqn28eh",
 					"TextMarkBlockRefSubtype": "s",
-					"TextMarkTextContent": "Cloud services"
+					"TextMarkTextContent": "Member\u0026apos;s privileges"
 				},
 				{
 					"Type": "NodeText",
-					"Data": " require a paid subscription to use."
+					"Data": " can only be used after payment, please refer to "
+				},
+				{
+					"Type": "NodeTextMark",
+					"TextMarkType": "a",
+					"TextMarkAHref": "https://b3log.org/siyuan/en/pricing.html",
+					"TextMarkTextContent": "Pricing"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "."
 				}
 			]
 		},

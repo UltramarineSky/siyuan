@@ -1,6 +1,6 @@
 {
 	"ID": "20210505164949-c085p1d",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20210505164949-c085p1d",
@@ -122,7 +122,7 @@
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "a",
-									"TextMarkAHref": "https://github.com/siyuan-note/siyuan-chrome",
+									"TextMarkAHref": "https://liuyun.io/article/1692529862454",
 									"TextMarkTextContent": "SiYuan Chrome Extension"
 								}
 							]

@@ -33,7 +33,7 @@ import (
 var assetsWatcher *fsnotify.Watcher
 
 func WatchAssets() {
-	if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
+	if !isFileWatcherAvailable() {
 		return
 	}
 
@@ -49,7 +49,7 @@ func watchAssets() {
 	}
 
 	var err error
-	if assetsWatcher, err = fsnotify.NewWatcher(); nil != err {
+	if assetsWatcher, err = fsnotify.NewWatcher(); err != nil {
 		logging.LogErrorf("add assets watcher for folder [%s] failed: %s", assetsDir, err)
 		return
 	}
@@ -81,12 +81,17 @@ func watchAssets() {
 			case <-timer.C:
 				//logging.LogInfof("assets changed: %s", lastEvent)
 				if lastEvent.Op&fsnotify.Write == fsnotify.Write {
-					// 外部修改已有资源文件后纳入云端同步 https://github.com/siyuan-note/siyuan/issues/4694
 					IncSync()
 				}
 
 				// 重新缓存资源文件，以便使用 /资源 搜索
 				go cache.LoadAssets()
+
+				if lastEvent.Op&fsnotify.Remove == fsnotify.Remove {
+					HandleAssetsRemoveEvent(lastEvent.Name)
+				} else {
+					HandleAssetsChangeEvent(lastEvent.Name)
+				}
 			}
 		}
 	}()

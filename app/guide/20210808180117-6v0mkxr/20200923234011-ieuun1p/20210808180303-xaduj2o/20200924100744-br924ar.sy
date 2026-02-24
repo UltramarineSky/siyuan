@@ -1,12 +1,12 @@
 {
 	"ID": "20200924100744-br924ar",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20200924100744-br924ar",
 		"title": "Assets",
 		"type": "doc",
-		"updated": "20230604120806"
+		"updated": "20250115152723"
 	},
 	"Children": [
 		{
@@ -57,7 +57,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20201210194734-v2rmiaq",
-				"updated": "20220824172803"
+				"updated": "20250115152723"
 			},
 			"Children": [
 				{
@@ -86,7 +86,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220824172815-ckivl7c",
-				"updated": "20220902220108"
+				"updated": "20250115152723"
 			},
 			"Children": [
 				{
@@ -98,7 +98,7 @@
 					},
 					"Properties": {
 						"id": "20220824172815-q1oeusj",
-						"updated": "20220902220108"
+						"updated": "20250115152714"
 					},
 					"Children": [
 						{
@@ -106,22 +106,30 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220824172815-fqyy0l6",
-								"updated": "20220902220108"
+								"updated": "20250115152714"
 							},
 							"Children": [
 								{
+									"Type": "NodeText",
+									"Data": "Copy as an asset and insert: Copy a picture or file as a resource file and insert, shortcut key "
+								},
+								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Copy as an asset and insert"
+									"TextMarkTextContent": "Ctrl"
 								},
 								{
 									"Type": "NodeText",
-									"Data": ": Copy a picture or file as a resource file and insert, shortcut key "
+									"Data": "​+"
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Ctrl+V"
+									"TextMarkTextContent": "V"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
 								}
 							]
 						}
@@ -136,7 +144,7 @@
 					},
 					"Properties": {
 						"id": "20220824172815-0lsclx1",
-						"updated": "20220902220045"
+						"updated": "20250115152723"
 					},
 					"Children": [
 						{
@@ -144,26 +152,48 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220824172815-dqfasin",
-								"updated": "20220902220045"
+								"updated": "20250115152723"
 							},
 							"Children": [
 								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Use file:// absolute path and link"
-								},
-								{
 									"Type": "NodeText",
-									"Data": ": Insert a picture or file into a hyperlink as a local absolute path, shortcut key "
+									"Data": "Use "
 								},
 								{
 									"Type": "NodeTextMark",
-									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Ctrl+Shift+V"
+									"TextMarkType": "code",
+									"TextMarkTextContent": "file://"
 								},
 								{
 									"Type": "NodeText",
-									"Data": ", or hold down "
+									"Data": "​ absolute path and link: Insert a picture or file into a hyperlink as a local absolute path, shortcut key "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "Ctrl"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​+"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "Shift"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​+"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "V"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​, or hold down "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -172,7 +202,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " and drag in"
+									"Data": "​ and drag in"
 								}
 							]
 						}
@@ -276,7 +306,8 @@
 			"Type": "NodeHeading",
 			"HeadingLevel": 2,
 			"Properties": {
-				"id": "20210115224203-q8bj2gd"
+				"id": "20210115224203-q8bj2gd",
+				"updated": "20241027164345"
 			},
 			"Children": [
 				{
@@ -344,7 +375,7 @@
 			},
 			"Properties": {
 				"id": "20210115224203-r3mwskz",
-				"updated": "20220711122005"
+				"updated": "20241027164345"
 			},
 			"Children": [
 				{
@@ -362,7 +393,7 @@
 					},
 					"Properties": {
 						"id": "20210115224203-1g8zvdg",
-						"updated": "20220711122005"
+						"updated": "20241027164342"
 					},
 					"Children": [
 						{
@@ -370,23 +401,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20210204172630-7rtyepg",
-								"updated": "20220711122005"
+								"updated": "20241027164342"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "Reference to a specific asset file, such as a picture or a file. If the asset file is a PDF and is "
-								},
-								{
-									"Type": "NodeTextMark",
-									"TextMarkType": "block-ref",
-									"TextMarkBlockRefID": "20210923104413-csbeop3",
-									"TextMarkBlockRefSubtype": "s",
-									"TextMarkTextContent": "annotated"
-								},
-								{
-									"Type": "NodeText",
-									"Data": ", it will not count towards cleanup whether it is referenced or not"
+									"Data": "Reference to a specific asset file, such as a picture or a file"
 								}
 							]
 						}
@@ -407,7 +427,7 @@
 					},
 					"Properties": {
 						"id": "20210115224203-xb0ycqg",
-						"updated": "20220711121811"
+						"updated": "20241027164345"
 					},
 					"Children": [
 						{
@@ -415,7 +435,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20210204172630-kq680iv",
-								"updated": "20220711121811"
+								"updated": "20241027164345"
 							},
 							"Children": [
 								{
@@ -429,7 +449,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": ", such as "
+									"Data": "​, such as "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -438,7 +458,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": ". If a asset folder is referenced, all the following asset files will be counted as already referenced regardless of whether they are individually referenced."
+									"Data": "​. If a asset folder is referenced, all the following asset files will be counted as already referenced regardless of whether they are individually referenced"
 								}
 							]
 						}
@@ -624,7 +644,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220503122349-eacedlu",
-				"updated": "20220503122357"
+				"updated": "20241024163243"
 			},
 			"Children": [
 				{
@@ -667,7 +687,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220503122349-o26mvnq",
-				"updated": "20220715105117"
+				"updated": "20241024163243"
 			},
 			"Children": [
 				{
@@ -679,7 +699,7 @@
 					},
 					"Properties": {
 						"id": "20220503122349-192fehc",
-						"updated": "20220503122616"
+						"updated": "20241024163243"
 					},
 					"Children": [
 						{
@@ -687,12 +707,12 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220503122349-ye6haas",
-								"updated": "20220503122616"
+								"updated": "20241024163243"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "When deleting the notebook, in order to ensure that cross-notebook asset references work properly, the assets under the notebook will be copied to the global assets in batches"
+									"Data": "When deleting the doc, the assets referenced by the doc will be copied to the global assets in batches to ensure the normal operation of cross-notebook asset references"
 								}
 							]
 						}
@@ -809,7 +829,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230117003636-0buf00n",
-				"updated": "20230117003758"
+				"updated": "20230820185510"
 			},
 			"Children": [
 				{
@@ -818,8 +838,7 @@
 				},
 				{
 					"Type": "NodeTextMark",
-					"TextMarkType": "a",
-					"TextMarkAHref": "https://github.com/tesseract-ocr/tesseract",
+					"TextMarkType": "em",
 					"TextMarkTextContent": "Tesseract OCR"
 				},
 				{
@@ -833,7 +852,7 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20230202231728-0z5bs0m",
-				"updated": "20230202231731"
+				"updated": "20230801231949"
 			},
 			"Children": [
 				{
@@ -843,7 +862,11 @@
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "tag",
-					"TextMarkTextContent": "Note:"
+					"TextMarkTextContent": "Note"
+				},
+				{
+					"Type": "NodeText",
+					"Data": "​:"
 				}
 			]
 		},
@@ -853,7 +876,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230202231731-bdh7lab",
-				"updated": "20230211103249"
+				"updated": "20231110112758"
 			},
 			"Children": [
 				{
@@ -865,7 +888,7 @@
 					},
 					"Properties": {
 						"id": "20230202231732-n7z8jth",
-						"updated": "20230211103249"
+						"updated": "20231110112758"
 					},
 					"Children": [
 						{
@@ -873,7 +896,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20230202231732-f3jkj7p",
-								"updated": "20230211103249"
+								"updated": "20231110112758"
 							},
 							"Children": [
 								{
@@ -905,7 +928,16 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ in the kernel boot log"
+									"Data": "​ in the kernel boot log; If you want to disable OCR, set the environment variable "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "SIYUAN\\_TESSERACT\\_ENABLED=false"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
 								}
 							]
 						}
@@ -933,7 +965,11 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "SiYuan does not enable all installed language packs, because too many language packs will cause OCR to be slow or even timeout and return empty results, and take up too many system resources, so by default only "
+									"Data": "SiYuan"
+								},
+								{
+									"Type": "NodeText",
+									"Data": " does not enable all installed language packs, because too many language packs will cause OCR to be slow or even timeout and return empty results, and take up too many system resources, so by default only "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -942,7 +978,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, "
+									"Data": "​​, "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -951,7 +987,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, "
+									"Data": "​​, "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -960,7 +996,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, "
+									"Data": "​​, "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -969,7 +1005,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, "
+									"Data": "​​, "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -978,7 +1014,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, "
+									"Data": "​​, "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -987,7 +1023,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ and "
+									"Data": "​​ and "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -996,7 +1032,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ will be enabled at most, if you need more accurate language support, you can specify the language pack by configuring the environment variable "
+									"Data": "​​ will be enabled at most, if you need more accurate language support, you can specify the language pack by configuring the environment variable "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1005,7 +1041,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, such as "
+									"Data": "​​, such as "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1014,7 +1050,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​"
+									"Data": "​​"
 								}
 							]
 						}
@@ -1078,7 +1114,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​, the unit of value is bytes, for example: "
+									"Data": "​​, the unit of value is bytes, for example: "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -1087,7 +1123,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ adjust the upper limit to 4MB"
+									"Data": "​​ adjust the upper limit to 4MB"
 								}
 							]
 						}

@@ -10,10 +10,14 @@ export const needSubscribe = (tip = window.siyuan.languages._kernel[29]) => {
             showMessage(window.siyuan.languages._kernel[122]);
         } else {
             if (tip === window.siyuan.languages._kernel[29]) {
-                tip = window.siyuan.languages._kernel[29].replace("${url}", getCloudURL("subscribe/siyuan"));
+                tip = window.siyuan.languages._kernel[29].replaceAll("${accountServer}", getCloudURL(""));
             }
             showMessage(tip);
         }
     }
     return true;
+};
+
+export const isPaidUser = () => {
+    return window.siyuan.user && (0 === window.siyuan.user.userSiYuanSubscriptionStatus || 1 === window.siyuan.user.userSiYuanOneTimePayStatus);
 };

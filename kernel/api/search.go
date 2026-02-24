@@ -26,6 +26,77 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func listInvalidBlockRefs(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	page := 1
+	if nil != arg["page"] {
+		page = int(arg["page"].(float64))
+	}
+	if 0 >= page {
+		page = 1
+	}
+
+	pageSize := 32
+	if nil != arg["pageSize"] {
+		pageSize = int(arg["pageSize"].(float64))
+	}
+	if 0 >= pageSize {
+		pageSize = 32
+	}
+
+	blocks, matchedBlockCount, matchedRootCount, pageCount := model.ListInvalidBlockRefs(page, pageSize)
+	ret.Data = map[string]interface{}{
+		"blocks":            blocks,
+		"matchedBlockCount": matchedBlockCount,
+		"matchedRootCount":  matchedRootCount,
+		"pageCount":         pageCount,
+	}
+}
+
+func getAssetContent(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	id := arg["id"].(string)
+	query := arg["query"].(string)
+	queryMethod := int(arg["queryMethod"].(float64))
+
+	ret.Data = map[string]interface{}{
+		"assetContent": model.GetAssetContent(id, query, queryMethod),
+	}
+	return
+}
+
+func fullTextSearchAssetContent(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	page, pageSize, query, types, method, orderBy := parseSearchAssetContentArgs(arg)
+	assetContents, matchedAssetCount, pageCount := model.FullTextSearchAssetContent(query, types, method, orderBy, page, pageSize)
+	ret.Data = map[string]interface{}{
+		"assetContents":     assetContents,
+		"matchedAssetCount": matchedAssetCount,
+		"pageCount":         pageCount,
+	}
+}
+
 func findReplace(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -35,7 +106,7 @@ func findReplace(c *gin.Context) {
 		return
 	}
 
-	_, _, _, paths, boxes, types, method, orderBy, groupBy := parseSearchArgs(arg)
+	_, _, _, paths, boxes, types, method, orderBy, groupBy := parseSearchBlockArgs(arg)
 
 	k := arg["k"].(string)
 	r := arg["r"].(string)
@@ -44,9 +115,20 @@ func findReplace(c *gin.Context) {
 	for _, id := range idsArg {
 		ids = append(ids, id.(string))
 	}
-	err := model.FindReplace(k, r, ids, paths, boxes, types, method, orderBy, groupBy)
-	if nil != err {
-		ret.Code = -1
+
+	replaceTypes := map[string]bool{}
+	// text, imgText, imgTitle, imgSrc, aText, aTitle, aHref, code, em, strong, inlineMath, inlineMemo, blockRef, fileAnnotationRef kbd, mark, s, sub, sup, tag, u
+	// docTitle, codeBlock, mathBlock, htmlBlock
+	if nil != arg["replaceTypes"] {
+		replaceTypesArg := arg["replaceTypes"].(map[string]interface{})
+		for t, b := range replaceTypesArg {
+			replaceTypes[t] = b.(bool)
+		}
+	}
+
+	err := model.FindReplace(k, r, replaceTypes, ids, paths, boxes, types, method, orderBy, groupBy)
+	if err != nil {
+		ret.Code = 1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 5000}
 		return
@@ -64,7 +146,15 @@ func searchAsset(c *gin.Context) {
 	}
 
 	k := arg["k"].(string)
-	ret.Data = model.SearchAssetsByName(k)
+
+	var exts []string
+	if extsArg := arg["exts"]; nil != extsArg {
+		for _, ext := range extsArg.([]interface{}) {
+			exts = append(exts, ext.(string))
+		}
+	}
+
+	ret.Data = model.SearchAssetsByName(k, exts)
 	return
 }
 
@@ -116,7 +206,7 @@ func removeTemplate(c *gin.Context) {
 
 	path := arg["path"].(string)
 	err := model.RemoveTemplate(path)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -140,6 +230,59 @@ func searchTemplate(c *gin.Context) {
 	}
 }
 
+func getEmbedBlock(c *gin.Context) {
+	// Query embed block supports executing JavaScript https://github.com/siyuan-note/siyuan/issues/9648
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	embedBlockID := arg["embedBlockID"].(string)
+	includeIDsArg := arg["includeIDs"].([]interface{})
+	var includeIDs []string
+	for _, includeID := range includeIDsArg {
+		includeIDs = append(includeIDs, includeID.(string))
+	}
+	headingMode := 0 // 0：显示标题与下方的块，1：仅显示标题，2：仅显示标题下方的块
+	headingModeArg := arg["headingMode"]
+	if nil != headingModeArg {
+		headingMode = int(headingModeArg.(float64))
+	}
+	breadcrumb := false
+	breadcrumbArg := arg["breadcrumb"]
+	if nil != breadcrumbArg {
+		breadcrumb = breadcrumbArg.(bool)
+	}
+
+	blocks := model.GetEmbedBlock(embedBlockID, includeIDs, headingMode, breadcrumb)
+	ret.Data = map[string]interface{}{
+		"blocks": blocks,
+	}
+}
+
+func updateEmbedBlock(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	id := arg["id"].(string)
+	content := arg["content"].(string)
+
+	err := model.UpdateEmbedBlock(id, content)
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+}
+
 func searchEmbedBlock(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -154,9 +297,12 @@ func searchEmbedBlock(c *gin.Context) {
 	excludeIDsArg := arg["excludeIDs"].([]interface{})
 	var excludeIDs []string
 	for _, excludeID := range excludeIDsArg {
+		if nil == excludeID {
+			continue
+		}
 		excludeIDs = append(excludeIDs, excludeID.(string))
 	}
-	headingMode := 0 // 0：带标题下方块
+	headingMode := 0 // 0：显示标题与下方的块，1：仅显示标题，2：仅显示标题下方的块
 	headingModeArg := arg["headingMode"]
 	if nil != headingModeArg {
 		headingMode = int(headingModeArg.(float64))
@@ -193,11 +339,16 @@ func searchRefBlock(c *gin.Context) {
 		isSquareBrackets = isSquareBracketsArg.(bool)
 	}
 
+	isDatabase := false
+	if isDatabaseArg := arg["isDatabase"]; nil != isDatabaseArg {
+		isDatabase = isDatabaseArg.(bool)
+	}
+
 	rootID := arg["rootID"].(string)
 	id := arg["id"].(string)
 	keyword := arg["k"].(string)
 	beforeLen := int(arg["beforeLen"].(float64))
-	blocks, newDoc := model.SearchRefBlock(id, rootID, keyword, beforeLen, isSquareBrackets)
+	blocks, newDoc := model.SearchRefBlock(id, rootID, keyword, beforeLen, isSquareBrackets, isDatabase)
 	ret.Data = map[string]interface{}{
 		"blocks": blocks,
 		"newDoc": newDoc,
@@ -215,17 +366,18 @@ func fullTextSearchBlock(c *gin.Context) {
 		return
 	}
 
-	page, pageSize, query, paths, boxes, types, method, orderBy, groupBy := parseSearchArgs(arg)
-	blocks, matchedBlockCount, matchedRootCount, pageCount := model.FullTextSearchBlock(query, boxes, paths, types, method, orderBy, groupBy, page, pageSize)
+	page, pageSize, query, paths, boxes, types, method, orderBy, groupBy := parseSearchBlockArgs(arg)
+	blocks, matchedBlockCount, matchedRootCount, pageCount, docMode := model.FullTextSearchBlock(query, boxes, paths, types, method, orderBy, groupBy, page, pageSize)
 	ret.Data = map[string]interface{}{
 		"blocks":            blocks,
 		"matchedBlockCount": matchedBlockCount,
 		"matchedRootCount":  matchedRootCount,
 		"pageCount":         pageCount,
+		"docMode":           docMode,
 	}
 }
 
-func parseSearchArgs(arg map[string]interface{}) (page, pageSize int, query string, paths, boxes []string, types map[string]bool, method, orderBy, groupBy int) {
+func parseSearchBlockArgs(arg map[string]interface{}) (page, pageSize int, query string, paths, boxes []string, types map[string]bool, method, orderBy, groupBy int) {
 	page = 1
 	if nil != arg["page"] {
 		page = int(arg["page"].(float64))
@@ -288,6 +440,50 @@ func parseSearchArgs(arg map[string]interface{}) (page, pageSize int, query stri
 	groupByArg := arg["groupBy"]
 	if nil != groupByArg {
 		groupBy = int(groupByArg.(float64))
+	}
+	return
+}
+
+func parseSearchAssetContentArgs(arg map[string]interface{}) (page, pageSize int, query string, types map[string]bool, method, orderBy int) {
+	page = 1
+	if nil != arg["page"] {
+		page = int(arg["page"].(float64))
+	}
+	if 0 >= page {
+		page = 1
+	}
+
+	pageSize = 32
+	if nil != arg["pageSize"] {
+		pageSize = int(arg["pageSize"].(float64))
+	}
+	if 0 >= pageSize {
+		pageSize = 32
+	}
+
+	queryArg := arg["query"]
+	if nil != queryArg {
+		query = queryArg.(string)
+	}
+
+	if nil != arg["types"] {
+		typesArg := arg["types"].(map[string]interface{})
+		types = map[string]bool{}
+		for t, b := range typesArg {
+			types[t] = b.(bool)
+		}
+	}
+
+	// method：0：关键字，1：查询语法，2：SQL，3：正则表达式
+	methodArg := arg["method"]
+	if nil != methodArg {
+		method = int(methodArg.(float64))
+	}
+
+	// orderBy：0：按相关度降序，1：按相关度升序，2：按更新时间升序，3：按更新时间降序
+	orderByArg := arg["orderBy"]
+	if nil != orderByArg {
+		orderBy = int(orderByArg.(float64))
 	}
 	return
 }

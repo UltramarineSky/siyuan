@@ -40,7 +40,7 @@ func performTransactions(c *gin.Context) {
 
 	trans := arg["transactions"]
 	data, err := gulu.JSON.MarshalJSON(trans)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = "parses request failed"
 		return
@@ -53,11 +53,15 @@ func performTransactions(c *gin.Context) {
 		return
 	}
 
+	timestamp := int64(arg["reqId"].(float64))
 	var transactions []*model.Transaction
-	if err = gulu.JSON.UnmarshalJSON(data, &transactions); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(data, &transactions); err != nil {
 		ret.Code = -1
 		ret.Msg = "parses request failed"
 		return
+	}
+	for _, transaction := range transactions {
+		transaction.Timestamp = timestamp
 	}
 
 	model.PerformTransactions(&transactions)
@@ -66,10 +70,13 @@ func performTransactions(c *gin.Context) {
 
 	app := arg["app"].(string)
 	session := arg["session"].(string)
-	if model.IsFoldHeading(&transactions) || model.IsUnfoldHeading(&transactions) {
-		model.WaitForWritingFiles()
-	}
 	pushTransactions(app, session, transactions)
+
+	if model.IsMoveOutlineHeading(&transactions) {
+		if retData := transactions[0].DoOperations[0].RetData; nil != retData {
+			util.PushReloadDoc(retData.(string))
+		}
+	}
 
 	elapsed := time.Now().Sub(start).Milliseconds()
 	c.Header("Server-Timing", fmt.Sprintf("total;dur=%d", elapsed))
@@ -78,8 +85,11 @@ func performTransactions(c *gin.Context) {
 func pushTransactions(app, session string, transactions []*model.Transaction) {
 	pushMode := util.PushModeBroadcastExcludeSelf
 	if 0 < len(transactions) && 0 < len(transactions[0].DoOperations) {
-		model.WaitForWritingFiles()
-		if strings.Contains(strings.ToLower(transactions[0].DoOperations[0].Action), "attrview") {
+		model.FlushTxQueue() // 等待文件写入完成，后续渲染才能读取到最新的数据
+
+		action := transactions[0].DoOperations[0].Action
+		isAttrViewTx := strings.Contains(strings.ToLower(action), "attrview")
+		if isAttrViewTx && "setAttrViewName" != action {
 			pushMode = util.PushModeBroadcast
 		}
 	}
@@ -88,5 +98,18 @@ func pushTransactions(app, session string, transactions []*model.Transaction) {
 	evt.AppId = app
 	evt.SessionId = session
 	evt.Data = transactions
+
+	var rootIDs []string
+	for _, tx := range transactions {
+		rootIDs = append(rootIDs, tx.GetChangedRootIDs()...)
+	}
+	rootIDs = gulu.Str.RemoveDuplicatedElem(rootIDs)
+	evt.Context = map[string]any{
+		"rootIDs": rootIDs,
+	}
+
+	for _, tx := range transactions {
+		tx.WaitForCommit()
+	}
 	util.PushEvent(evt)
 }

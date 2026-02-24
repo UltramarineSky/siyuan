@@ -1,11 +1,12 @@
 {
 	"ID": "20211226122707-8cr09co",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20211226122707-8cr09co",
-		"title": "數據歷史",
-		"updated": "20230422102220"
+		"title": "資料歷史",
+		"type": "doc",
+		"updated": "20250115153525"
 	},
 	"Children": [
 		{
@@ -33,7 +34,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "數據歷史主要用於保證數據安全，即使發生誤操作也能通過歷史進行數據回滾。數據歷史分為兩個功能："
+					"Data": "資料歷史主要用於保證資料安全，即使發生誤操作也能通過歷史進行資料回復。資料歷史分為兩個功能："
 				}
 			]
 		},
@@ -105,7 +106,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "數據快照：按文件分塊、加密並壓縮保存在 "
+									"Data": "資料快照：按文件分塊、加密並壓縮保存在 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -132,7 +133,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "數據快照除了用於本地數據歷史，還用於雲端"
+					"Data": "資料快照除了用於本地資料歷史，還用於雲端"
 				},
 				{
 					"Type": "NodeTextMark",
@@ -183,7 +184,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220501135134-p6jpw7s",
-				"updated": "20230403114139"
+				"updated": "20240402174257"
 			},
 			"Children": [
 				{
@@ -272,7 +273,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "雲端同步時，本地被雲端覆蓋的數據會生成歷史，歷史文件夾後綴為 "
+									"Data": "雲端同步時，本地被雲端覆蓋的資料會生成歷史，歷史文件夾後綴為 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -401,7 +402,7 @@
 									"TextMarkType": "block-ref",
 									"TextMarkBlockRefID": "20220628204420-ui79vkt",
 									"TextMarkBlockRefSubtype": "s",
-									"TextMarkTextContent": "優化排版"
+									"TextMarkTextContent": "最佳化排版"
 								},
 								{
 									"Type": "NodeText",
@@ -465,6 +466,43 @@
 							]
 						}
 					]
+				},
+				{
+					"ID": "20240402174257-jk88juq",
+					"Type": "NodeListItem",
+					"ListData": {
+						"BulletChar": 42,
+						"Marker": "Kg=="
+					},
+					"Properties": {
+						"id": "20240402174257-jk88juq",
+						"updated": "20240402174257"
+					},
+					"Children": [
+						{
+							"ID": "20240402174257-a7ei3il",
+							"Type": "NodeParagraph",
+							"Properties": {
+								"id": "20240402174257-a7ei3il",
+								"updated": "20240402174257"
+							},
+							"Children": [
+								{
+									"Type": "NodeText",
+									"Data": "在大綱面板拖曳大綱專案時會產生歷史，歷史資料夾後綴為 "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "-outline"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
+								}
+							]
+						}
+					]
 				}
 			]
 		},
@@ -474,7 +512,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20220501135134-b9ixet3",
-				"updated": "20220615120024"
+				"updated": "20250115153515"
 			},
 			"Children": [
 				{
@@ -489,7 +527,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20220501135134-lh5drjl",
-				"updated": "20220830230728"
+				"updated": "20250115153515"
 			},
 			"Children": [
 				{
@@ -501,7 +539,7 @@
 					},
 					"Properties": {
 						"id": "20220501135134-nkzl4wl",
-						"updated": "20220830230728"
+						"updated": "20250115153515"
 					},
 					"Children": [
 						{
@@ -509,7 +547,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220501135134-n7t2zfn",
-								"updated": "20220830230728"
+								"updated": "20250115153515"
 							},
 							"Children": [
 								{
@@ -519,20 +557,29 @@
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "數據歷史"
+									"TextMarkTextContent": "資料歷史"
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 按鈕或者 "
+									"Data": "​ 按鈕或者 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Alt+H"
+									"TextMarkTextContent": "Alt"
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 可打開數據歷史界面，切換到 "
+									"Data": "​+"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "H"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​ 可打開資料歷史界面，切換到 "
 								},
 								{
 									"Type": "NodeTextMark",
@@ -541,12 +588,16 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 頁簽，如果沒有歷史數據顯示，可以試下該界面的 "
+									"Data": "​ 分頁，如果沒有歷史資料顯示，可以試下該界面的 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
 									"TextMarkTextContent": "重建索引"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​"
 								}
 							]
 						}
@@ -602,7 +653,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "通過文件歷史回滾（Rollback）"
+					"Data": "通過文件歷史回復（Rollback）"
 				}
 			]
 		},
@@ -616,7 +667,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "在數據歷史界面左側時間列表欄中，每一條歷史記錄右側都有一個回滾按鈕，點擊以後將彈出確認對話框，如果確認回滾的話將使用文件歷史覆蓋現有文件。"
+					"Data": "在資料歷史界面左側時間列表欄中，每一條歷史記錄右側都有一個回復按鈕，點擊以後將彈出確認對話框，如果確認回復的話將使用文件歷史覆蓋現有文件。"
 				}
 			]
 		},
@@ -630,7 +681,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "如果有非常多的文件需要回滾，建議手動在文件系統上複製。歷史文件夾的內部結構和 data 內部結構一致，比如："
+					"Data": "如果有非常多的文件需要回復，建議手動在文件系統上複製。歷史文件夾的內部結構和 data 內部結構一致，比如："
 				}
 			]
 		},
@@ -781,7 +832,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "手動回滾操作步驟："
+					"Data": "手動回復操作步驟："
 				}
 			]
 		},
@@ -820,7 +871,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "退出思源，然後全量複製備份一下整個工作空間，避免後續誤操作導致數據丟失"
+									"Data": "退出思源，然後全量複製備份一下整個工作空間，避免後續誤操作導致資料丟失"
 								}
 							]
 						}
@@ -868,7 +919,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 文件夾下的數據直接複製到 data 文件夾進行覆蓋"
+									"Data": " 文件夾下的資料直接複製到 data 文件夾進行覆蓋"
 								}
 							]
 						}
@@ -931,7 +982,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "默認自動保存最近 30 天生成的文件歷史，可通過 "
+					"Data": "預設自動保存最近 30 天生成的文件歷史，可通過 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -972,7 +1023,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "如果你想清空所有文件歷史數據，可以點擊 "
+					"Data": "如果你想清空所有文件歷史資料，可以點擊 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1041,7 +1092,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "數據快照"
+					"Data": "資料快照"
 				}
 			]
 		},
@@ -1070,7 +1121,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "第一次使用數據快照前需要在 "
+					"Data": "第一次使用資料快照前需要在 "
 				},
 				{
 					"Type": "NodeTextMark",
@@ -1093,7 +1144,7 @@
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "kbd",
-					"TextMarkTextContent": "數據倉庫密鑰"
+					"TextMarkTextContent": "資料倉庫密鑰"
 				},
 				{
 					"Type": "NodeText",
@@ -1151,7 +1202,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "：將其他設備上的密鑰字符串複製到此粘貼導入"
+									"Data": "：將其他設備上的密鑰字符串複製到此貼上導入"
 								}
 							]
 						}
@@ -1240,7 +1291,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "總而言之，請務必保證所有設備都使用相同的密鑰，否則數據快照將無法跨設備使用，比如無法通過雲端同步數據快照。"
+					"Data": "總而言之，請務必保證所有設備都使用相同的密鑰，否則資料快照將無法跨設備使用，比如無法通過雲端同步資料快照。"
 				}
 			]
 		},
@@ -1250,12 +1301,12 @@
 			"HeadingLevel": 3,
 			"Properties": {
 				"id": "20220615120134-165fbc0",
-				"updated": "20220615120134"
+				"updated": "20250115153525"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "創建數據快照"
+					"Data": "建立資料快照"
 				}
 			]
 		},
@@ -1267,7 +1318,7 @@
 			},
 			"Properties": {
 				"id": "20220615120134-rfk9khd",
-				"updated": "20220625231923"
+				"updated": "20250115153525"
 			},
 			"Children": [
 				{
@@ -1281,7 +1332,7 @@
 					},
 					"Properties": {
 						"id": "20220615120134-1uthigi",
-						"updated": "20220625231923"
+						"updated": "20250115153525"
 					},
 					"Children": [
 						{
@@ -1289,7 +1340,7 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20220615120134-7n3iucn",
-								"updated": "20220625231923"
+								"updated": "20250115153525"
 							},
 							"Children": [
 								{
@@ -1299,20 +1350,29 @@
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "數據歷史"
+									"TextMarkTextContent": "資料歷史"
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 按鈕或者 "
+									"Data": "​ 按鈕或者 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "Alt+H"
+									"TextMarkTextContent": "Alt"
 								},
 								{
 									"Type": "NodeText",
-									"Data": " 可打開數據歷史界面"
+									"Data": "​+"
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "kbd",
+									"TextMarkTextContent": "H"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​ 可打開資料歷史界面"
 								}
 							]
 						}
@@ -1342,12 +1402,12 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "切換到最後一個頁簽 "
+									"Data": "切換到最後一個分頁 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "數據快照"
+									"TextMarkTextContent": "資料快照"
 								}
 							]
 						}
@@ -1382,7 +1442,7 @@
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "創建快照"
+									"TextMarkTextContent": "建立快照"
 								},
 								{
 									"Type": "NodeText",
@@ -1413,7 +1473,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "瀏覽數據快照時只能通過快照創建時間和備註進行區別，所以備註信息應該盡量詳細一些，以備後續能夠準確識別不同的數據快照。"
+					"Data": "瀏覽資料快照時只能通過快照建立時間和備註進行區別，所以備註信息應該盡量詳細一些，以備後續能夠準確識別不同的資料快照。"
 				}
 			]
 		},
@@ -1428,7 +1488,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "瀏覽數據快照"
+					"Data": "瀏覽資料快照"
 				}
 			]
 		},
@@ -1442,7 +1502,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "創建完數據快照後可以在左側看到快照時間列表，點擊不同快照以後可以瀏覽其備註。"
+					"Data": "建立完資料快照後可以在左側看到快照時間列表，點擊不同快照以後可以瀏覽其備註。"
 				}
 			]
 		},
@@ -1457,7 +1517,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "回滾數據快照"
+					"Data": "回復資料快照"
 				}
 			]
 		},
@@ -1471,7 +1531,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "在快照時間列表條目右側都有一個回滾按鈕，點擊以後將彈出確認對話框，如果確認回滾的話將使用快照數據完全替換現有數據。"
+					"Data": "在快照時間列表條目右側都有一個回復按鈕，點擊以後將彈出確認對話框，如果確認回復的話將使用快照資料完全替換現有資料。"
 				}
 			]
 		},
@@ -1486,7 +1546,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "清理數據快照"
+					"Data": "清理資料快照"
 				}
 			]
 		},
@@ -1544,11 +1604,11 @@
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "kbd",
-									"TextMarkTextContent": "數據倉庫清理"
+									"TextMarkTextContent": "資料倉庫清理"
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 將刪除所有未引用的快照和相關數據對象。“引用的快照”指的是 repo/refs/ 下指向的快照："
+									"Data": "​ 將刪除所有未引用的快照和相關資料對象。“引用的快照”指的是 repo/refs/ 下指向的快照："
 								}
 							]
 						},
@@ -1652,7 +1712,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 文件夾可以清空全部數據快照"
+									"Data": "​ 文件夾可以清空全部資料快照"
 								}
 							]
 						}
@@ -1680,21 +1740,21 @@
 			"Type": "NodeParagraph",
 			"Properties": {
 				"id": "20211226121454-03u8yy2",
-				"updated": "20211228135319"
+				"updated": "20230713213240"
 			},
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "如果需要在同步時忽略一些文件，請在文件系統上創建或編輯文本文件 "
+					"Data": "如果需要在同步時忽略一些文件，請在文件系統上建立或編輯文字文件 "
 				},
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "code",
-					"TextMarkTextContent": " 工作空間/data/.siyuan/syncignore"
+					"TextMarkTextContent": "工作空間/data/.siyuan/syncignore"
 				},
 				{
 					"Type": "NodeText",
-					"Data": "， 其中每一行使用 data 文件夾的相對路徑進行配置，表示忽略文件或文件夾的路徑，支援通配符。例如："
+					"Data": "​， 其中每一行使用 data 文件夾的相對路徑進行配置，表示忽略文件或文件夾的路徑，支援通配符。例如："
 				}
 			]
 		},
@@ -1818,7 +1878,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "符號鏈接和隱藏文件不會被快照"
+									"Data": "符號連結和隱藏文件不會被快照"
 								}
 							]
 						}

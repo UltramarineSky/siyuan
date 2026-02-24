@@ -13,7 +13,6 @@ body {
   text-rendering: optimizeLegibility;
   margin: 0;
   font-family: var(--b3-font-family);
-  font-size: 14px;
   color: var(--b3-theme-on-background);
   background-color: var(--b3-theme-background);
   -webkit-font-smoothing: antialiased;
@@ -22,6 +21,11 @@ body {
   box-sizing: border-box;
   max-height: 100%;
   overflow: hidden;
+
+  // body 使用字号导致显示不全 https://github.com/siyuan-note/siyuan/issues/11670#issuecomment-2282329358
+  & > #dockBottom, & > .fn__flex-1 {
+    font-size: 14px;
+  }
 
   &.body--blur {
     .toolbar {
@@ -38,7 +42,7 @@ body {
       }
 
       &__tab--active {
-        .b3-list--background .b3-list-item--focus:not(.dragover):not(.dragover__top):not(.dragover__bottom) {
+        .b3-list--background .b3-list-item--focus {
           background-color: var(--b3-list-hover);
         }
 
@@ -67,6 +71,10 @@ body {
       & > .block__icons {
         padding-left: 10px;
         padding-right: 108px;
+      }
+
+      & > .block__icons > .search__label {
+        right: 108px;
       }
     }
   }
@@ -153,11 +161,11 @@ sup {
 }
 
 sup {
-  top: -0.5em;
+  top: -.5em;
 }
 
 sub {
-  bottom: -0.25em;
+  bottom: -.25em;
 }
 
 img {
@@ -167,7 +175,10 @@ img {
   height: auto;
   -ms-interpolation-mode: bicubic;
   overflow: hidden;
-  font-size: 12px;
+
+  &:not(.emoji):not(.callout-img) {
+    font-size: 12px;
+  }
 }
 
 button,
@@ -190,6 +201,12 @@ button::-moz-focus-inner,
 input::-moz-focus-inner {
   padding: 0;
   border: 0;
+}
+
+textarea::placeholder,
+button::placeholder,
+input::placeholder {
+  color: var(--b3-empty-color);
 }
 
 button,

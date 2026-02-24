@@ -17,13 +17,16 @@
 package api
 
 import (
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/88250/gulu"
@@ -34,6 +37,73 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/model"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func getUniqueFilename(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	filePath := arg["path"].(string)
+	ret.Data = map[string]interface{}{
+		"path": util.GetUniqueFilename(filePath),
+	}
+}
+
+func globalCopyFiles(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var srcs []string
+	srcsArg := arg["srcs"].([]interface{})
+	for _, s := range srcsArg {
+		srcs = append(srcs, s.(string))
+	}
+
+	for i, src := range srcs {
+		absSrc, _ := filepath.Abs(src)
+
+		if !filelock.IsExist(absSrc) {
+			msg := fmt.Sprintf("file [%s] does not exist", src)
+			logging.LogErrorf(msg)
+			ret.Code = -1
+			ret.Msg = msg
+			return
+		}
+
+		if util.IsSensitivePath(absSrc) {
+			msg := fmt.Sprintf("refuse to copy sensitive file [%s]", src)
+			logging.LogErrorf(msg)
+			ret.Code = -2
+			ret.Msg = msg
+			return
+		}
+
+		srcs[i] = absSrc
+	}
+
+	destDir := arg["destDir"].(string) // 相对于工作空间的路径
+	destDir = filepath.Join(util.WorkspaceDir, destDir)
+	for _, src := range srcs {
+		dest := filepath.Join(destDir, filepath.Base(src))
+		if err := filelock.Copy(src, dest); err != nil {
+			logging.LogErrorf("copy file [%s] to [%s] failed: %s", src, dest, err)
+			ret.Code = -1
+			ret.Msg = err.Error()
+			return
+		}
+	}
+
+	model.IncSync()
+}
 
 func copyFile(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -46,7 +116,7 @@ func copyFile(c *gin.Context) {
 
 	src := arg["src"].(string)
 	src, err := model.GetAssetAbsPath(src)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("get asset [%s] abs path failed: %s", src, err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -55,7 +125,7 @@ func copyFile(c *gin.Context) {
 	}
 
 	info, err := os.Stat(src)
-	if nil != err {
+	if err != nil {
 		logging.LogErrorf("stat [%s] failed: %s", src, err)
 		ret.Code = -1
 		ret.Msg = err.Error()
@@ -71,56 +141,88 @@ func copyFile(c *gin.Context) {
 	}
 
 	dest := arg["dest"].(string)
-	if err = filelock.Copy(src, dest); nil != err {
+	if util.IsSensitivePath(dest) {
+		msg := fmt.Sprintf("refuse to copy sensitive file [%s]", dest)
+		logging.LogErrorf(msg)
+		ret.Code = -2
+		ret.Msg = msg
+		return
+	}
+
+	if err = filelock.Copy(src, dest); err != nil {
 		logging.LogErrorf("copy file [%s] to [%s] failed: %s", src, dest, err)
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 5000}
 		return
 	}
+
+	model.IncSync()
 }
 
 func getFile(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	arg, ok := util.JsonArg(c, ret)
 	if !ok {
-		c.JSON(http.StatusOK, ret)
+		ret.Code = -1
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 
 	filePath := arg["path"].(string)
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
-	info, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
-		c.JSON(http.StatusOK, ret)
+	fileAbsPath, err := util.GetAbsPathInWorkspace(filePath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	if !filelock.IsExist(fileAbsPath) {
+		ret.Code = http.StatusNotFound
+		ret.Msg = "file does not exist"
+		c.JSON(http.StatusAccepted, ret)
+		return
+	}
+
+	info, err := os.Stat(fileAbsPath)
+	if os.IsNotExist(err) {
+		ret.Code = http.StatusNotFound
 		ret.Msg = err.Error()
-		c.JSON(http.StatusOK, ret)
+		c.JSON(http.StatusAccepted, ret)
+		return
+	}
+	if err != nil {
+		logging.LogErrorf("stat [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
+		ret.Msg = err.Error()
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 	if info.IsDir() {
-		logging.LogErrorf("file [%s] is a directory", filePath)
-		ret.Code = 405
-		ret.Msg = "file is a directory"
-		c.JSON(http.StatusOK, ret)
+		logging.LogErrorf("path [%s] is a directory path", fileAbsPath)
+		ret.Code = http.StatusMethodNotAllowed
+		ret.Msg = "This is a directory path"
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 
-	data, err := filelock.ReadFile(filePath)
-	if nil != err {
-		logging.LogErrorf("read file [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	// REF: https://github.com/siyuan-note/siyuan/issues/11364
+	if !model.IsAdminRoleContext(c) {
+		if refuseToAccess(c, fileAbsPath, ret) {
+			return
+		}
+	}
+
+	data, err := filelock.ReadFile(fileAbsPath)
+	if err != nil {
+		logging.LogErrorf("read file [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
-		c.JSON(http.StatusOK, ret)
+		c.JSON(http.StatusAccepted, ret)
 		return
 	}
 
-	contentType := mime.TypeByExtension(filepath.Ext(filePath))
+	contentType := mime.TypeByExtension(filepath.Ext(fileAbsPath))
 	if "" == contentType {
 		if m := mimetype.Detect(data); nil != m {
 			contentType = m.String()
@@ -130,6 +232,55 @@ func getFile(c *gin.Context) {
 		contentType = "application/octet-stream"
 	}
 	c.Data(http.StatusOK, contentType, data)
+}
+
+func refuseToAccess(c *gin.Context, fileAbsPath string, ret *gulu.Result) bool {
+	// 规范化并解析符号链接，防止通过大小写或符号链接绕过
+	fileNorm := normalizeAndResolve(fileAbsPath)
+
+	// 禁止访问配置文件 conf/conf.json
+	confPath := normalizeAndResolve(filepath.Join(util.ConfDir, "conf.json"))
+	if fileNorm == confPath {
+		ret.Code = http.StatusForbidden
+		ret.Msg = http.StatusText(http.StatusForbidden)
+		c.JSON(http.StatusAccepted, ret)
+		return true
+	}
+
+	// 禁止访问 data/snippets/conf.json
+	snippetPath := normalizeAndResolve(filepath.Join(util.DataDir, "snippets", "conf.json"))
+	if fileNorm == snippetPath {
+		ret.Code = http.StatusForbidden
+		ret.Msg = http.StatusText(http.StatusForbidden)
+		c.JSON(http.StatusAccepted, ret)
+		return true
+	}
+
+	// 禁止访问 data/templates 目录
+	templatesBase := normalizeAndResolve(filepath.Join(util.DataDir, "templates"))
+	if util.IsSubPath(templatesBase, fileNorm) {
+		ret.Code = http.StatusForbidden
+		ret.Msg = http.StatusText(http.StatusForbidden)
+		c.JSON(http.StatusAccepted, ret)
+		return true
+	}
+	return false
+}
+
+// normalizeAndResolve 将路径转为绝对、解析符号链接并清理；在需要时转为小写以实现不区分大小写比较
+func normalizeAndResolve(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if eval, err := filepath.EvalSymlinks(p); err == nil {
+		p = eval
+	}
+	p = filepath.Clean(p)
+	// 在 Windows 和 macOS 上文件系统通常为不区分大小写，使用小写统一比较
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		p = strings.ToLower(p)
+	}
+	return p
 }
 
 func readDir(c *gin.Context) {
@@ -143,38 +294,54 @@ func readDir(c *gin.Context) {
 	}
 
 	dirPath := arg["path"].(string)
-	dirPath = filepath.Join(util.WorkspaceDir, dirPath)
-	info, err := os.Stat(dirPath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
+	dirAbsPath, err := util.GetAbsPathInWorkspace(dirPath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", dirPath, err)
-		ret.Code = 500
+	info, err := os.Stat(dirAbsPath)
+	if os.IsNotExist(err) {
+		ret.Code = http.StatusNotFound
+		ret.Msg = err.Error()
+		return
+	}
+	if err != nil {
+		logging.LogErrorf("stat [%s] failed: %s", dirAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
 	if !info.IsDir() {
-		logging.LogErrorf("file [%s] is not a directory", dirPath)
-		ret.Code = 405
+		logging.LogErrorf("file [%s] is not a directory", dirAbsPath)
+		ret.Code = http.StatusMethodNotAllowed
 		ret.Msg = "file is not a directory"
 		return
 	}
 
-	entries, err := os.ReadDir(dirPath)
-	if nil != err {
-		logging.LogErrorf("read dir [%s] failed: %s", dirPath, err)
-		ret.Code = 500
+	entries, err := os.ReadDir(dirAbsPath)
+	if err != nil {
+		logging.LogErrorf("read dir [%s] failed: %s", dirAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
 
 	files := []map[string]interface{}{}
 	for _, entry := range entries {
+		path := filepath.Join(dirAbsPath, entry.Name())
+		info, err = os.Stat(path)
+		if err != nil {
+			logging.LogErrorf("stat [%s] failed: %s", path, err)
+			ret.Code = http.StatusInternalServerError
+			ret.Msg = err.Error()
+			return
+		}
 		files = append(files, map[string]interface{}{
-			"name":  entry.Name(),
-			"isDir": entry.IsDir(),
+			"name":      entry.Name(),
+			"isDir":     info.IsDir(),
+			"isSymlink": util.IsSymlink(entry),
+			"updated":   info.ModTime().Unix(),
 		})
 	}
 
@@ -191,35 +358,41 @@ func renameFile(c *gin.Context) {
 		return
 	}
 
-	filePath := arg["path"].(string)
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
+	srcPath := arg["path"].(string)
+	srcAbsPath, err := util.GetAbsPathInWorkspace(srcPath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
 		ret.Msg = err.Error()
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", filePath, err)
-		ret.Code = 500
-		ret.Msg = err.Error()
+	if !filelock.IsExist(srcAbsPath) {
+		ret.Code = http.StatusNotFound
+		ret.Msg = "the [path] file or directory does not exist"
 		return
 	}
 
-	newPath := arg["newPath"].(string)
-	newPath = filepath.Join(util.WorkspaceDir, newPath)
-	if gulu.File.IsExist(newPath) {
-		ret.Code = 409
+	destPath := arg["newPath"].(string)
+	destPath = strings.TrimSpace(destPath)
+	destAbsPath, err := util.GetAbsPathInWorkspace(destPath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
+		return
+	}
+	if filelock.IsExist(destAbsPath) {
+		ret.Code = http.StatusConflict
 		ret.Msg = "the [newPath] file or directory already exists"
 		return
 	}
 
-	if err = filelock.Rename(filePath, newPath); nil != err {
-		logging.LogErrorf("rename file [%s] to [%s] failed: %s", filePath, newPath, err)
-		ret.Code = 500
+	if err := filelock.Rename(srcAbsPath, destAbsPath); err != nil {
+		logging.LogErrorf("rename file [%s] to [%s] failed: %s", srcAbsPath, destAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
+
+	model.IncSync()
 }
 
 func removeFile(c *gin.Context) {
@@ -233,81 +406,117 @@ func removeFile(c *gin.Context) {
 	}
 
 	filePath := arg["path"].(string)
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		ret.Code = 404
+	fileAbsPath, err := util.GetAbsPathInWorkspace(filePath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
 		return
 	}
-	if nil != err {
-		logging.LogErrorf("stat [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	_, err = os.Stat(fileAbsPath)
+	if os.IsNotExist(err) {
+		ret.Code = http.StatusNotFound
+		return
+	}
+	if err != nil {
+		logging.LogErrorf("stat [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
 
-	if err = filelock.Remove(filePath); nil != err {
-		logging.LogErrorf("remove [%s] failed: %s", filePath, err)
-		ret.Code = 500
+	if err = filelock.Remove(fileAbsPath); err != nil {
+		logging.LogErrorf("remove [%s] failed: %s", fileAbsPath, err)
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
+
+	model.IncSync()
 }
 
 func putFile(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
 
-	filePath := c.PostForm("path")
-	filePath = filepath.Join(util.WorkspaceDir, filePath)
 	isDirStr := c.PostForm("isDir")
 	isDir, _ := strconv.ParseBool(isDirStr)
 
 	var err error
+	filePath := c.PostForm("path")
+	filePath = strings.TrimSpace(filePath)
+	fileAbsPath, err := util.GetAbsPathInWorkspace(filePath)
+	if err != nil {
+		ret.Code = http.StatusForbidden
+		ret.Msg = err.Error()
+		return
+	}
+
+	fileExists := filelock.IsExist(fileAbsPath)
+	if !fileExists {
+		if !util.IsValidUploadFileName(filepath.Base(fileAbsPath)) { // Improve kernel API `/api/file/putFile` parameter validation https://github.com/siyuan-note/siyuan/issues/14658
+			ret.Code = http.StatusBadRequest
+			ret.Msg = "invalid file path, please check https://github.com/siyuan-note/siyuan/issues/14658 for more details"
+			return
+		}
+	} else {
+		info, statErr := os.Stat(fileAbsPath)
+		if statErr != nil {
+			logging.LogErrorf("stat file [%s] failed: %s", fileAbsPath, statErr)
+			ret.Code = http.StatusInternalServerError
+			ret.Msg = statErr.Error()
+			return
+		}
+		if info.IsDir() && !isDir {
+			ret.Code = http.StatusBadRequest
+			ret.Msg = "the path is a directory"
+			return
+		}
+	}
+
 	if isDir {
-		err = os.MkdirAll(filePath, 0755)
-		if nil != err {
-			logging.LogErrorf("make a dir [%s] failed: %s", filePath, err)
+		err = os.MkdirAll(fileAbsPath, 0755)
+		if err != nil {
+			logging.LogErrorf("make dir [%s] failed: %s", fileAbsPath, err)
 		}
 	} else {
 		fileHeader, _ := c.FormFile("file")
 		if nil == fileHeader {
-			logging.LogErrorf("form file is nil [path=%s]", filePath)
-			ret.Code = 400
+			logging.LogErrorf("form file is nil [path=%s]", fileAbsPath)
+			ret.Code = http.StatusBadRequest
 			ret.Msg = "form file is nil"
 			return
 		}
 
 		for {
-			dir := filepath.Dir(filePath)
-			if err = os.MkdirAll(dir, 0755); nil != err {
-				logging.LogErrorf("put a file [%s] make dir [%s] failed: %s", filePath, dir, err)
+			dir := filepath.Dir(fileAbsPath)
+			if err = os.MkdirAll(dir, 0755); err != nil {
+				logging.LogErrorf("put file [%s] make dir [%s] failed: %s", fileAbsPath, dir, err)
 				break
 			}
 
 			var f multipart.File
 			f, err = fileHeader.Open()
-			if nil != err {
+			if err != nil {
 				logging.LogErrorf("open file failed: %s", err)
 				break
 			}
 
 			var data []byte
 			data, err = io.ReadAll(f)
-			if nil != err {
+			if err != nil {
 				logging.LogErrorf("read file failed: %s", err)
 				break
 			}
 
-			err = filelock.WriteFile(filePath, data)
-			if nil != err {
-				logging.LogErrorf("put a file [%s] failed: %s", filePath, err)
+			err = filelock.WriteFile(fileAbsPath, data)
+			if err != nil {
+				logging.LogErrorf("write file [%s] failed: %s", fileAbsPath, err)
 				break
 			}
 			break
 		}
 	}
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -319,18 +528,20 @@ func putFile(c *gin.Context) {
 		modTimeInt, parseErr := strconv.ParseInt(modTimeStr, 10, 64)
 		if nil != parseErr {
 			logging.LogErrorf("parse mod time [%s] failed: %s", modTimeStr, parseErr)
-			ret.Code = 500
+			ret.Code = http.StatusInternalServerError
 			ret.Msg = parseErr.Error()
 			return
 		}
 		modTime = millisecond2Time(modTimeInt)
 	}
-	if err = os.Chtimes(filePath, modTime, modTime); nil != err {
+	if err = os.Chtimes(fileAbsPath, modTime, modTime); err != nil {
 		logging.LogErrorf("change time failed: %s", err)
-		ret.Code = 500
+		ret.Code = http.StatusInternalServerError
 		ret.Msg = err.Error()
 		return
 	}
+
+	model.IncSync()
 }
 
 func millisecond2Time(t int64) time.Time {

@@ -3,6 +3,7 @@ export const setLute = (options: ILuteOptions) => {
     lute.SetSpellcheck(window.siyuan.config.editor.spellcheck);
     lute.SetProtyleMarkNetImg(window.siyuan.config.editor.displayNetImgMark);
     lute.SetFileAnnotationRef(true);
+    lute.SetHTMLTag2TextMark(true);
     lute.SetTextMark(true);
     lute.SetHeadingID(false);
     lute.SetYamlFrontMatter(false);
@@ -23,10 +24,17 @@ export const setLute = (options: ILuteOptions) => {
     lute.SetKramdownIAL(true);
     lute.SetTag(true);
     lute.SetSuperBlock(true);
-    lute.SetGitConflict(true);
-    lute.SetMark(true);
-    lute.SetSup(true);
-    lute.SetSub(true);
+    lute.SetCallout(true);
+    lute.SetInlineAsterisk(window.siyuan.config.editor.markdown.inlineAsterisk);
+    lute.SetInlineUnderscore(window.siyuan.config.editor.markdown.inlineUnderscore);
+    lute.SetSup(window.siyuan.config.editor.markdown.inlineSup);
+    lute.SetSub(window.siyuan.config.editor.markdown.inlineSub);
+    lute.SetTag(window.siyuan.config.editor.markdown.inlineTag);
+    lute.SetInlineMath(window.siyuan.config.editor.markdown.inlineMath);
+    lute.SetGFMStrikethrough1(false);
+    lute.SetGFMStrikethrough(window.siyuan.config.editor.markdown.inlineStrikethrough);
+    lute.SetMark(window.siyuan.config.editor.markdown.inlineMark);
+    lute.SetSpin(true);
     lute.SetProtyleWYSIWYG(true);
     if (options.lazyLoadImage) {
         lute.SetImageLazyLoading(options.lazyLoadImage);
@@ -39,5 +47,6 @@ export const setLute = (options: ILuteOptions) => {
         });
         lute.PutEmojis(emojis);
     }
+    lute.SetUnorderedListMarker("-");;
     return lute;
 };

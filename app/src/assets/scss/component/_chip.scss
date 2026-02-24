@@ -6,6 +6,14 @@
   .b3-chip {
     margin: 4px;
   }
+
+  &__doctag {
+    padding: 0;
+
+    .b3-chip {
+      margin: 0 8px 8px 0;
+    }
+  }
 }
 
 .b3-chip {
@@ -13,12 +21,12 @@
   color: var(--b3-theme-on-background);
   line-height: 16px;
   font-weight: 400;
-  font-size: 0.8125rem;
+  font-size: .8125rem;
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
   padding: 8px 12px;
-  border-radius: var(--b3-border-radius-b);
+  border-radius: var(--b3-border-radius);
   transition: var(--b3-transition);
   text-decoration: none;
 
@@ -34,7 +42,12 @@
   &--small {
     padding: 0 8px;
     font-size: 12px;
-    line-height: 16px;
+  }
+
+  &--list {
+    padding: 0 4px;
+    margin-right: 4px;
+    font-family: var(--b3-font-family-code);
   }
 
   &--secondary {
@@ -42,7 +55,8 @@
     color: var(--b3-theme-on-secondary);
   }
 
-  &--primary {
+  &--primary,
+  &--current {
     background-color: var(--b3-theme-primary);
     color: var(--b3-theme-on-primary);
   }

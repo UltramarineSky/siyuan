@@ -19,6 +19,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -26,15 +27,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/88250/go-humanize"
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
+	"github.com/88250/lute/editor"
 	"github.com/88250/lute/html"
 	"github.com/88250/lute/parse"
-	"github.com/dustin/go-humanize"
 	"github.com/panjf2000/ants/v2"
 	"github.com/siyuan-note/eventbus"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
+	"github.com/siyuan-note/siyuan/kernel/av"
 	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/filesys"
 	"github.com/siyuan-note/siyuan/kernel/sql"
@@ -43,22 +46,92 @@ import (
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
 
+func UpsertIndexes(paths []string) {
+	var syFiles []string
+	for _, p := range paths {
+		if strings.HasSuffix(p, "/") {
+			syFiles = append(syFiles, listSyFiles(p)...)
+			continue
+		}
+
+		if strings.HasSuffix(p, ".sy") {
+			syFiles = append(syFiles, p)
+		}
+	}
+
+	syFiles = gulu.Str.RemoveDuplicatedElem(syFiles)
+	upsertIndexes(syFiles)
+}
+
+func RemoveIndexes(paths []string) {
+	var syFiles []string
+	for _, p := range paths {
+		if strings.HasSuffix(p, "/") {
+			syFiles = append(syFiles, listSyFiles(p)...)
+			continue
+		}
+
+		if strings.HasSuffix(p, ".sy") {
+			syFiles = append(syFiles, p)
+		}
+	}
+
+	syFiles = gulu.Str.RemoveDuplicatedElem(syFiles)
+	removeIndexes(syFiles)
+}
+
+func listSyFiles(dir string) (ret []string) {
+	dirPath := filepath.Join(util.DataDir, dir)
+	err := filelock.Walk(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			logging.LogWarnf("walk dir [%s] failed: %s", dirPath, err)
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if strings.HasSuffix(path, ".sy") {
+			p := filepath.ToSlash(strings.TrimPrefix(path, util.DataDir))
+			ret = append(ret, p)
+		}
+		return nil
+	})
+	if err != nil {
+		logging.LogWarnf("walk dir [%s] failed: %s", dirPath, err)
+	}
+	return
+}
+
 func (box *Box) Unindex() {
 	task.AppendTask(task.DatabaseIndex, unindex, box.ID)
+	go func() {
+		sql.FlushQueue()
+		ResetVirtualBlockRefCache()
+	}()
 }
 
 func unindex(boxID string) {
-	ids := treenode.RemoveBlockTreesByBoxID(boxID)
-	RemoveRecentDoc(ids)
+	treenode.RemoveBlockTreesByBoxID(boxID)
 	sql.DeleteBoxQueue(boxID)
 }
 
 func (box *Box) Index() {
-	task.AppendTask(task.DatabaseIndex, index, box.ID)
+	task.AppendTask(task.DatabaseIndexRef, removeBoxRefs, box.ID)
+	task.AppendTask(task.DatabaseIndex, indexBox, box.ID)
 	task.AppendTask(task.DatabaseIndexRef, IndexRefs)
+	go func() {
+		sql.FlushQueue()
+		ResetVirtualBlockRefCache()
+	}()
 }
 
-func index(boxID string) {
+func removeBoxRefs(boxID string) {
+	sql.DeleteBoxRefsQueue(boxID)
+}
+
+func indexBox(boxID string) {
 	box := Conf.Box(boxID)
 	if nil == box {
 		return
@@ -70,13 +143,13 @@ func index(boxID string) {
 	if 1 > boxLen {
 		boxLen = 1
 	}
-	bootProgressPart := 30.0 / float64(boxLen) / float64(len(files))
+	bootProgressPart := int32(30.0 / float64(boxLen) / float64(len(files)))
 
 	start := time.Now()
 	luteEngine := util.NewLute()
 	var treeCount int
 	var treeSize int64
-	i := 0
+	lock := sync.Mutex{}
 	util.PushStatusBar(fmt.Sprintf("["+html.EscapeString(box.Name)+"] "+Conf.Language(64), len(files)))
 
 	poolSize := runtime.NumCPU()
@@ -84,12 +157,18 @@ func index(boxID string) {
 		poolSize = 4
 	}
 	waitGroup := &sync.WaitGroup{}
+	var avNodes []*ast.Node
 	p, _ := ants.NewPoolWithFunc(poolSize, func(arg interface{}) {
 		defer waitGroup.Done()
 
 		file := arg.(*FileInfo)
+		lock.Lock()
+		treeSize += file.size
+		treeCount++
+		i := treeCount
+		lock.Unlock()
 		tree, err := filesys.LoadTree(box.ID, file.path, luteEngine)
-		if nil != err {
+		if err != nil {
 			logging.LogErrorf("read box [%s] tree [%s] failed: %s", box.ID, file.path, err)
 			return
 		}
@@ -99,38 +178,50 @@ func index(boxID string) {
 			updated := util.TimeFromID(tree.Root.ID)
 			tree.Root.SetIALAttr("updated", updated)
 			docIAL["updated"] = updated
-			if writeErr := filesys.WriteTree(tree); nil != writeErr {
+			if _, writeErr := filesys.WriteTree(tree); nil != writeErr {
 				logging.LogErrorf("write tree [%s] failed: %s", tree.Path, writeErr)
 			}
 		}
 
+		lock.Lock()
+		avNodes = append(avNodes, tree.Root.ChildrenByType(ast.NodeAttributeView)...)
+		lock.Unlock()
+
 		cache.PutDocIAL(file.path, docIAL)
 		treenode.IndexBlockTree(tree)
-		sql.IndexTreeQueue(box.ID, file.path)
-
+		sql.IndexTreeQueue(tree)
 		util.IncBootProgress(bootProgressPart, fmt.Sprintf(Conf.Language(92), util.ShortPathForBootingDisplay(tree.Path)))
-		treeSize += file.size
-		treeCount++
 		if 1 < i && 0 == i%64 {
-			util.PushStatusBar(fmt.Sprintf(Conf.Language(88), i, len(files)-i))
+			util.PushStatusBar(fmt.Sprintf(Conf.Language(88), i, (len(files))-i))
 		}
-		i++
 	})
 	for _, file := range files {
 		if file.isdir || !strings.HasSuffix(file.name, ".sy") {
 			continue
 		}
 
+		if !ast.IsNodeIDPattern(strings.TrimSuffix(file.name, ".sy")) {
+			// 不以块 ID 命名的 .sy 文件不应该被加载到思源中 https://github.com/siyuan-note/siyuan/issues/16089
+			continue
+		}
+
 		waitGroup.Add(1)
-		p.Invoke(file)
+		invokeErr := p.Invoke(file)
+		if nil != invokeErr {
+			logging.LogErrorf("invoke [%s] failed: %s", file.path, invokeErr)
+			continue
+		}
 	}
 	waitGroup.Wait()
 	p.Release()
 
+	// 关联数据库和块
+	av.BatchUpsertBlockRel(avNodes)
+
 	box.UpdateHistoryGenerated() // 初始化历史生成时间为当前时间
 	end := time.Now()
 	elapsed := end.Sub(start).Seconds()
-	logging.LogInfof("rebuilt database for notebook [%s] in [%.2fs], tree [count=%d, size=%s]", box.ID, elapsed, treeCount, humanize.Bytes(uint64(treeSize)))
+	logging.LogInfof("rebuilt database for notebook [%s] in [%.2fs], tree [count=%d, size=%s]", box.ID, elapsed, treeCount, humanize.BytesCustomCeil(uint64(treeSize), 2))
 	debug.FreeOSMemory()
 	return
 }
@@ -139,15 +230,12 @@ func IndexRefs() {
 	start := time.Now()
 	util.SetBootDetails("Resolving refs...")
 	util.PushStatusBar(Conf.Language(54))
-
 	util.SetBootDetails("Indexing refs...")
 
 	var defBlockIDs []string
 	luteEngine := util.NewLute()
 	boxes := Conf.GetOpenedBoxes()
 	for _, box := range boxes {
-		sql.DeleteBoxRefsQueue(box.ID)
-
 		pages := pagedPaths(filepath.Join(util.DataDir, box.ID), 32)
 		for _, paths := range pages {
 			for _, treeAbsPath := range paths {
@@ -187,16 +275,16 @@ func IndexRefs() {
 	i := 0
 	size := len(defBlockIDs)
 	if 0 < size {
-		bootProgressPart := 10.0 / float64(size)
+		bootProgressPart := int32(10.0 / float64(size))
 
 		for _, defBlockID := range defBlockIDs {
-			defTree, loadErr := LoadTreeByID(defBlockID)
+			defTree, loadErr := LoadTreeByBlockID(defBlockID)
 			if nil != loadErr {
 				continue
 			}
 
 			util.IncBootProgress(bootProgressPart, "Indexing ref "+defTree.ID)
-			sql.InsertRefsTreeQueue(defTree)
+			sql.UpdateRefsTreeQueue(defTree)
 			if 1 < i && 0 == i%64 {
 				util.PushStatusBar(fmt.Sprintf(Conf.Language(55), i))
 			}
@@ -207,16 +295,35 @@ func IndexRefs() {
 	util.PushStatusBar(fmt.Sprintf(Conf.Language(55), i))
 }
 
+var indexEmbedBlockLock = sync.Mutex{}
+
 // IndexEmbedBlockJob 嵌入块支持搜索 https://github.com/siyuan-note/siyuan/issues/7112
 func IndexEmbedBlockJob() {
-	embedBlocks := sql.QueryEmptyContentEmbedBlocks()
-	task.AppendTaskWithTimeout(task.DatabaseIndexEmbedBlock, 30*time.Second, autoIndexEmbedBlock, embedBlocks)
+	task.AppendTaskWithTimeout(task.DatabaseIndexEmbedBlock, 30*time.Second, autoIndexEmbedBlock)
 }
 
-func autoIndexEmbedBlock(embedBlocks []*sql.Block) {
+func autoIndexEmbedBlock() {
+	indexEmbedBlockLock.Lock()
+	defer indexEmbedBlockLock.Unlock()
+
+	embedBlocks := sql.QueryEmptyContentEmbedBlocks()
 	for i, embedBlock := range embedBlocks {
-		stmt := strings.TrimPrefix(embedBlock.Markdown, "{{")
-		stmt = strings.TrimSuffix(stmt, "}}")
+		markdown := strings.TrimSpace(embedBlock.Markdown)
+		markdown = strings.TrimPrefix(markdown, "{{")
+		stmt := strings.TrimSuffix(markdown, "}}")
+
+		// 嵌入块的 Markdown 内容需要反转义
+		stmt = html.UnescapeString(stmt)
+		stmt = strings.ReplaceAll(stmt, editor.IALValEscNewLine, "\n")
+
+		// 需要移除首尾的空白字符以判断是否具有 //!js 标记
+		stmt = strings.TrimSpace(stmt)
+		if strings.HasPrefix(stmt, "//!js") {
+			// https://github.com/siyuan-note/siyuan/issues/9648
+			// js 嵌入块不支持自动索引，由前端主动调用 /api/search/updateEmbedBlock 接口更新内容 https://github.com/siyuan-note/siyuan/issues/9736
+			continue
+		}
+
 		if !strings.Contains(strings.ToLower(stmt), "select") {
 			continue
 		}
@@ -256,20 +363,21 @@ func init() {
 	subscribeSQLEvents()
 }
 
+var (
+	pushSQLInsertBlocksFTSMsg bool
+	pushSQLDeleteBlocksMsg    bool
+)
+
 func subscribeSQLEvents() {
+	// 使用下面的 EvtSQLInsertBlocksFTS 就可以了
 	//eventbus.Subscribe(eventbus.EvtSQLInsertBlocks, func(context map[string]interface{}, current, total, blockCount int, hash string) {
-	//	if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
-	//		// Android/iOS 端不显示数据索引和搜索索引状态提示 https://github.com/siyuan-note/siyuan/issues/6392
-	//		return
-	//	}
 	//
 	//	msg := fmt.Sprintf(Conf.Language(89), current, total, blockCount, hash)
 	//	util.SetBootDetails(msg)
 	//	util.ContextPushMsg(context, msg)
 	//})
 	eventbus.Subscribe(eventbus.EvtSQLInsertBlocksFTS, func(context map[string]interface{}, blockCount int, hash string) {
-		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
-			// Android/iOS 端不显示数据索引和搜索索引状态提示 https://github.com/siyuan-note/siyuan/issues/6392
+		if !pushSQLInsertBlocksFTSMsg {
 			return
 		}
 
@@ -280,8 +388,7 @@ func subscribeSQLEvents() {
 		util.ContextPushMsg(context, msg)
 	})
 	eventbus.Subscribe(eventbus.EvtSQLDeleteBlocks, func(context map[string]interface{}, rootID string) {
-		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
-			// Android/iOS 端不显示数据索引和搜索索引状态提示 https://github.com/siyuan-note/siyuan/issues/6392
+		if !pushSQLDeleteBlocksMsg {
 			return
 		}
 
@@ -291,9 +398,20 @@ func subscribeSQLEvents() {
 		util.SetBootDetails(msg)
 		util.ContextPushMsg(context, msg)
 	})
+	eventbus.Subscribe(eventbus.EvtSQLUpdateBlocksHPaths, func(context map[string]interface{}, blockCount int, hash string) {
+		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container || util.ContainerHarmony == util.Container {
+			return
+		}
+
+		current := context["current"].(int)
+		total := context["total"]
+		msg := fmt.Sprintf(Conf.Language(234), current, total, blockCount, hash)
+		util.SetBootDetails(msg)
+		util.ContextPushMsg(context, msg)
+	})
 
 	eventbus.Subscribe(eventbus.EvtSQLInsertHistory, func(context map[string]interface{}) {
-		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
+		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container || util.ContainerHarmony == util.Container {
 			return
 		}
 
@@ -302,5 +420,27 @@ func subscribeSQLEvents() {
 		msg := fmt.Sprintf(Conf.Language(191), current, total)
 		util.SetBootDetails(msg)
 		util.ContextPushMsg(context, msg)
+	})
+
+	eventbus.Subscribe(eventbus.EvtSQLInsertAssetContent, func(context map[string]interface{}) {
+		if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container || util.ContainerHarmony == util.Container {
+			return
+		}
+
+		current := context["current"].(int)
+		total := context["total"]
+		msg := fmt.Sprintf(Conf.Language(217), current, total)
+		util.SetBootDetails(msg)
+		util.ContextPushMsg(context, msg)
+	})
+
+	eventbus.Subscribe(eventbus.EvtSQLIndexChanged, func() {
+		Conf.DataIndexState = 1
+		Conf.Save()
+	})
+
+	eventbus.Subscribe(eventbus.EvtSQLIndexFlushed, func() {
+		Conf.DataIndexState = 0
+		Conf.Save()
 	})
 }

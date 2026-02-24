@@ -58,6 +58,10 @@ func MoveFoldHeading(updateNode, oldNode *ast.Node) {
 }
 
 func IsInFoldedHeading(node, currentHeading *ast.Node) bool {
+	if nil == node {
+		return false
+	}
+
 	heading := HeadingParent(node)
 	if nil == heading {
 		return false
@@ -81,6 +85,37 @@ func GetHeadingFold(nodes []*ast.Node) (ret []*ast.Node) {
 	return
 }
 
+func GetParentFoldedHeading(node *ast.Node) (parentFoldedHeading *ast.Node) {
+	if nil == node {
+		return
+	}
+
+	currentLevel := 7
+	if ast.NodeHeading == node.Type {
+		currentLevel = node.HeadingLevel
+	}
+	for n := node.Previous; nil != n; n = n.Previous {
+		if ast.NodeHeading != n.Type {
+			continue
+		}
+
+		if n.HeadingLevel >= currentLevel {
+			continue
+		}
+		currentLevel = n.HeadingLevel
+
+		if "1" == n.IALAttr("fold") {
+			if ast.NodeHeading != node.Type {
+				parentFoldedHeading = n
+			}
+			if n.HeadingLevel < node.HeadingLevel {
+				parentFoldedHeading = n
+			}
+		}
+	}
+	return
+}
+
 func HeadingChildren(heading *ast.Node) (ret []*ast.Node) {
 	start := heading.Next
 	if nil == start {
@@ -96,34 +131,10 @@ func HeadingChildren(heading *ast.Node) (ret []*ast.Node) {
 			if currentLevel >= n.HeadingLevel {
 				break
 			}
-		} else if ast.NodeSuperBlock == n.Type {
-			if h := SuperBlockHeading(n); nil != h {
-				if currentLevel >= h.HeadingLevel {
-					break
-				}
-			}
-		} else if ast.NodeSuperBlockCloseMarker == n.Type {
-			continue
 		}
 		ret = append(ret, n)
 	}
 	return
-}
-
-func SuperBlockHeading(sb *ast.Node) *ast.Node {
-	c := sb.FirstChild.Next.Next
-	if nil == c {
-		return nil
-	}
-
-	if ast.NodeHeading == c.Type {
-		return c
-	}
-
-	if ast.NodeSuperBlock == c.Type {
-		return SuperBlockHeading(c)
-	}
-	return nil
 }
 
 func SuperBlockLastHeading(sb *ast.Node) *ast.Node {

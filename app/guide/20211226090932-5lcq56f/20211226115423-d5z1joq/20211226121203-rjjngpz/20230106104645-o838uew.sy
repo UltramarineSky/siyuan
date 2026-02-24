@@ -1,11 +1,12 @@
 {
 	"ID": "20230106104645-o838uew",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20230106104645-o838uew",
 		"title": "工作空間",
-		"updated": "20230117000552"
+		"type": "doc",
+		"updated": "20250306083600"
 	},
 	"Children": [
 		{
@@ -33,7 +34,7 @@
 			"Children": [
 				{
 					"Type": "NodeText",
-					"Data": "工作空間用於保存數據、歷史、配置和運行時所需要的文件。"
+					"Data": "工作空間用於保存資料、歷史、配置和運行時所需要的文件。"
 				}
 			]
 		},
@@ -96,7 +97,7 @@
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "一個工作空間只能被一個內核進程伺服"
+									"Data": "一個工作空間只能被一個Kernel程序伺服"
 								}
 							]
 						}
@@ -110,7 +111,7 @@
 			"HeadingLevel": 2,
 			"Properties": {
 				"id": "20230109113932-sal9xjf",
-				"updated": "20230109113932"
+				"updated": "20250306083600"
 			},
 			"Children": [
 				{
@@ -125,7 +126,7 @@
 			"ListData": {},
 			"Properties": {
 				"id": "20230109113932-3g0ywic",
-				"updated": "20230117000552"
+				"updated": "20250306083600"
 			},
 			"Children": [
 				{
@@ -137,7 +138,7 @@
 					},
 					"Properties": {
 						"id": "20230109113932-w8e5hz3",
-						"updated": "20230117000552"
+						"updated": "20250306083600"
 					},
 					"Children": [
 						{
@@ -159,26 +160,35 @@
 							"Type": "NodeParagraph",
 							"Properties": {
 								"id": "20230109113932-8g1zoun",
-								"updated": "20230117000552"
+								"updated": "20250306083600"
 							},
 							"Children": [
 								{
 									"Type": "NodeText",
-									"Data": "如果你的多個工作空間需要經常啟動，可以考慮為每個工作空間創建不同的啟動入口並指定啟動參數 "
+									"Data": "如果你的多個工作空間需要經常啟動，可以考慮為每個工作空間建立不同的啟動入口並指定啟動參數 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "code",
-									"TextMarkTextContent": "--workspace=工作空間絕對路徑"
+									"TextMarkTextContent": "--workspace=\u0026quot;工作空間絕對路徑\u0026quot;"
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​。比如 Windows 系統上可以復制多個快捷方式，並在每個快捷方式 - 屬性 - 目標後跟隨工作空間路徑參數，例如 "
+									"Data": "​（請使用 "
 								},
 								{
 									"Type": "NodeTextMark",
 									"TextMarkType": "code",
-									"TextMarkTextContent": "--workspace=F:\\SiYuan"
+									"TextMarkTextContent": "\u0026quot;"
+								},
+								{
+									"Type": "NodeText",
+									"Data": "​ 將路徑包起來）。比如 Windows 系統上可以復制多個快捷方式，並在每個快捷方式 - 屬性 - 目標後跟隨工作空間路徑參數，例如 "
+								},
+								{
+									"Type": "NodeTextMark",
+									"TextMarkType": "code",
+									"TextMarkTextContent": "--workspace=\u0026quot;F:\\SiYuan\u0026quot;"
 								},
 								{
 									"Type": "NodeText",
@@ -191,7 +201,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 來指定內核監聽的端口。"
+									"Data": "​ 來指定Kernel偵聽的埠。"
 								}
 							]
 						}
@@ -342,7 +352,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 用於保存已經損壞的數據文件"
+									"Data": "​ 用於保存已經損壞的資料文件"
 								}
 							]
 						}
@@ -379,7 +389,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 用於保存數據，具體結構請參考"
+									"Data": "​ 用於保存資料，具體結構請參考"
 								},
 								{
 									"Type": "NodeTextMark",
@@ -460,7 +470,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 用於保存數據倉庫數據"
+									"Data": "​ 用於保存資料倉庫資料"
 								}
 							]
 						}
@@ -534,7 +544,7 @@
 								},
 								{
 									"Type": "NodeText",
-									"Data": "​ 內核進程啟動後會創建該文件，用於鎖定工作空間"
+									"Data": "​ Kernel程序啟動後會建立該文件，用於鎖定工作空間"
 								}
 							]
 						}

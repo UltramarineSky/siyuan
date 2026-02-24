@@ -20,7 +20,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,16 +36,15 @@ import (
 var (
 	historyOperationQueue []*historyDBQueueOperation
 	historyDBQueueLock    = sync.Mutex{}
-
-	historyTxLock = sync.Mutex{}
+	historyTxLock         = sync.Mutex{}
 )
 
 type historyDBQueueOperation struct {
 	inQueueTime time.Time
-	action      string // index/deletePathPrefix
+	action      string // index/deleteOutdated
 
-	histories  []*History // index
-	pathPrefix string     // deletePathPrefix
+	histories []*History // index
+	before    int64      // deleteOutdated
 }
 
 func FlushHistoryTxJob() {
@@ -51,12 +53,13 @@ func FlushHistoryTxJob() {
 
 func FlushHistoryQueue() {
 	ops := getHistoryOperations()
-	if 1 > len(ops) {
+	total := len(ops)
+	if 1 > total {
 		return
 	}
 
-	txLock.Lock()
-	defer txLock.Unlock()
+	historyTxLock.Lock()
+	defer historyTxLock.Unlock()
 	start := time.Now()
 
 	groupOpsTotal := map[string]int{}
@@ -67,12 +70,12 @@ func FlushHistoryQueue() {
 	context := map[string]interface{}{eventbus.CtxPushMsg: eventbus.CtxPushMsgToStatusBar}
 	groupOpsCurrent := map[string]int{}
 	for i, op := range ops {
-		if util.IsExiting {
+		if util.IsExiting.Load() {
 			return
 		}
 
 		tx, err := beginHistoryTx()
-		if nil != err {
+		if err != nil {
 			return
 		}
 
@@ -80,14 +83,23 @@ func FlushHistoryQueue() {
 		context["current"] = groupOpsCurrent[op.action]
 		context["total"] = groupOpsTotal[op.action]
 
-		if err = execHistoryOp(op, tx, context); nil != err {
+		if err = execHistoryOp(op, tx, context); err != nil {
 			tx.Rollback()
 			logging.LogErrorf("queue operation failed: %s", err)
+
+			if 0 < len(op.histories) {
+				dir := op.histories[0].Path[:strings.Index(op.histories[0].Path, "/")]
+				dirPath := filepath.Join(util.HistoryDir, dir)
+				if removeErr := os.RemoveAll(dirPath); nil != removeErr {
+					logging.LogErrorf("remove corrupted history dir [%s] failed: %s", dirPath, removeErr)
+				}
+			}
+
 			eventbus.Publish(util.EvtSQLHistoryRebuild)
 			return
 		}
 
-		if err = commitHistoryTx(tx); nil != err {
+		if err = commitHistoryTx(tx); err != nil {
 			logging.LogErrorf("commit tx failed: %s", err)
 			return
 		}
@@ -97,7 +109,7 @@ func FlushHistoryQueue() {
 		}
 	}
 
-	if 128 < len(ops) {
+	if 128 < total {
 		debug.FreeOSMemory()
 	}
 
@@ -111,8 +123,8 @@ func execHistoryOp(op *historyDBQueueOperation, tx *sql.Tx, context map[string]i
 	switch op.action {
 	case "index":
 		err = insertHistories(tx, op.histories, context)
-	case "deletePathPrefix":
-		err = deleteHistoriesByPathPrefix(tx, op.pathPrefix, context)
+	case "deleteOutdated":
+		err = deleteOutdatedHistories(tx, op.before, context)
 	default:
 		msg := fmt.Sprintf("unknown history operation [%s]", op.action)
 		logging.LogErrorf(msg)
@@ -121,15 +133,19 @@ func execHistoryOp(op *historyDBQueueOperation, tx *sql.Tx, context map[string]i
 	return
 }
 
-func DeleteHistoriesByPathPrefixQueue(pathPrefix string) {
+func DeleteOutdatedHistories(before int64) {
 	historyDBQueueLock.Lock()
 	defer historyDBQueueLock.Unlock()
 
-	newOp := &historyDBQueueOperation{inQueueTime: time.Now(), action: "deletePathPrefix", pathPrefix: pathPrefix}
+	newOp := &historyDBQueueOperation{inQueueTime: time.Now(), action: "deleteOutdated", before: before}
 	historyOperationQueue = append(historyOperationQueue, newOp)
 }
 
 func IndexHistoriesQueue(histories []*History) {
+	if 1 > len(histories) {
+		return
+	}
+
 	historyDBQueueLock.Lock()
 	defer historyDBQueueLock.Unlock()
 
@@ -144,28 +160,4 @@ func getHistoryOperations() (ops []*historyDBQueueOperation) {
 	ops = historyOperationQueue
 	historyOperationQueue = nil
 	return
-}
-
-func WaitForWritingHistoryDatabase() {
-	var printLog bool
-	var lastPrintLog bool
-	for i := 0; isWritingHistoryDatabase(); i++ {
-		time.Sleep(50 * time.Millisecond)
-		if 200 < i && !printLog { // 10s 后打日志
-			logging.LogWarnf("history database is writing: \n%s", logging.ShortStack())
-			printLog = true
-		}
-		if 1200 < i && !lastPrintLog { // 60s 后打日志
-			logging.LogWarnf("history database is still writing")
-			lastPrintLog = true
-		}
-	}
-}
-
-func isWritingHistoryDatabase() bool {
-	time.Sleep(util.SQLFlushInterval + 50*time.Millisecond)
-	if 0 < len(historyOperationQueue) || util.IsMutexLocked(&historyTxLock) {
-		return true
-	}
-	return false
 }

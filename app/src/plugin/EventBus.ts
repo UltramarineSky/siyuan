@@ -20,7 +20,7 @@ export class EventBus<DetailType = any> {
     }
 
     emit(type: TEventBus, detail?: DetailType) {
-        return this.eventTarget.dispatchEvent(new CustomEvent(type, {detail}));
+        return this.eventTarget.dispatchEvent(new CustomEvent(type, {detail, cancelable: true}));
     }
 }
 
@@ -37,16 +37,17 @@ export const emitOpenMenu = (options: {
     });
     if (pluginSubMenu.menus.length > 0) {
         if (options.separatorPosition === "top") {
-            window.siyuan.menus.menu.append(new MenuItem({type: "separator"}).element);
+            window.siyuan.menus.menu.append(new MenuItem({id: "separator_pluginTop", type: "separator"}).element);
         }
         window.siyuan.menus.menu.append(new MenuItem({
+            id: "plugin",
             label: window.siyuan.languages.plugin,
             icon: "iconPlugin",
             type: "submenu",
             submenu: pluginSubMenu.menus,
         }).element);
         if (options.separatorPosition === "bottom") {
-            window.siyuan.menus.menu.append(new MenuItem({type: "separator"}).element);
+            window.siyuan.menus.menu.append(new MenuItem({id: "separator_pluginBottom", type: "separator"}).element);
         }
     }
-}
+};

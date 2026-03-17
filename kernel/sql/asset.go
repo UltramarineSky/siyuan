@@ -23,7 +23,9 @@ import (
 
 	"github.com/88250/gulu"
 	"github.com/88250/lute/ast"
+	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
+	"github.com/siyuan-note/siyuan/kernel/cache"
 	"github.com/siyuan-note/siyuan/kernel/treenode"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
@@ -44,7 +46,8 @@ func docTagSpans(n *ast.Node) (ret []*Span) {
 	if tagsVal := n.IALAttr("tags"); "" != tagsVal {
 		tags := strings.Split(tagsVal, ",")
 		for _, tag := range tags {
-			markdown := "#" + tag + "#"
+			escaped := util.EscapeHTML(tag)
+			markdown := "#" + escaped + "#"
 			span := &Span{
 				ID:       ast.NewNodeID(),
 				BlockID:  n.ID,
@@ -62,26 +65,20 @@ func docTagSpans(n *ast.Node) (ret []*Span) {
 	return
 }
 
-func docTitleImgAsset(root *ast.Node) *Asset {
+func docTitleImgAsset(root *ast.Node, boxLocalPath, docDirLocalPath string) *Asset {
 	if p := treenode.GetDocTitleImgPath(root); "" != p {
-		if !util.IsAssetLinkDest([]byte(p)) {
+		if !util.IsAssetLinkDest([]byte(p), false) {
 			return nil
 		}
 
-		var hash string
-		var err error
-		absPath := filepath.Join(util.DataDir, p)
-		if hash, err = util.GetEtag(absPath); nil != err {
-			logging.LogErrorf("read asset [%s] data failed: %s", absPath, err)
-			return nil
-		}
+		hash := assetHashByLocalPath(p, boxLocalPath, docDirLocalPath)
 		name, _ := util.LastID(p)
 		asset := &Asset{
 			ID:      ast.NewNodeID(),
 			BlockID: root.ID,
 			RootID:  root.ID,
 			Box:     root.Box,
-			DocPath: p,
+			DocPath: root.Path,
 			Path:    p,
 			Name:    name,
 			Title:   "title-img",
@@ -102,7 +99,7 @@ func QueryAssetByHash(hash string) (ret *Asset) {
 	sqlStmt := "SELECT * FROM assets WHERE hash = ?"
 	row := queryRow(sqlStmt, hash)
 	var asset Asset
-	if err := row.Scan(&asset.ID, &asset.BlockID, &asset.RootID, &asset.Box, &asset.DocPath, &asset.Path, &asset.Name, &asset.Title, &asset.Hash); nil != err {
+	if err := row.Scan(&asset.ID, &asset.BlockID, &asset.RootID, &asset.Box, &asset.DocPath, &asset.Path, &asset.Name, &asset.Title, &asset.Hash); err != nil {
 		if sql.ErrNoRows != err {
 			logging.LogErrorf("query scan field failed: %s", err)
 		}
@@ -112,24 +109,9 @@ func QueryAssetByHash(hash string) (ret *Asset) {
 	return
 }
 
-func QueryRootBlockAssets(rootID string) (ret []*Asset) {
-	sqlStmt := "SELECT * FROM assets WHERE root_id = ?"
-	rows, err := query(sqlStmt, rootID)
-	if nil != err {
-		logging.LogErrorf("sql query [%s] failed: %s", sqlStmt, err)
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		asset := scanAssetRows(rows)
-		ret = append(ret, asset)
-	}
-	return
-}
-
 func scanAssetRows(rows *sql.Rows) (ret *Asset) {
 	var asset Asset
-	if err := rows.Scan(&asset.ID, &asset.BlockID, &asset.RootID, &asset.Box, &asset.DocPath, &asset.Path, &asset.Name, &asset.Title, &asset.Hash); nil != err {
+	if err := rows.Scan(&asset.ID, &asset.BlockID, &asset.RootID, &asset.Box, &asset.DocPath, &asset.Path, &asset.Name, &asset.Title, &asset.Hash); err != nil {
 		logging.LogErrorf("query scan field failed: %s", err)
 		return
 	}
@@ -137,19 +119,35 @@ func scanAssetRows(rows *sql.Rows) (ret *Asset) {
 	return
 }
 
+func assetHashByLocalPath(linkDest, boxLocalPath, docDirLocalPath string) (ret string) {
+	if lp := assetLocalPath(linkDest, boxLocalPath, docDirLocalPath); "" != lp {
+		if !gulu.File.IsDir(lp) {
+			if assetHash := cache.GetAssetHashByPath(linkDest); nil != assetHash {
+				ret = assetHash.Hash
+			} else {
+				ret, _ = util.GetEtag(lp)
+				if "" != ret {
+					cache.SetAssetHash(ret, linkDest)
+				}
+			}
+		}
+	}
+	return
+}
+
 func assetLocalPath(linkDest, boxLocalPath, docDirLocalPath string) (ret string) {
 	ret = filepath.Join(docDirLocalPath, linkDest)
-	if gulu.File.IsExist(ret) {
+	if filelock.IsExist(ret) {
 		return
 	}
 
 	ret = filepath.Join(boxLocalPath, linkDest)
-	if gulu.File.IsExist(ret) {
+	if filelock.IsExist(ret) {
 		return
 	}
 
 	ret = filepath.Join(util.DataDir, linkDest)
-	if gulu.File.IsExist(ret) {
+	if filelock.IsExist(ret) {
 		return
 	}
 	return ""

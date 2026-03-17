@@ -1,10 +1,11 @@
 {
 	"ID": "20230422103807-d46wjhs",
-	"Spec": "1",
+	"Spec": "2",
 	"Type": "NodeDocument",
 	"Properties": {
 		"id": "20230422103807-d46wjhs",
 		"title": "数据可用性保障",
+		"type": "doc",
 		"updated": "20230422120121"
 	},
 	"Children": [
@@ -246,7 +247,7 @@
 				{
 					"Type": "NodeTextMark",
 					"TextMarkType": "block-ref",
-					"TextMarkBlockRefID": "20210721103420-vn6g2yy",
+					"TextMarkBlockRefID": "20230808120347-3cob0nb",
 					"TextMarkBlockRefSubtype": "s",
 					"TextMarkTextContent": "数据同步"
 				},

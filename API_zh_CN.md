@@ -1,4 +1,4 @@
-[English](https://github.com/siyuan-note/siyuan/blob/master/API.md)
+[English](https://github.com/siyuan-note/siyuan/blob/master/API.md)| [日本語](https://github.com/siyuan-note/siyuan/blob/master/API_ja_JP.md)
 
 * [规范](#规范)
     * [参数和返回值](#参数和返回值)
@@ -19,6 +19,8 @@
     * [移动文档](#移动文档)
     * [根据路径获取人类可读路径](#根据路径获取人类可读路径)
     * [根据 ID 获取人类可读路径](#根据-ID-获取人类可读路径)
+    * [根据 ID 获取存储路径](#根据-ID-获取存储路径)
+    * [根据人类可读路径获取 IDs](#根据人类可读路径获取-IDs)
 * [资源文件](#资源文件)
     * [上传资源文件](#上传资源文件)
 * [块](#块)
@@ -28,6 +30,8 @@
     * [更新块](#更新块)
     * [删除块](#删除块)
     * [移动块](#移动块)
+    * [折叠块](#折叠块)
+    * [展开块](#展开块)
     * [获取块 kramdown 源码](#获取块-kramdown-源码)
     * [获取子块](#获取子块)
     * [转移块引用](#转移块引用)
@@ -36,6 +40,7 @@
     * [获取块属性](#获取块属性)
 * [SQL](#SQL)
     * [执行 SQL 查询](#执行-SQL-查询)
+    * [提交事务](#提交事务)
 * [模板](#模板)
     * [渲染模板](#渲染模板)
     * [渲染 Sprig](#渲染-Sprig)
@@ -47,11 +52,14 @@
     * [列出文件](#列出文件)
 * [导出](#导出)
     * [导出 Markdown 文本](#导出-markdown-文本)
+    * [导出文件与目录](#导出文件与目录)
 * [转换](#转换)
     * [Pandoc](#Pandoc)
 * [通知](#通知)
     * [推送消息](#推送消息)
     * [推送报错消息](#推送报错消息)
+* [网络](#网络)
+    * [正向代理](#正向代理)
 * [系统](#系统)
     * [获取启动进度](#获取启动进度)
     * [获取系统版本](#获取系统版本)
@@ -350,6 +358,31 @@
 
     * `notebook`：笔记本 ID
     * `path`：文档路径
+    * `title`：新标题
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+通过 `id` 重命名文档：
+
+* `/api/filetree/renameDocByID`
+* 参数
+
+  ```json
+  {
+    "id": "20210902210113-0avi12f",
+    "title": "文档新标题"
+  }
+  ```
+
+    * `id`：文档 ID
+    * `title`：新标题
 * 返回值
 
   ```json
@@ -384,6 +417,28 @@
   }
   ```
 
+通过 `id` 删除文档：
+
+* `/api/filetree/removeDocByID`
+* 参数
+
+  ```json
+  {
+    "id": "20210902210113-0avi12f"
+  }
+  ```
+
+    * `id`：文档 ID
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
 ### 移动文档
 
 * `/api/filetree/moveDocs`
@@ -400,6 +455,30 @@
     * `fromPaths`：源路径
     * `toNotebook`：目标笔记本 ID
     * `toPath`：目标路径
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+通过 `id` 移动文档：
+
+* `/api/filetree/moveDocsByID`
+* 参数
+
+  ```json
+  {
+    "fromIDs": ["20210917220056-yxtyl7i"],
+    "toID": "20210817205410-2kvfpfn"
+  }
+  ```
+
+    * `fromIDs`：源文档 ID
+    * `toID`：目标父文档 ID 或笔记本 ID
 * 返回值
 
   ```json
@@ -453,6 +532,57 @@
     "code": 0,
     "msg": "",
     "data": "/foo/bar"
+  }
+  ```
+
+### 根据 ID 获取存储路径
+
+* `/api/filetree/getPathByID`
+* 参数
+
+  ```json
+  {
+    "id": "20210808180320-fqgskfj"
+  }
+  ```
+
+    * `id`：块 ID
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+    "notebook": "20210808180117-czj9bvb",
+    "path": "/20200812220555-lj3enxa/20210808180320-fqgskfj.sy"
+    }
+  }
+  ```
+
+### 根据人类可读路径获取 IDs
+
+* `/api/filetree/getIDsByHPath`
+* 参数
+
+  ```json
+  {
+    "path": "/foo/bar",
+    "notebook": "20210808180117-czj9bvb"
+  }
+  ```
+
+    * `path`：人类可读路径
+    * `notebook`：笔记本 ID
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": [
+        "20200813004931-q4cu8na"
+    ]
   }
   ```
 
@@ -746,6 +876,50 @@
   }
   ```
 
+### 折叠块
+
+* `/api/block/foldBlock`
+* 参数
+
+  ```json
+  {
+    "id": "20231224160424-2f5680o"
+  }
+  ```
+
+    * `id`：待折叠块的 ID
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+### 展开块
+
+* `/api/block/unfoldBlock`
+* 参数
+
+  ```json
+  {
+    "id": "20231224160424-2f5680o"
+  }
+  ```
+
+    * `id`：待展开块的 ID
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
 ### 获取块 kramdown 源码
 
 * `/api/block/getBlockKramdown`
@@ -824,7 +998,7 @@
 
     * `fromID`：定义块 ID
     * `toID`：目标块 ID
-    * `refIDs`：指向定义块 ID 的引用所在块 ID，可选，如果不指定，所有指向定义块 ID 的引用块 ID 都会被转移
+    * `refIDs`：指向定义块 ID 的引用所在块 ID，可选，如果不指定，所有指向定义块 ID 的块引用 ID 都会被转移
 * 返回值
 
   ```json
@@ -916,6 +1090,22 @@
     ]
   }
   ```
+  
+注意：发布模式下除非公开所有文档读写权限，否则会禁止访问该接口，请参考[讨论](https://github.com/siyuan-note/siyuan/pull/16041#issuecomment-3912139575)。
+
+### 提交事务
+
+* `/api/sqlite/flushTransaction`
+* 不带参
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
 
 ## 模板
 
@@ -981,7 +1171,25 @@
     * `path`：工作空间路径下的文件路径
 * 返回值
 
-  文件内容
+    * 响应状态码 `200`: 文件内容
+    * 响应状态码 `202`: 异常信息
+
+      ```json
+      {
+        "code": 404,
+        "msg": "",
+        "data": null
+      }
+      ```
+
+        * `code`: 非零的异常值
+
+            * `-1`: 参数解析错误
+            * `403`: 无访问权限 (文件不在工作空间下)
+            * `404`: 未找到 (文件不存在)
+            * `405`: 方法不被允许 (这是一个目录)
+            * `500`: 服务器错误 (文件查询失败 / 文件读取失败)
+        * `msg`: 一段描述错误的文本
 
 ### 写入文件
 
@@ -1053,10 +1261,10 @@
 
   ```json
   {
-    "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy"
+    "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p"
   }
   ```
-    * `path`：工作空间路径下的文件路径
+    * `path`：工作空间路径下的文件夹路径
 * 返回值
 
   ```json
@@ -1064,14 +1272,18 @@
     "code": 0,
     "msg": "",
     "data": [
-        {
-            "isDir": true,
-            "name": "20210808180320-abz7w6k"
-        },
-        {
-            "isDir": false,
-            "name": "20210808180320-abz7w6k.sy"
-        }
+      {
+        "isDir": true,
+        "isSymlink": false,
+        "name": "20210808180303-6yi0dv5",
+        "updated": 1691467624
+      },
+      {
+        "isDir": false,
+        "isSymlink": false,
+        "name": "20210808180303-6yi0dv5.sy",
+        "updated": 1663298365
+      }
     ]
   }
   ```
@@ -1105,6 +1317,45 @@
 
     * `hPath`：人类可读的路径
     * `content`：Markdown 内容
+
+### 导出文件与目录
+
+* `/api/export/exportResources`
+* 参数
+
+  ```json
+  {
+    "paths": [
+      "/conf/appearance/boot",
+      "/conf/appearance/langs",
+      "/conf/appearance/emojis/conf.json",
+      "/conf/appearance/icons/index.html"
+    ],
+    "name": "zip-file-name"
+  }
+  ```
+
+    * `paths`：要导出的文件或文件夹路径列表，相同名称的文件/文件夹会被覆盖
+    * `name`：（可选）导出的文件名，未设置时默认为 `export-YYYY-MM-DD_hh-mm-ss.zip`
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+      "path": "temp/export/zip-file-name.zip"
+    }
+  }
+  ```
+
+    * `path`：创建的 `*.zip` 文件路径
+        * `zip-file-name.zip` 中的目录结构如下所示：
+            * `zip-file-name`
+                * `boot`
+                * `langs`
+                * `conf.json`
+                * `index.html`
 
 ## 转换
 
@@ -1196,6 +1447,80 @@
   }
   ```
     * `id`：消息 ID
+
+## 网络
+
+### 正向代理
+
+* `/api/network/forwardProxy`
+* 参数
+
+  ```json
+  {
+    "url": "https://b3log.org/siyuan/",
+    "method": "GET",
+    "timeout": 7000,
+    "contentType": "text/html",
+    "headers": [
+        {
+            "Cookie": ""
+        }
+    ],
+    "payload": {},
+    "payloadEncoding": "text",
+    "responseEncoding": "text"
+  }
+  ```
+
+    * `url`：转发的 URL
+    * `method`：HTTP 方法，默认为 `GET`
+    * `timeout`：超时时间，单位为毫秒，默认为 `7000` 毫秒
+    * `contentType`：HTTP Content-Type，默认为 `application/json`
+    * `headers`：HTTP 请求标头
+    * `payload`：HTTP 请求体，对象或者是字符串
+    * `payloadEncoding`：`pyaload` 所使用的编码方案，默认为 `text`，可选值如下所示
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
+    * `responseEncoding`：响应数据中 `body` 字段所使用的编码方案，默认为 `text`，可选值如下所示
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
+* 返回值
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+      "body": "",
+      "bodyEncoding": "text",
+      "contentType": "text/html",
+      "elapsed": 1976,
+      "headers": {
+      },
+      "status": 200,
+      "url": "https://b3log.org/siyuan"
+    }
+  }
+  ```
+
+    * `bodyEncoding`：`body` 所使用的编码方案，与请求中 `responseEncoding` 字段一致，默认为 `text`，可能的值如下所示
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
 
 ## 系统
 

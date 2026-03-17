@@ -1,11 +1,10 @@
-import {setTitle} from "../../dialog/processSystem";
 import {Constants} from "../../constants";
 import {hideElements} from "../ui/hideElements";
 import {fetchPost} from "../../util/fetch";
 import {processRender} from "./processCode";
 import {highlightRender} from "../render/highlightRender";
 import {blockRender} from "../render/blockRender";
-import {highlightById} from "../../util/highlightById";
+import {bgFade, scrollCenter} from "../../util/highlightById";
 /// #if !MOBILE
 import {pushBack} from "../../util/backForward";
 /// #endif
@@ -17,12 +16,19 @@ import {isMobile} from "../../util/functions";
 import {foldPassiveType} from "../wysiwyg/renderBacklink";
 import {showMessage} from "../../dialog/message";
 import {avRender} from "../render/av/render";
+import {hideTooltip} from "../../dialog/tooltip";
+import {stickyRow} from "../render/av/row";
+import {getContenteditableElement} from "../wysiwyg/getBlock";
+import {activeBlur} from "../../mobile/util/keyboardToolbar";
 
 export const onGet = (options: {
     data: IWebSocketData,
     protyle: IProtyle,
-    action?: string[],
+    action?: TProtyleAction[],
     scrollAttr?: IScrollAttr
+    updateReadonly?: boolean,
+    scrollPosition?: ScrollLogicalPosition,
+    afterCB?: () => void
 }) => {
     if (!options.action) {
         options.action = [];
@@ -30,10 +36,12 @@ export const onGet = (options: {
     options.protyle.wysiwyg.element.removeAttribute("data-top");
     if (options.data.code === 1) {
         // 其他报错
-        if (options.protyle.model) {
-            options.protyle.model.parent.parent.removeTab(options.protyle.model.parent.id, false, false);
-        } else {
-            options.protyle.element.innerHTML = `<div class="ft__smaller ft__secondary b3-form__space--small" contenteditable="false">${window.siyuan.languages.refExpired}</div>`;
+        if (!options.action.includes(Constants.CB_GET_APPEND)) {    // 向下加载时块可能还没有创建 https://github.com/siyuan-note/siyuan/issues/10851
+            if (options.protyle.model) {
+                options.protyle.model.parent.parent.removeTab(options.protyle.model.parent.id);
+            } else {
+                options.protyle.element.innerHTML = `<div class="ft__smaller ft__secondary b3-form__space--small" contenteditable="false">${window.siyuan.languages.refExpired}</div>`;
+            }
         }
         return;
     }
@@ -54,11 +62,11 @@ export const onGet = (options: {
             return;
         }
     }
-    hideElements(["gutter"], options.protyle);
+    hideElements(["gutterOnly"], options.protyle);
     options.protyle.block.parentID = options.data.data.parentID;
     options.protyle.block.parent2ID = options.data.data.parent2ID;
     options.protyle.block.rootID = options.data.data.rootID;
-    options.protyle.block.showAll = false;
+    options.protyle.block.showAll = options.action.includes(Constants.CB_GET_ALL);
     options.protyle.block.mode = options.data.data.mode;
     options.protyle.block.blockCount = options.data.data.blockCount;
     options.protyle.block.scroll = options.data.data.scroll;
@@ -70,14 +78,26 @@ export const onGet = (options: {
         options.protyle.wysiwyg.element.setAttribute("data-doc-type", options.data.data.type);
     }
 
-    // 防止动态加载加载过多的内容
-    if (options.action.includes(Constants.CB_GET_APPEND) || options.action.includes(Constants.CB_GET_BEFORE) || options.action.includes(Constants.CB_GET_HTML)) {
+    if (options.protyle.options.render.title && options.protyle.title.element.getAttribute("data-render") !== "true") {
+        // 文档A的大纲，关闭文档A后，点击大纲无法渲染头部
+    } else if (options.action.includes(Constants.CB_GET_APPEND) || options.action.includes(Constants.CB_GET_BEFORE) || options.action.includes(Constants.CB_GET_HTML)) {
+        if (options.protyle.options.render.title && options.protyle.options.render.hideTitleOnZoom) {
+            if (options.protyle.block.showAll) {
+                options.protyle.title.element.classList.add("fn__none");
+            } else {
+                options.protyle.title.element.classList.remove("fn__none");
+            }
+        }
+        // 防止动态加载加载过多的内容
         setHTML({
             content: options.data.data.content,
             expand: options.data.data.isBacklinkExpand,
             action: options.action,
             scrollAttr: options.scrollAttr,
+            updateReadonly: options.updateReadonly,
             isSyncing: options.data.data.isSyncing,
+            afterCB: options.afterCB,
+            scrollPosition: options.scrollPosition
         }, options.protyle);
         removeLoading(options.protyle);
         return;
@@ -89,8 +109,10 @@ export const onGet = (options: {
         if (options.protyle.options.render.title) {
             // 页签没有打开
             options.protyle.title.render(options.protyle, response);
-        } else if (options.protyle.options.render.background) {
-            options.protyle.background.render(response.data.ial, options.protyle.block.rootID);
+        } else {
+            if (options.protyle.options.render.background) {
+                options.protyle.background.render(response.data.ial, options.protyle.block.rootID);
+            }
             options.protyle.wysiwyg.renderCustom(response.data.ial);
         }
 
@@ -99,9 +121,11 @@ export const onGet = (options: {
             expand: options.data.data.isBacklinkExpand,
             action: options.action,
             scrollAttr: options.scrollAttr,
+            updateReadonly: options.updateReadonly,
             isSyncing: options.data.data.isSyncing,
+            afterCB: options.afterCB,
+            scrollPosition: options.scrollPosition
         }, options.protyle);
-        setTitle(response.data.ial.title);
         removeLoading(options.protyle);
     });
 };
@@ -111,19 +135,34 @@ const setHTML = (options: {
     action?: string[],
     isSyncing: boolean,
     expand: boolean,
-    scrollAttr?: IScrollAttr
+    updateReadonly?: boolean,
+    scrollAttr?: IScrollAttr,
+    scrollPosition?: ScrollLogicalPosition,
+    afterCB?: () => void
 }, protyle: IProtyle) => {
     if (protyle.contentElement.classList.contains("fn__none") && protyle.wysiwyg.element.innerHTML !== "") {
         return;
     }
-    protyle.block.showAll = options.action.includes(Constants.CB_GET_ALL);
+
+    // XSS in inline memo elements https://github.com/siyuan-note/siyuan/issues/15280
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(options.content, "text/html");
+    doc.querySelectorAll("[data-inline-memo-content]").forEach(item => {
+        const content = item.getAttribute("data-inline-memo-content");
+        if (content) {
+            item.setAttribute("data-inline-memo-content", window.DOMPurify.sanitize(content));
+        }
+    });
+    options.content = doc.body.innerHTML;
     const REMOVED_OVER_HEIGHT = protyle.contentElement.clientHeight * 8;
+    const updateReadonly = typeof options.updateReadonly === "undefined" ? protyle.wysiwyg.element.innerHTML === "" : options.updateReadonly;
     if (options.action.includes(Constants.CB_GET_APPEND)) {
         // 动态加载移除
         if (!protyle.wysiwyg.element.querySelector(".protyle-wysiwyg--select") && !protyle.scroll.keepLazyLoad && protyle.contentElement.scrollHeight > REMOVED_OVER_HEIGHT) {
             let removeElement = protyle.wysiwyg.element.firstElementChild as HTMLElement;
             const removeElements = [];
-            while (protyle.wysiwyg.element.childElementCount > 2 && removeElements && !protyle.wysiwyg.element.lastElementChild.isSameNode(removeElement)) {
+            while (protyle.wysiwyg.element.childElementCount > 2 && removeElements &&
+            protyle.wysiwyg.element.lastElementChild !== removeElement) {
                 if (protyle.contentElement.scrollHeight - removeElement.offsetTop > REMOVED_OVER_HEIGHT) {
                     removeElements.push(removeElement);
                 } else {
@@ -135,34 +174,64 @@ const setHTML = (options: {
             removeElements.forEach(item => {
                 item.remove();
             });
-            protyle.contentElement.scrollTop = protyle.contentElement.scrollTop + (removeElement.getBoundingClientRect().top - lastRemoveTop);
+            protyle.contentElement.scrollTop = protyle.contentElement.scrollTop + (removeElement.getBoundingClientRect().top - lastRemoveTop) - 1;
             protyle.scroll.lastScrollTop = protyle.contentElement.scrollTop;
             hideElements(["toolbar"], protyle);
         }
         protyle.wysiwyg.element.insertAdjacentHTML("beforeend", options.content);
     } else if (options.action.includes(Constants.CB_GET_BEFORE)) {
-        const lastElement = protyle.wysiwyg.element.firstElementChild as HTMLElement;
-        const lastTop = lastElement.getBoundingClientRect().top;
+        const firstElement = protyle.wysiwyg.element.firstElementChild as HTMLElement;
+        const lastTop = firstElement.getBoundingClientRect().top;
         protyle.wysiwyg.element.insertAdjacentHTML("afterbegin", options.content);
-        protyle.contentElement.scrollTop = protyle.contentElement.scrollTop + (lastElement.getBoundingClientRect().top - lastTop);
+        protyle.contentElement.scrollTop = protyle.contentElement.scrollTop + (firstElement.getBoundingClientRect().top - lastTop);
         protyle.scroll.lastScrollTop = protyle.contentElement.scrollTop;
         // 动态加载移除
         if (!protyle.wysiwyg.element.querySelector(".protyle-wysiwyg--select") && !protyle.scroll.keepLazyLoad) {
-            while (protyle.wysiwyg.element.childElementCount > 2 && protyle.contentElement.scrollHeight > REMOVED_OVER_HEIGHT &&
-            protyle.wysiwyg.element.lastElementChild.getBoundingClientRect().top > window.innerHeight) {
-                protyle.wysiwyg.element.lastElementChild.remove();
+            const removeElements: Element[] = [];
+            let childCount = protyle.wysiwyg.element.childElementCount;
+            let scrollHeight = protyle.contentElement.scrollHeight;
+            let lastElement = protyle.wysiwyg.element.lastElementChild;
+            while (childCount > 2 && scrollHeight > REMOVED_OVER_HEIGHT && lastElement.getBoundingClientRect().top > window.innerHeight) {
+                removeElements.push(lastElement);
+                lastElement = lastElement.previousElementSibling;
+                childCount--;
+                scrollHeight -= lastElement.clientHeight + 8;   // 大部分元素的 margin
             }
+            removeElements.forEach((item) => {
+                item.remove();
+            });
             hideElements(["toolbar"], protyle);
         }
     } else {
         protyle.wysiwyg.element.innerHTML = options.content;
     }
+
+    /// #if MOBILE
+    protyle.wysiwyg.element.querySelectorAll("video, audio").forEach(item => {
+        item.addEventListener("playing", () => {
+            activeBlur();
+        });
+    });
+    /// #endif
+    // https://github.com/siyuan-note/siyuan/issues/10528
+    if (!protyle.block.showAll && protyle.wysiwyg.element.childElementCount === 1 && protyle.wysiwyg.element.firstElementChild.classList.contains("p")) {
+        const editElement = getContenteditableElement(protyle.wysiwyg.element.firstElementChild);
+        if (editElement && editElement.textContent === "") {
+            editElement.classList.add("protyle-wysiwyg--empty");
+            /// #if MOBILE
+            editElement.setAttribute("placeholder", window.siyuan.languages.emptyMobilePlaceholder);
+            /// #else
+            editElement.setAttribute("placeholder", window.siyuan.languages.emptyPlaceholder);
+            /// #endif
+        }
+    }
+
     if (options.action.includes(Constants.CB_GET_BACKLINK)) {
         foldPassiveType(options.expand, protyle.wysiwyg.element);
     }
     processRender(protyle.wysiwyg.element);
     highlightRender(protyle.wysiwyg.element);
-    avRender(protyle.wysiwyg.element);
+    avRender(protyle.wysiwyg.element, protyle);
     blockRender(protyle, protyle.wysiwyg.element);
     if (options.action.includes(Constants.CB_GET_HISTORY)) {
         return;
@@ -170,87 +239,66 @@ const setHTML = (options: {
     if (protyle.options.render.scroll) {
         protyle.scroll.update(protyle);
     }
-    if (options.scrollAttr) {
-        protyle.contentElement.scrollTop = options.scrollAttr.scrollTop;
-        if (options.action.includes(Constants.CB_GET_HL)) {
-            highlightById(protyle, options.scrollAttr.focusId, true);
-        } else if (options.action.includes(Constants.CB_GET_FOCUS)) {
-            if (options.scrollAttr.focusId) {
-                const range = focusByOffset(protyle.wysiwyg.element.querySelector(`[data-node-id="${options.scrollAttr.focusId}"]`), options.scrollAttr.focusStart, options.scrollAttr.focusEnd);
-                /// #if !MOBILE
-                if (!options.action.includes(Constants.CB_GET_UNUNDO)) {
-                    pushBack(protyle, range || undefined);
-                }
-                /// #endif
-            } else {
-                focusElementById(protyle, options.action);
-            }
-        }
-        if (!protyle.scroll.element.classList.contains("fn__none")) {
-            // 使用动态滚动条定位到最后一个块，重启后无法触发滚动事件，需要再次更新 index
-            protyle.scroll.updateIndex(protyle, options.scrollAttr.startId);
-            // https://github.com/siyuan-note/siyuan/issues/8224
-            const contentRect = protyle.contentElement.getBoundingClientRect();
-            if (protyle.wysiwyg.element.clientHeight - parseInt(protyle.wysiwyg.element.style.paddingBottom) < protyle.contentElement.clientHeight &&
-                protyle.wysiwyg.element.lastElementChild.getBoundingClientRect().bottom < contentRect.bottom &&
-                protyle.wysiwyg.element.firstElementChild.getBoundingClientRect().top > contentRect.top) {
-                showMessage(window.siyuan.languages.scrollGetMore);
-            }
-        }
-    } else if (options.action.includes(Constants.CB_GET_HL)) {
-        preventScroll(protyle); // 搜索页签滚动会导致再次请求
-        const hlElement = highlightById(protyle, protyle.block.id, true);
-        /// #if !MOBILE
-        if (hlElement && !options.action.includes(Constants.CB_GET_UNUNDO)) {
-            pushBack(protyle, undefined, hlElement);
-        }
-        /// #endif
-    } else if (options.action.includes(Constants.CB_GET_FOCUS)) {
-        focusElementById(protyle, options.action);
-    } else if (options.action.includes(Constants.CB_GET_FOCUSFIRST)) {
+    if (options.action.includes(Constants.CB_GET_FOCUSFIRST)) {
         // settimeout 时间需短一点，否则定位后快速滚动无效
         const headerHeight = protyle.wysiwyg.element.offsetTop - 16;
-        preventScroll(protyle, headerHeight, 256);
+        preventScroll(protyle, headerHeight, Constants.TIMEOUT_INPUT);
         protyle.contentElement.scrollTop = headerHeight;
-        focusBlock(protyle.wysiwyg.element.firstElementChild);
-        /// #if !MOBILE
-        if (!options.action.includes(Constants.CB_GET_UNUNDO)) {
-            pushBack(protyle, undefined, protyle.wysiwyg.element.firstElementChild);
-        }
-        /// #endif
     }
     if (options.isSyncing) {
         disabledForeverProtyle(protyle);
     } else {
-        protyle.breadcrumb.element.nextElementSibling.textContent = "";
+        if (protyle.breadcrumb) {
+            protyle.breadcrumb.element.nextElementSibling.textContent = "";
+        }
         protyle.element.removeAttribute("disabled-forever");
-        if (window.siyuan.config.readonly || window.siyuan.config.editor.readOnly) {
-            disabledProtyle(protyle);
-        } else {
+        if (options.action.includes(Constants.CB_GET_OPENNEW) && window.siyuan.config.editor.readOnly && !window.siyuan.config.readonly) {
             enableProtyle(protyle);
+        } else {
+            setReadonlyByConfig(protyle, updateReadonly);
         }
     }
+
+    focusElementById(protyle, options.action, options.scrollAttr, options.scrollPosition);
+
     if (options.action.includes(Constants.CB_GET_SETID)) {
         // 点击大纲后，如果需要动态加载，在定位后，需要重置 block.id https://github.com/siyuan-note/siyuan/issues/4487
         protyle.block.id = protyle.block.rootID;
         protyle.wysiwyg.element.setAttribute("data-doc-type", "NodeDocument");
     }
-    if (protyle.options.defId) {
-        protyle.wysiwyg.element.querySelectorAll(`[data-id="${protyle.options.defId}"]`).forEach(item => {
+    protyle.options.defIds?.forEach(item => {
+        protyle.wysiwyg.element.querySelectorAll(`[data-id="${item}"]`).forEach(item => {
             item.classList.add("def--mark");
         });
-        protyle.options.defId = undefined;
+    });
+    protyle.options.defIds = [];
+    if (options.action.includes(Constants.CB_GET_APPEND) || options.action.includes(Constants.CB_GET_BEFORE)) {
+        protyle.app.plugins.forEach(item => {
+            item.eventBus.emit("loaded-protyle-dynamic", {
+                protyle,
+                position: options.action.includes(Constants.CB_GET_APPEND) ? "afterend" : "beforebegin"
+            });
+        });
+        return;
     }
-    // https://ld246.com/article/1653639418266
-    if (protyle.element.classList.contains("block__edit")) {
-        if (protyle.element.nextElementSibling || protyle.element.previousElementSibling) {
-            protyle.element.style.minHeight = Math.min(30 + protyle.wysiwyg.element.clientHeight, window.innerHeight / 3) + "px";
-        }
-        // 49 = 16（上图标）+16（下图标）+8（padding）+9（底部距离）
-        protyle.scroll.element.parentElement.setAttribute("style", `--b3-dynamicscroll-width:${Math.min(protyle.contentElement.clientHeight - 49, 200)}px;${isMobile() ? "" : "right:10px"}`);
+
+    /// #if MOBILE
+    if (!protyle.disabled && !options.action.includes(Constants.CB_GET_ALL) && protyle.background) {
+        protyle.background.element.classList.add("protyle-background--mobileshow");
     }
+    /// #endif
+
+    if (protyle.options.render.breadcrumb) {
+        protyle.breadcrumb.toggleExit(!options.action.includes(Constants.CB_GET_ALL));
+        protyle.breadcrumb.render(protyle);
+    }
+    if (options.afterCB) {
+        options.afterCB();
+    }
+    // 需等待 afterCB 执行后 resize 计算出高度后再进行计算
     // 屏幕太高的页签 https://github.com/siyuan-note/siyuan/issues/5018
-    if (!protyle.scroll.element.classList.contains("fn__none") &&
+    if (options.scrollAttr && !protyle.scroll.element.classList.contains("fn__none") &&
+        !protyle.element.classList.contains("block__edit") &&   // 不能为浮窗，否则悬浮为根文档无法打开整个文档 https://github.com/siyuan-note/siyuan/issues/9082
         protyle.wysiwyg.element.lastElementChild.getAttribute("data-eof") !== "2" &&
         protyle.contentElement.scrollHeight > 0 && // 没有激活的页签 https://github.com/siyuan-note/siyuan/issues/5255
         !options.action.includes(Constants.CB_GET_FOCUSFIRST) && // 防止 eof 为true https://github.com/siyuan-note/siyuan/issues/5291
@@ -263,14 +311,19 @@ const setHTML = (options: {
             onGet({data: getResponse, protyle, action: [Constants.CB_GET_APPEND, Constants.CB_GET_UNCHANGEID]});
         });
     }
-    if (options.action.includes(Constants.CB_GET_APPEND) || options.action.includes(Constants.CB_GET_BEFORE)) {
-        return;
-    }
-    if (protyle.options.render.breadcrumb) {
-        protyle.breadcrumb.render(protyle);
+    if (options.scrollAttr && !protyle.scroll.element.classList.contains("fn__none") && !protyle.element.classList.contains("fn__none")) {
+        // 使用动态滚动条定位到最后一个块，重启后无法触发滚动事件，需要再次更新 index
+        protyle.scroll.updateIndex(protyle, options.scrollAttr.startId, (index) => {
+            // https://github.com/siyuan-note/siyuan/issues/8224
+            // https://github.com/siyuan-note/siyuan/issues/10716
+            if (index > 1 && protyle.block.blockCount > 1 && protyle.contentElement.scrollHeight <= protyle.contentElement.clientHeight) {
+                showMessage(window.siyuan.languages.scrollGetMore);
+            }
+        });
+
     }
     protyle.app.plugins.forEach(item => {
-        item.eventBus.emit("loaded-protyle", protyle);
+        item.eventBus.emit("loaded-protyle-static", {protyle});
     });
 };
 
@@ -289,11 +342,13 @@ export const disabledProtyle = (protyle: IProtyle) => {
     window.siyuan.menus.menu.remove();
     hideElements(["gutter", "toolbar", "select", "hint", "util"], protyle);
     protyle.disabled = true;
-    if (protyle.title) {
-        const titleElement = protyle.title.element.querySelector(".protyle-title__input") as HTMLElement;
-        titleElement.setAttribute("contenteditable", "false");
-        titleElement.style.userSelect = "text";
+    if (protyle.title && protyle.title.editElement) {
+        protyle.title.editElement.setAttribute("contenteditable", "false");
+        protyle.title.editElement.style.userSelect = "text";
     }
+    /// #if MOBILE
+    document.getElementById("toolbarName").setAttribute("readonly", "readonly");
+    /// #endif
     if (protyle.background) {
         protyle.background.element.classList.remove("protyle-background--enable");
         protyle.background.element.classList.remove("protyle-background--mobileshow");
@@ -301,11 +356,39 @@ export const disabledProtyle = (protyle: IProtyle) => {
     protyle.wysiwyg.element.querySelectorAll(".protyle-icons--show").forEach(item => {
         item.classList.remove("protyle-icons--show");
     });
+    protyle.wysiwyg.element.querySelectorAll(".av__gallery-fields--edit").forEach(item => {
+        item.classList.remove("av__gallery-fields--edit");
+    });
+    protyle.wysiwyg.element.querySelectorAll(".render-node .protyle-action__edit").forEach(item => {
+        item.classList.add("fn__none");
+        if (item.classList.contains("protyle-icon--first")) {
+            item.nextElementSibling?.classList.add("protyle-icon--first");
+        }
+    });
     protyle.wysiwyg.element.style.userSelect = "text";
     protyle.wysiwyg.element.setAttribute("contenteditable", "false");
+    // 用于区分移动端样式
+    protyle.wysiwyg.element.setAttribute("data-readonly", "true");
     protyle.wysiwyg.element.querySelectorAll('[contenteditable="true"][spellcheck]').forEach(item => {
         item.setAttribute("contenteditable", "false");
     });
+    protyle.wysiwyg.element.querySelectorAll('.protyle-action[draggable="true"]').forEach(item => {
+        item.setAttribute("draggable", "false");
+    });
+    if (protyle.breadcrumb) {
+        const readonlyButton = protyle.breadcrumb.element.parentElement.querySelector('[data-type="readonly"]');
+        readonlyButton.querySelector("use").setAttribute("xlink:href", "#iconLock");
+        readonlyButton.setAttribute("aria-label", window.siyuan.config.editor.readOnly ? window.siyuan.languages.tempUnlock : window.siyuan.languages.unlockEdit);
+        readonlyButton.setAttribute("data-subtype", "lock");
+        const undoElement = protyle.breadcrumb.element.parentElement.querySelector('[data-type="undo"]');
+        if (undoElement && !undoElement.classList.contains("fn__none")) {
+            undoElement.classList.add("fn__none");
+            protyle.breadcrumb.element.parentElement.querySelector('[data-type="redo"]').classList.add("fn__none");
+            protyle.breadcrumb.element.parentElement.querySelector('[data-type="indent"]').classList.add("fn__none");
+            protyle.breadcrumb.element.parentElement.querySelector('[data-type="outdent"]').classList.add("fn__none");
+        }
+    }
+    hideTooltip();
 };
 
 /** 解除编辑器禁用 */
@@ -314,58 +397,149 @@ export const enableProtyle = (protyle: IProtyle) => {
         return;
     }
     protyle.disabled = false;
-    if (navigator && navigator.maxTouchPoints > 1 && ["MacIntel", "iPhone"].includes(navigator.platform)) {
+    if (isMobile()) {
+        // Android 端空块输入法弹出会收起 https://ld246.com/article/1689713888289
         // iPhone，iPad 端 protyle.wysiwyg.element contenteditable 为 true 时，输入会在块中间插入 span 导致保存失败 https://ld246.com/article/1643473862873/comment/1643813765839#comments
+        document.getElementById("toolbarName").removeAttribute("readonly");
     } else {
         protyle.wysiwyg.element.setAttribute("contenteditable", "true");
         protyle.wysiwyg.element.style.userSelect = "";
     }
-    if (protyle.title) {
-        const titleElement = protyle.title.element.querySelector(".protyle-title__input") as HTMLElement;
-        titleElement.setAttribute("contenteditable", "true");
-        titleElement.style.userSelect = "";
+    // 用于区分移动端样式
+    protyle.wysiwyg.element.setAttribute("data-readonly", "false");
+    if (protyle.title && protyle.title.editElement) {
+        protyle.title.editElement.setAttribute("contenteditable", "true");
+        protyle.title.editElement.style.userSelect = "";
     }
     if (protyle.background) {
         protyle.background.element.classList.add("protyle-background--enable");
     }
+
+    protyle.wysiwyg.element.querySelectorAll(".render-node .protyle-action__edit").forEach(item => {
+        item.classList.remove("fn__none");
+        if (item.classList.contains("protyle-icon--first")) {
+            item.nextElementSibling?.classList.remove("protyle-icon--first");
+        }
+    });
     protyle.wysiwyg.element.querySelectorAll('[contenteditable="false"][spellcheck]').forEach(item => {
         if (!hasClosestByClassName(item, "protyle-wysiwyg__embed")) {
             item.setAttribute("contenteditable", "true");
         }
     });
-};
-
-
-const focusElementById = (protyle: IProtyle, action: string[]) => {
-    let focusElement: Element;
-    Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${protyle.block.id}"]`)).find((item: HTMLElement) => {
-        if (!hasClosestByAttribute(item, "data-type", "block-render", true)) {
-            focusElement = item;
-            return true;
+    protyle.wysiwyg.element.querySelectorAll('.protyle-action[draggable="false"]').forEach(item => {
+        item.setAttribute("draggable", "true");
+    });
+    const contentRect = protyle.contentElement.getBoundingClientRect();
+    protyle.wysiwyg.element.querySelectorAll(".av").forEach((item: HTMLElement) => {
+        if (item.querySelector(".av__scroll")) {
+            stickyRow(item, contentRect, "all");
         }
     });
+    if (protyle.breadcrumb) {
+        const readonlyButton = protyle.breadcrumb.element.parentElement.querySelector('[data-type="readonly"]');
+        readonlyButton.querySelector("use").setAttribute("xlink:href", "#iconUnlock");
+        readonlyButton.setAttribute("aria-label", window.siyuan.config.editor.readOnly ? window.siyuan.languages.cancelTempUnlock : window.siyuan.languages.lockEdit);
+        readonlyButton.setAttribute("data-subtype", "unlock");
+        const undoElement = protyle.breadcrumb.element.parentElement.querySelector('[data-type="undo"]');
+        if (undoElement && undoElement.classList.contains("fn__none")) {
+            undoElement.classList.remove("fn__none");
+            protyle.breadcrumb.element.parentElement.querySelector('[data-type="redo"]').classList.remove("fn__none");
+            protyle.breadcrumb.element.parentElement.querySelector('[data-type="indent"]').classList.remove("fn__none");
+            protyle.breadcrumb.element.parentElement.querySelector('[data-type="outdent"]').classList.remove("fn__none");
+        }
+    }
+    hideTooltip();
+};
+
+const focusElementById = (protyle: IProtyle, action: string[], scrollAttr?: IScrollAttr, scrollPosition?: ScrollLogicalPosition) => {
+    let focusElement: Element;
+    if (scrollAttr && scrollAttr.focusId) {
+        focusElement = protyle.wysiwyg.element.querySelector(`[data-node-id="${scrollAttr.focusId}"]`);
+    } else {
+        Array.from(protyle.wysiwyg.element.querySelectorAll(`[data-node-id="${protyle.block.id}"]`)).find((item: HTMLElement) => {
+            if (!hasClosestByAttribute(item, "data-type", "block-render", true)) {
+                focusElement = item;
+                return true;
+            }
+        });
+    }
+    if (!focusElement && protyle.block.id === protyle.block.rootID && protyle.title?.editElement) {
+        focusElement = protyle.title.editElement;
+    }
     if (protyle.block.mode === 4) {
         preventScroll(protyle);
         focusElement = protyle.wysiwyg.element.lastElementChild;
+    } else if (!focusElement || action.includes(Constants.CB_GET_FOCUSFIRST)) {
+        focusElement = protyle.wysiwyg.element.firstElementChild;
     }
-    if (focusElement && !protyle.wysiwyg.element.firstElementChild.isSameNode(focusElement)) {
-        focusBlock(focusElement);
-        /// #if !MOBILE
-        if (!action.includes(Constants.CB_GET_UNUNDO)) {
-            pushBack(protyle, undefined, focusElement);
-        }
-        /// #endif
-        focusElement.scrollIntoView();
-        // 减少抖动 https://ld246.com/article/1654263598088
+    if (action.includes(Constants.CB_GET_HL)) {
+        preventScroll(protyle); // 搜索页签滚动会导致再次请求
+        bgFade(focusElement);
+    }
+    if (action.includes(Constants.CB_GET_FOCUS) || action.includes(Constants.CB_GET_FOCUSFIRST)) {
         setTimeout(() => {
-            focusElement.scrollIntoView();
-        }, Constants.TIMEOUT_LOAD);
-    } else {
-        focusBlock(protyle.wysiwyg.element.firstElementChild);
-        /// #if !MOBILE
-        if (!action.includes(Constants.CB_GET_UNUNDO)) {
-            pushBack(protyle, undefined, protyle.wysiwyg.element.firstElementChild);
+            let range: Range;
+            if (scrollAttr && scrollAttr.focusId) {
+                range = focusByOffset(focusElement, scrollAttr.focusStart, scrollAttr.focusEnd) as Range;
+            } else {
+                range = focusBlock(focusElement, undefined, !action.includes(Constants.CB_GET_OUTLINE)) as Range;
+            }
+            /// #if !MOBILE
+            if (!action.includes(Constants.CB_GET_UNUNDO)) {
+                pushBack(protyle, range, focusElement);
+            }
+            /// #endif
+        }, focusElement.getAttribute("data-type") === "NodeCodeBlock" ? Constants.TIMEOUT_TRANSITION : 0);
+    }
+    const hasScrollTop = scrollAttr && typeof scrollAttr.scrollTop === "number";
+    if (hasScrollTop) {
+        protyle.contentElement.scrollTop = scrollAttr.scrollTop;
+    }
+    // 下一个请求过来前需断开，否则 observerLoad 重新赋值后无法 disconnect https://ld246.com/article/1704612002446
+    protyle.observerLoad?.disconnect();
+    if (action.includes(Constants.CB_GET_FOCUS) || action.includes(Constants.CB_GET_SCROLL) || action.includes(Constants.CB_GET_HL) || action.includes(Constants.CB_GET_FOCUSFIRST)) {
+        if (!hasScrollTop) {
+            scrollCenter(protyle, focusElement, scrollPosition);
         }
-        /// #endif
+    } else {
+        return;
+    }
+    // 加强定位
+    protyle.observerLoad = new ResizeObserver(() => {
+        if (hasScrollTop) {
+            protyle.contentElement.scrollTop = scrollAttr.scrollTop;
+        }
+        if (action.includes(Constants.CB_GET_FOCUS) || action.includes(Constants.CB_GET_HL) || action.includes(Constants.CB_GET_FOCUSFIRST)) {
+            if (!hasScrollTop) {
+                scrollCenter(protyle, focusElement, scrollPosition);
+            }
+        }
+    });
+    protyle.observerLoad.observe(protyle.wysiwyg.element);
+    protyle.observer.unobserve(protyle.wysiwyg.element);
+    setTimeout(() => {
+        protyle.observerLoad.disconnect();
+        protyle.observer.observe(protyle.wysiwyg.element);
+    }, 1000 * 3);
+
+    if (focusElement === protyle.wysiwyg.element.firstElementChild && !hasScrollTop) {
+        protyle.observerLoad.disconnect();
+    }
+};
+
+export const setReadonlyByConfig = (protyle: IProtyle, updateReadonly: boolean) => {
+    let readOnly = window.siyuan.config.readonly ? "true" : "false";
+    if (!updateReadonly) {
+        readOnly = protyle.disabled ? "true" : "false";
+    } else if (readOnly === "false") {
+        readOnly = window.siyuan.config.editor.readOnly ? "true" : "false";
+        if (readOnly === "false") {
+            readOnly = protyle.wysiwyg.element.getAttribute(Constants.CUSTOM_SY_READONLY);
+        }
+    }
+    if (readOnly === "true") {
+        disabledProtyle(protyle);
+    } else {
+        enableProtyle(protyle);
     }
 };

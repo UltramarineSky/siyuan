@@ -1,4 +1,4 @@
-[中文](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)
+[中文](https://github.com/siyuan-note/siyuan/blob/master/API_zh_CN.md)| [日本語](https://github.com/siyuan-note/siyuan/blob/master/API_ja_JP.md)
 
 * [Specification](#Specification)
     * [Parameters and return values](#Parameters-and-return-values)
@@ -19,6 +19,8 @@
     * [Move documents](#Move-documents)
     * [Get human-readable path based on path](#Get-human-readable-path-based-on-path)
     * [Get human-readable path based on ID](#Get-human-readable-path-based-on-ID)
+    * [Get storage path based on ID](#Get-storage-path-based-on-ID)
+    * [Get IDs based on human-readable path](#Get-IDs-based-on-human-readable-path)
 * [Assets](#Assets)
     * [Upload assets](#Upload-assets)
 * [Blocks](#Blocks)
@@ -28,6 +30,8 @@
     * [Update a block](#Update-a-block)
     * [Delete a block](#Delete-a-block)
     * [Move a block](#Move-a-block)
+    * [Fold a block](#Fold-a-block)
+    * [Unfold a block](#Unfold-a-block)
     * [Get a block kramdown](#Get-a-block-kramdown)
     * [Get child blocks](#get-child-blocks)
     * [Transfer block ref](#transfer-block-ref)
@@ -36,6 +40,7 @@
     * [Get block attributes](#Get-block-attributes)
 * [SQL](#SQL)
     * [Execute SQL query](#Execute-SQL-query)
+    * [Flush transaction](#Flush-transaction)
 * [Templates](#Templates)
     * [Render a template](#Render-a-template)
     * [Render Sprig](#Render-Sprig)
@@ -47,11 +52,14 @@
     * [List files](#List-files)
 * [Export](#Export)
     * [Export Markdown](#Export-Markdown)
+    * [Export Files and Folders](#Export-files-and-folders)
 * [Conversion](#Conversion)
     * [Pandoc](#Pandoc)
 * [Notification](#Notification)
     * [Push message](#Push-message)
     * [Push error message](#Push-error-message)
+* [Network](#Network)
+    * [Forward proxy](#Forward-proxy)
 * [System](#System)
     * [Get boot progress](#Get-boot-progress)
     * [Get system version](#Get-system-version)
@@ -346,12 +354,37 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   {
     "notebook": "20210831090520-7dvbdv0",
     "path": "/20210902210113-0avi12f.sy",
-    "title": "Document new title"
+    "title": "New document title"
   }
   ```
 
     * `notebook`: Notebook ID
     * `path`: Document path
+    * `title`: New document title
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+Rename a document by `id`:
+
+* `/api/filetree/renameDocByID`
+* Parameters
+
+  ```json
+  {
+    "id": "20210902210113-0avi12f",
+    "title": "New document title"
+  }
+  ```
+
+    * `id`: Document ID
+    * `title`: New document title
 * Return value
 
   ```json
@@ -376,6 +409,28 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
 
     * `notebook`: Notebook ID
     * `path`: Document path
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+Remove a document by `id`:
+
+* `/api/filetree/removeDocByID`
+* Parameters
+
+  ```json
+  {
+    "id": "20210902210113-0avi12f"
+  }
+  ```
+
+    * `id`: Document ID
 * Return value
 
   ```json
@@ -412,7 +467,31 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
-### Get human readable path based on path
+Move documents by `id`:
+
+* `/api/filetree/moveDocsByID`
+* Parameters
+
+  ```json
+  {
+    "fromIDs": ["20210917220056-yxtyl7i"],
+    "toID": "20210817205410-2kvfpfn"
+  }
+  ```
+
+    * `fromIDs`: Source docs' IDs
+    * `toID`: Target parent doc's ID or notebook ID
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+### Get human-readable path based on path
 
 * `/api/filetree/getHPathByPath`
 * Parameters
@@ -436,7 +515,7 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
-### Get human readable path based on ID
+### Get human-readable path based on ID
 
 * `/api/filetree/getHPathByID`
 * Parameters
@@ -458,6 +537,57 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
+### Get storage path based on ID
+
+* `/api/filetree/getPathByID`
+* Parameters
+
+  ```json
+  {
+    "id": "20210808180320-fqgskfj"
+  }
+  ```
+
+    * `id`: Block ID
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+    "notebook": "20210808180117-czj9bvb",
+    "path": "/20200812220555-lj3enxa/20210808180320-fqgskfj.sy"
+    }
+  }
+  ```
+
+### Get IDs based on human-readable path
+
+* `/api/filetree/getIDsByHPath`
+* Parameters
+
+  ```json
+  {
+    "path": "/foo/bar",
+    "notebook": "20210808180117-czj9bvb"
+  }
+  ```
+
+    * `path`: Human-readable path
+    * `notebook`: Notebook ID
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": [
+        "20200813004931-q4cu8na"
+    ]
+  }
+  ```
+
 ## Assets
 
 ### Upload assets
@@ -469,9 +599,8 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
         * `"/assets/"`: workspace/data/assets/ folder
         * `"/assets/sub/"`: workspace/data/assets/sub/ folder
 
-      Under normal circumstances, it is recommended to use the first method, which is stored in the assets folder
-      of the workspace, putting in a subdirectory has some side effects, please refer to the assets chapter of the user
-      guide.
+      Under normal circumstances, it is recommended to use the first method, which is stored in the assets folder of the
+      workspace, putting in a subdirectory has some side effects, please refer to the assets chapter of the user guide.
     * `file[]`: Uploaded file list
 * Return value
 
@@ -516,8 +645,8 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
     * `previousID`: The ID of the previous block, used to anchor the insertion position
     * `parentID`: The ID of the parent block, used to anchor the insertion position
 
-  `nextID`, `previousID`, and `parentID` must have at least one value, using
-  priority: `nextID` > `previousID` > `parentID`
+  `nextID`, `previousID`, and `parentID` must have at least one value, using priority: `nextID` > `previousID` >
+  `parentID`
 * Return value
 
   ```json
@@ -754,6 +883,50 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
+### Fold a block
+
+* `/api/block/foldBlock`
+* Parameters
+
+  ```json
+  {
+    "id": "20231224160424-2f5680o"
+  }
+  ```
+
+    * `id`: Block ID to fold
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
+### Unfold a block
+
+* `/api/block/unfoldBlock`
+* Parameters
+
+  ```json
+  {
+    "id": "20231224160424-2f5680o"
+  }
+  ```
+
+    * `id`: Block ID to unfold
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
 ### Get a block kramdown
 
 * `/api/block/getBlockKramdown`
@@ -925,6 +1098,22 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
 
+Note: In publish mode, access to this interface will be prohibited unless all document read and write permissions are made public. Please refer to the [discussion](https://github.com/siyuan-note/siyuan/pull/16041#issuecomment-3912139575).
+
+### Flush transaction
+
+* `/api/sqlite/flushTransaction`
+* No parameters
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": null
+  }
+  ```
+
 ## Templates
 
 ### Render a template
@@ -989,7 +1178,25 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
     * `path`: the file path under the workspace path
 * Return value
 
-  File content
+    * Response status code `200`: File content
+    * Response status code `202`: Exception information
+
+      ```json
+      {
+        "code": 404,
+        "msg": "",
+        "data": null
+      }
+      ```
+
+        * `code`: non-zero for exceptions
+
+            * `-1`: Parameter parsing error
+            * `403`: Permission denied (file is not in the workspace)
+            * `404`: Not Found (file doesn't exist)
+            * `405`: Method Not Allowed (it's a directory)
+            * `500`: Server Error (stat file failed / read file failed)
+        * `msg`: a piece of text describing the error
 
 ### Put file
 
@@ -1061,10 +1268,10 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
 
   ```json
   {
-    "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p.sy"
+    "path": "/data/20210808180117-6v0mkxr/20200923234011-ieuun1p"
   }
   ```
-    * `path`: the file path under the workspace path
+    * `path`: the dir path under the workspace path
 * Return value
 
   ```json
@@ -1072,14 +1279,18 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
     "code": 0,
     "msg": "",
     "data": [
-        {
-            "isDir": true,
-            "name": "20210808180320-abz7w6k"
-        },
-        {
-            "isDir": false,
-            "name": "20210808180320-abz7w6k.sy"
-        }
+      {
+        "isDir": true,
+        "isSymlink": false,
+        "name": "20210808180303-6yi0dv5",
+        "updated": 1691467624
+      },
+      {
+        "isDir": false,
+        "isSymlink": false,
+        "name": "20210808180303-6yi0dv5.sy",
+        "updated": 1663298365
+      }
     ]
   }
   ```
@@ -1113,6 +1324,45 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
 
     * `hPath`: human-readable path
     * `content`: Markdown content
+
+### Export files and folders
+
+* `/api/export/exportResources`
+* Parameters
+
+  ```json
+  {
+    "paths": [
+      "/conf/appearance/boot",
+      "/conf/appearance/langs",
+      "/conf/appearance/emojis/conf.json",
+      "/conf/appearance/icons/index.html"
+    ],
+    "name": "zip-file-name"
+  }
+  ```
+
+    * `paths`: A list of file or folder paths to be exported, the same filename/folder name will be overwritten
+    * `name`: (Optional) The exported file name, which defaults to `export-YYYY-MM-DD_hh-mm-ss.zip` when not set
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+      "path": "temp/export/zip-file-name.zip"
+    }
+  }
+  ```
+
+    * `path`: The path of `*.zip` file created
+        * The directory structure in `zip-file-name.zip` is as follows:
+            * `zip-file-name`
+                * `boot`
+                * `langs`
+                * `conf.json`
+                * `index.html`
 
 ## Conversion
 
@@ -1206,6 +1456,82 @@ View API token in <kbd>Settings - About</kbd>, request header: `Authorization: T
   }
   ```
     * `id`: Message ID
+
+## Network
+
+### Forward proxy
+
+* `/api/network/forwardProxy`
+* Parameters
+
+  ```json
+  {
+    "url": "https://b3log.org/siyuan/",
+    "method": "GET",
+    "timeout": 7000,
+    "contentType": "text/html",
+    "headers": [
+        {
+            "Cookie": ""
+        }
+    ],
+    "payload": {},
+    "payloadEncoding": "text",
+    "responseEncoding": "text"
+  }
+  ```
+
+    * `url`: URL to forward
+    * `method`: HTTP method, default is `POST`
+    * `timeout`: timeout in milliseconds, default is `7000`
+    * `contentType`: Content-Type, default is `application/json`
+    * `headers`: HTTP headers
+    * `payload`: HTTP payload, object or string
+    * `payloadEncoding`: The encoding scheme used by `pyaload`, default is `text`, optional values are as follows
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
+    * `responseEncoding`: The encoding scheme used by `body` in response data, default is `text`, optional values are as
+      follows
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
+* Return value
+
+  ```json
+  {
+    "code": 0,
+    "msg": "",
+    "data": {
+      "body": "",
+      "bodyEncoding": "text",
+      "contentType": "text/html",
+      "elapsed": 1976,
+      "headers": {
+      },
+      "status": 200,
+      "url": "https://b3log.org/siyuan"
+    }
+  }
+  ```
+
+    * `bodyEncoding`: The encoding scheme used by `body`, is consistent with field `responseEncoding` in request,
+      default is `text`, optional values are as follows
+
+        * `text`
+        * `base64` | `base64-std`
+        * `base64-url`
+        * `base32` | `base32-std`
+        * `base32-hex`
+        * `hex`
 
 ## System
 

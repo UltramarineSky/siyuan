@@ -25,18 +25,24 @@ import (
 )
 
 type Search struct {
-	Document   bool `json:"document"`
-	Heading    bool `json:"heading"`
-	List       bool `json:"list"`
-	ListItem   bool `json:"listItem"`
-	CodeBlock  bool `json:"codeBlock"`
-	MathBlock  bool `json:"mathBlock"`
-	Table      bool `json:"table"`
-	Blockquote bool `json:"blockquote"`
-	SuperBlock bool `json:"superBlock"`
-	Paragraph  bool `json:"paragraph"`
-	HTMLBlock  bool `json:"htmlBlock"`
-	EmbedBlock bool `json:"embedBlock"`
+	Document      bool `json:"document"`
+	Heading       bool `json:"heading"`
+	List          bool `json:"list"`
+	ListItem      bool `json:"listItem"`
+	CodeBlock     bool `json:"codeBlock"`
+	MathBlock     bool `json:"mathBlock"`
+	Table         bool `json:"table"`
+	Blockquote    bool `json:"blockquote"`
+	SuperBlock    bool `json:"superBlock"`
+	Paragraph     bool `json:"paragraph"`
+	HTMLBlock     bool `json:"htmlBlock"`
+	EmbedBlock    bool `json:"embedBlock"`
+	DatabaseBlock bool `json:"databaseBlock"`
+	AudioBlock    bool `json:"audioBlock"`
+	VideoBlock    bool `json:"videoBlock"`
+	IFrameBlock   bool `json:"iframeBlock"`
+	WidgetBlock   bool `json:"widgetBlock"`
+	Callout       bool `json:"callout"`
 
 	Limit         int  `json:"limit"`
 	CaseSensitive bool `json:"caseSensitive"`
@@ -62,21 +68,27 @@ type Search struct {
 
 func NewSearch() *Search {
 	return &Search{
-		Document:   true,
-		Heading:    true,
-		List:       true,
-		ListItem:   true,
-		CodeBlock:  true,
-		MathBlock:  true,
-		Table:      true,
-		Blockquote: true,
-		SuperBlock: true,
-		Paragraph:  true,
-		HTMLBlock:  true,
-		EmbedBlock: false,
+		Document:      true,
+		Heading:       true,
+		List:          false,
+		ListItem:      false,
+		CodeBlock:     true,
+		MathBlock:     true,
+		Table:         true,
+		Blockquote:    false,
+		SuperBlock:    false,
+		Paragraph:     true,
+		HTMLBlock:     true,
+		EmbedBlock:    false,
+		DatabaseBlock: true,
+		AudioBlock:    false,
+		VideoBlock:    false,
+		IFrameBlock:   false,
+		WidgetBlock:   false,
+		Callout:       false,
 
 		Limit:         64,
-		CaseSensitive: true,
+		CaseSensitive: false,
 
 		Name:  true,
 		Alias: true,
@@ -187,10 +199,42 @@ func (s *Search) TypeFilter() string {
 		buf.WriteByte('\'')
 		buf.WriteString(",")
 	}
-	// 无法搜索到 iframe 块、视频块和音频块 https://github.com/siyuan-note/siyuan/issues/3604
-	buf.WriteString("'iframe','video','audio',")
-	// 挂件块支持内置属性搜索 https://github.com/siyuan-note/siyuan/issues/4497
-	buf.WriteString("'widget',")
+	if s.DatabaseBlock {
+		buf.WriteByte('\'')
+		buf.WriteString(treenode.TypeAbbr(ast.NodeAttributeView.String()))
+		buf.WriteByte('\'')
+		buf.WriteString(",")
+	}
+	if s.AudioBlock {
+		buf.WriteByte('\'')
+		buf.WriteString(treenode.TypeAbbr(ast.NodeAudio.String()))
+		buf.WriteByte('\'')
+		buf.WriteString(",")
+	}
+	if s.VideoBlock {
+		buf.WriteByte('\'')
+		buf.WriteString(treenode.TypeAbbr(ast.NodeVideo.String()))
+		buf.WriteByte('\'')
+		buf.WriteString(",")
+	}
+	if s.IFrameBlock {
+		buf.WriteByte('\'')
+		buf.WriteString(treenode.TypeAbbr(ast.NodeIFrame.String()))
+		buf.WriteByte('\'')
+		buf.WriteString(",")
+	}
+	if s.WidgetBlock {
+		buf.WriteByte('\'')
+		buf.WriteString(treenode.TypeAbbr(ast.NodeWidget.String()))
+		buf.WriteByte('\'')
+		buf.WriteString(",")
+	}
+	if s.Callout {
+		buf.WriteByte('\'')
+		buf.WriteString(treenode.TypeAbbr(ast.NodeCallout.String()))
+		buf.WriteByte('\'')
+		buf.WriteString(",")
+	}
 
 	ret := buf.String()
 	if "" == ret {

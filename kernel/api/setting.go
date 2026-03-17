@@ -25,9 +25,113 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siyuan-note/siyuan/kernel/conf"
 	"github.com/siyuan-note/siyuan/kernel/model"
+	"github.com/siyuan-note/siyuan/kernel/server/proxy"
 	"github.com/siyuan-note/siyuan/kernel/sql"
 	"github.com/siyuan-note/siyuan/kernel/util"
 )
+
+func setEditorReadOnly(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	readOnly := arg["readonly"].(bool)
+
+	oldReadOnly := model.Conf.Editor.ReadOnly
+	model.Conf.Editor.ReadOnly = readOnly
+	model.Conf.Save()
+
+	if oldReadOnly != model.Conf.Editor.ReadOnly {
+		util.BroadcastByType("protyle", "readonly", 0, "", model.Conf.Editor.ReadOnly)
+		util.BroadcastByType("main", "readonly", 0, "", model.Conf.Editor.ReadOnly)
+	}
+}
+
+func setConfSnippet(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	param, err := gulu.JSON.MarshalJSON(arg)
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+
+	snippet := &conf.Snpt{}
+	if err = gulu.JSON.UnmarshalJSON(param, snippet); err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+
+	model.Conf.Snippet = snippet
+	model.Conf.Save()
+
+	ret.Data = snippet
+	model.PushReloadSnippet(snippet)
+}
+
+func addVirtualBlockRefExclude(c *gin.Context) {
+	// Add internal kernel API `/api/setting/addVirtualBlockRefExclude` https://github.com/siyuan-note/siyuan/issues/9909
+
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	keywordsArg := arg["keywords"]
+	var keywords []string
+	for _, k := range keywordsArg.([]interface{}) {
+		keywords = append(keywords, k.(string))
+	}
+
+	model.AddVirtualBlockRefExclude(keywords)
+	util.BroadcastByType("main", "setConf", 0, "", model.Conf)
+}
+
+func addVirtualBlockRefInclude(c *gin.Context) {
+	// Add internal kernel API `/api/setting/addVirtualBlockRefInclude` https://github.com/siyuan-note/siyuan/issues/9909
+
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	keywordsArg := arg["keywords"]
+	var keywords []string
+	for _, k := range keywordsArg.([]interface{}) {
+		keywords = append(keywords, k.(string))
+	}
+
+	model.AddVirtualBlockRefInclude(keywords)
+	util.BroadcastByType("main", "setConf", 0, "", model.Conf)
+}
+
+func refreshVirtualBlockRef(c *gin.Context) {
+	// Add internal kernel API `/api/setting/refreshVirtualBlockRef` https://github.com/siyuan-note/siyuan/issues/9829
+
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	model.ResetVirtualBlockRefCache()
+	util.BroadcastByType("main", "setConf", 0, "", model.Conf)
+}
 
 func setBazaar(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
@@ -39,14 +143,14 @@ func setBazaar(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	bazaar := &conf.Bazaar{}
-	if err = gulu.JSON.UnmarshalJSON(param, bazaar); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, bazaar); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -68,14 +172,14 @@ func setAI(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	ai := &conf.AI{}
-	if err = gulu.JSON.UnmarshalJSON(param, ai); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, ai); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -91,8 +195,13 @@ func setAI(c *gin.Context) {
 	if 0 > ai.OpenAI.APIMaxTokens {
 		ai.OpenAI.APIMaxTokens = 0
 	}
-	if 4096 < ai.OpenAI.APIMaxTokens {
-		ai.OpenAI.APIMaxTokens = 4096
+
+	if 0 >= ai.OpenAI.APITemperature || 2 < ai.OpenAI.APITemperature {
+		ai.OpenAI.APITemperature = 1.0
+	}
+
+	if 1 > ai.OpenAI.APIMaxContexts || 64 < ai.OpenAI.APIMaxContexts {
+		ai.OpenAI.APIMaxContexts = 7
 	}
 
 	model.Conf.AI = ai
@@ -111,14 +220,14 @@ func setFlashcard(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	flashcard := &conf.Flashcard{}
-	if err = gulu.JSON.UnmarshalJSON(param, flashcard); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, flashcard); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -148,14 +257,14 @@ func setAccount(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	account := &conf.Account{}
-	if err = gulu.JSON.UnmarshalJSON(param, account); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, account); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -177,7 +286,7 @@ func setEditor(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -186,7 +295,7 @@ func setEditor(c *gin.Context) {
 	oldGenerateHistoryInterval := model.Conf.Editor.GenerateHistoryInterval
 
 	editor := conf.NewEditor()
-	if err = gulu.JSON.UnmarshalJSON(param, editor); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, editor); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -200,6 +309,20 @@ func setEditor(c *gin.Context) {
 		editor.KaTexMacros = "{}"
 	}
 
+	if 1 > editor.HistoryRetentionDays {
+		editor.HistoryRetentionDays = 30
+	}
+	if 3650 < editor.HistoryRetentionDays {
+		editor.HistoryRetentionDays = 3650
+	}
+
+	if nil == editor.FloatWindowDelay {
+		v := 620
+		editor.FloatWindowDelay = &v
+	} else {
+		*editor.FloatWindowDelay = max(0, min(2000, *editor.FloatWindowDelay))
+	}
+
 	oldVirtualBlockRef := model.Conf.Editor.VirtualBlockRef
 	oldVirtualBlockRefInclude := model.Conf.Editor.VirtualBlockRefInclude
 	oldVirtualBlockRefExclude := model.Conf.Editor.VirtualBlockRefExclude
@@ -209,6 +332,7 @@ func setEditor(c *gin.Context) {
 	model.Conf.Save()
 
 	if oldGenerateHistoryInterval != model.Conf.Editor.GenerateHistoryInterval {
+		model.GenerateFileHistory()
 		model.ChangeHistoryTick(editor.GenerateHistoryInterval)
 	}
 
@@ -223,6 +347,8 @@ func setEditor(c *gin.Context) {
 		util.BroadcastByType("main", "readonly", 0, "", model.Conf.Editor.ReadOnly)
 	}
 
+	util.MarkdownSettings = model.Conf.Editor.Markdown
+
 	ret.Data = model.Conf.Editor
 }
 
@@ -236,14 +362,14 @@ func setExport(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	export := &conf.Export{}
-	if err = gulu.JSON.UnmarshalJSON(param, export); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, export); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		ret.Data = map[string]interface{}{"closeTimeout": 5000}
@@ -275,34 +401,27 @@ func setFiletree(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	fileTree := conf.NewFileTree()
-	if err = gulu.JSON.UnmarshalJSON(param, fileTree); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, fileTree); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
-	fileTree.RefCreateSavePath = strings.TrimSpace(fileTree.RefCreateSavePath)
+	fileTree.RefCreateSavePath = util.TrimSpaceInPath(fileTree.RefCreateSavePath)
 	if "" != fileTree.RefCreateSavePath {
 		if !strings.HasSuffix(fileTree.RefCreateSavePath, "/") {
 			fileTree.RefCreateSavePath += "/"
 		}
 	}
 
-	fileTree.DocCreateSavePath = strings.TrimSpace(fileTree.DocCreateSavePath)
-	if "../" == fileTree.DocCreateSavePath {
-		fileTree.DocCreateSavePath = "../Untitled"
-	}
-	for strings.HasSuffix(fileTree.DocCreateSavePath, "/") {
-		fileTree.DocCreateSavePath = strings.TrimSuffix(fileTree.DocCreateSavePath, "/")
-		fileTree.DocCreateSavePath = strings.TrimSpace(fileTree.DocCreateSavePath)
-	}
+	fileTree.DocCreateSavePath = util.TrimSpaceInPath(fileTree.DocCreateSavePath)
 
 	if 1 > fileTree.MaxOpenTabCount {
 		fileTree.MaxOpenTabCount = 8
@@ -310,8 +429,19 @@ func setFiletree(c *gin.Context) {
 	if 32 < fileTree.MaxOpenTabCount {
 		fileTree.MaxOpenTabCount = 32
 	}
+
+	if conf.MinFileTreeRecentDocsListCount > fileTree.RecentDocsMaxListCount {
+		fileTree.RecentDocsMaxListCount = conf.MinFileTreeRecentDocsListCount
+	}
+	if conf.MaxFileTreeRecentDocsListCount < fileTree.RecentDocsMaxListCount {
+		fileTree.RecentDocsMaxListCount = conf.MaxFileTreeRecentDocsListCount
+	}
+
 	model.Conf.FileTree = fileTree
 	model.Conf.Save()
+
+	util.UseSingleLineSave = model.Conf.FileTree.UseSingleLineSave
+	util.LargeFileWarningSize = model.Conf.FileTree.LargeFileWarningSize
 
 	ret.Data = model.Conf.FileTree
 }
@@ -326,14 +456,14 @@ func setSearch(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	s := &conf.Search{}
-	if err = gulu.JSON.UnmarshalJSON(param, s); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, s); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -380,14 +510,14 @@ func setKeymap(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg["data"])
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	keymap := &conf.Keymap{}
-	if err = gulu.JSON.UnmarshalJSON(param, keymap); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, keymap); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -407,31 +537,140 @@ func setAppearance(c *gin.Context) {
 	}
 
 	param, err := gulu.JSON.MarshalJSON(arg)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	appearance := &conf.Appearance{}
-	if err = gulu.JSON.UnmarshalJSON(param, appearance); nil != err {
+	if err = gulu.JSON.UnmarshalJSON(param, appearance); err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
 	}
 
 	model.Conf.Appearance = appearance
+	util.StatusBarCfg = model.Conf.Appearance.StatusBar
 	model.Conf.Lang = appearance.Lang
 	util.Lang = model.Conf.Lang
 	model.Conf.Save()
 	model.InitAppearance()
 
 	ret.Data = model.Conf.Appearance
+	util.BroadcastByType("main", "setAppearance", 0, "", model.Conf.Appearance)
+}
+
+func setTheme(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	var theme string
+	var modesRaw []any
+	var appearanceMode string
+	if !util.ParseJsonArgs(arg, ret,
+		util.BindJsonArg("theme", false, &theme),
+		util.BindJsonArg("modes", false, &modesRaw),
+		util.BindJsonArg("appearanceMode", false, &appearanceMode),
+	) {
+		return
+	}
+
+	modes := make([]int, 0, 2)
+	if theme != "" {
+		for _, m := range modesRaw {
+			mf, ok := m.(float64)
+			if !ok {
+				break
+			}
+			mi := int(mf)
+			if mi != 0 && mi != 1 {
+				break
+			}
+			modes = append(modes, mi)
+		}
+		if len(modes) == 0 {
+			ret.Code = -1
+			ret.Msg = "[modes] is required ([0] for light, [1] for dark, [0,1] for both)"
+			return
+		}
+	}
+	// 没有 theme 时静默忽略 modes
+
+	if err := model.SetTheme(theme, modes, appearanceMode); err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+
+	model.InitAppearance()
+	util.BroadcastByType("main", "setAppearance", 0, "", model.Conf.Appearance)
+}
+
+func setPublish(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	arg, ok := util.JsonArg(c, ret)
+	if !ok {
+		return
+	}
+
+	param, err := gulu.JSON.MarshalJSON(arg)
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+
+	publish := &conf.Publish{}
+	if err = gulu.JSON.UnmarshalJSON(param, publish); err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		return
+	}
+
+	model.Conf.Publish = publish
+	model.Conf.Save()
+
+	if port, err := proxy.InitPublishService(); err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+	} else {
+		ret.Data = map[string]any{
+			"port":    port,
+			"publish": model.Conf.Publish,
+		}
+	}
+}
+
+func getPublish(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	if port, err := proxy.InitPublishService(); err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+	} else {
+		ret.Data = map[string]any{
+			"port":    port,
+			"publish": model.Conf.Publish,
+		}
+	}
 }
 
 func getCloudUser(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
+
+	if !model.IsAdminRoleContext(c) {
+		return
+	}
 
 	arg, ok := util.JsonArg(c, ret)
 	if !ok {
@@ -443,12 +682,8 @@ func getCloudUser(c *gin.Context) {
 	if nil != t {
 		token = t.(string)
 	}
-	if err := model.RefreshUser(token); nil != err {
-		ret.Code = 1
-		ret.Msg = err.Error()
-		return
-	}
-	ret.Data = model.Conf.User
+	model.RefreshUser(token)
+	ret.Data = model.Conf.GetUser()
 }
 
 func logoutCloudUser(c *gin.Context) {
@@ -470,7 +705,7 @@ func login2faCloudUser(c *gin.Context) {
 	token := arg["token"].(string)
 	code := arg["code"].(string)
 	data, err := model.Login2fa(token, code)
-	if nil != err {
+	if err != nil {
 		ret.Code = -1
 		ret.Msg = err.Error()
 		return
@@ -490,7 +725,12 @@ func setEmoji(c *gin.Context) {
 	argEmoji := arg["emoji"].([]interface{})
 	var emoji []string
 	for _, ae := range argEmoji {
-		emoji = append(emoji, ae.(string))
+		e := ae.(string)
+		if strings.Contains(e, ".") {
+			// XSS through emoji name https://github.com/siyuan-note/siyuan/issues/15034
+			e = util.FilterUploadEmojiFileName(e)
+		}
+		emoji = append(emoji, e)
 	}
 
 	model.Conf.Editor.Emoji = emoji

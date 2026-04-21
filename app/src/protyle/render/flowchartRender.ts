@@ -1,63 +1,73 @@
 import {addScript} from "../util/addScript";
 import {Constants} from "../../constants";
-import {hasClosestByAttribute} from "../util/hasClosest";
+import {hasClosestByAttribute, hasClosestByClassName} from "../util/hasClosest";
+import {genIconHTML} from "./util";
 
 declare const flowchart: {
     parse(text: string): { drawSVG: (type: Element) => void };
 };
 
 export const flowchartRender = (element: Element, cdn = Constants.PROTYLE_CDN) => {
-    let flowchartElements: Element[] = [];
-    if (element.getAttribute("data-subtype") === "flowchart") {
-        // 编辑器内代码块编辑渲染
+    let flowchartElements: Element[] | NodeListOf<Element> = [];
+    if (element.getAttribute("data-subtype") === "flowchart" && element.getAttribute("data-render") !== "true") {
         flowchartElements = [element];
     } else {
-        flowchartElements = Array.from(element.querySelectorAll('[data-subtype="flowchart"]'));
+        flowchartElements = element.querySelectorAll('[data-subtype="flowchart"]:not([data-render="true"])');
     }
     if (flowchartElements.length === 0) {
         return;
     }
-    addScript(`${cdn}/js/flowchart.js/flowchart.min.js?v=0.0.0`, "protyleFlowchartScript").then(() => {
-        if (flowchartElements[0].firstElementChild.clientWidth === 0) {
-            const hideElement = hasClosestByAttribute(flowchartElements[0], "fold", "1");
-            if (!hideElement) {
-                return;
+    addScript(`${cdn}/js/flowchart.js/flowchart.min.js?v=1.18.0`, "protyleFlowchartScript").then(() => {
+        const hideElements: Element[] = [];
+        const normalElements: Element[] = [];
+        flowchartElements.forEach(item => {
+            if (item.firstElementChild.clientWidth === 0) {
+                hideElements.push(item);
+            } else {
+                normalElements.push(item);
             }
+        });
+        if (hideElements.length > 0) {
             const observer = new MutationObserver(() => {
-                initFlowchart(flowchartElements);
+                initFlowchart(hideElements);
                 observer.disconnect();
             });
-            observer.observe(hideElement, {attributeFilter: ["fold"]});
-        } else {
-            initFlowchart(flowchartElements);
+            hideElements.forEach(item => {
+                const hideElement = hasClosestByAttribute(item, "fold", "1");
+                if (hideElement) {
+                    observer.observe(hideElement, {attributeFilter: ["fold"]});
+                } else {
+                    const cardElement = hasClosestByClassName(item, "card__block", true);
+                    if (cardElement) {
+                        observer.observe(cardElement, {attributeFilter: ["class"]});
+                    }
+                }
+            });
         }
+        initFlowchart(normalElements);
     });
 };
 
 const initFlowchart = (flowchartElements: Element[]) => {
+    const wysiswgElement = hasClosestByClassName(flowchartElements[0], "protyle-wysiwyg", true);
     flowchartElements.forEach((item: HTMLElement) => {
         if (item.getAttribute("data-render") === "true") {
             return;
         }
-        //  preview 不需要进行设置
-        if (item.getAttribute("data-node-id")) {
-            if (!item.firstElementChild.classList.contains("protyle-icons")) {
-                item.insertAdjacentHTML("afterbegin", '<div class="protyle-icons"><span class="protyle-icon protyle-icon--first protyle-action__edit"><svg><use xlink:href="#iconEdit"></use></svg></span><span class="protyle-icon protyle-action__menu protyle-icon--last"><svg><use xlink:href="#iconMore"></use></svg></span></div>');
-            }
-            if (item.childElementCount < 4) {
-                item.lastElementChild.insertAdjacentHTML("beforebegin", `<span style="position: absolute">${Constants.ZWSP}</span>`);
-            }
-        }
-        const renderElement = (item.firstElementChild.nextElementSibling || item.firstElementChild) as HTMLElement;
-        const flowchartObj = flowchart.parse(Lute.UnEscapeHTMLStr(item.getAttribute("data-content")));
-        renderElement.innerHTML = "";
-        try {
-            flowchartObj.drawSVG(renderElement);
-        } catch (error) {
-            renderElement.classList.add("ft__error");
-            renderElement.innerHTML = `Flow Chart render error: <br>${error}`;
-        }
-        renderElement.setAttribute("contenteditable", "false");
         item.setAttribute("data-render", "true");
+        if (!item.firstElementChild.classList.contains("protyle-icons")) {
+            item.insertAdjacentHTML("afterbegin", genIconHTML(wysiswgElement));
+        }
+        const renderElement = item.firstElementChild.nextElementSibling;
+        if (!item.getAttribute("data-content")) {
+            renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span>`;
+            return;
+        }
+        try {
+            renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span><div contenteditable="false"></div>`;
+            flowchart.parse(Lute.UnEscapeHTMLStr(item.getAttribute("data-content"))).drawSVG(renderElement.lastElementChild);
+        } catch (error) {
+            renderElement.innerHTML = `<span style="position: absolute;left:0;top:0;width: 1px;">${Constants.ZWSP}</span><div class="ft__error" contenteditable="false">Flow Chart render error: <br>${error}</div>`;
+        }
     });
 };

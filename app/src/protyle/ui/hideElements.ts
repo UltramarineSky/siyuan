@@ -1,16 +1,13 @@
-/// #if MOBILE
-import {getCurrentEditor} from "../../mobile/editor";
-/// #else
-import {getAllModels} from "../../layout/getAll";
-/// #endif
+import {getAllEditor} from "../../layout/getAll";
+import {isIPhone} from "../util/compatibility";
 
-// "gutter", "toolbar", "select", "hint", "util", "dialog"
+// "gutter", "toolbar", "select", "hint", "util", "dialog", "gutterOnly"
 export const hideElements = (panels: string[], protyle?: IProtyle, focusHide = false) => {
     if (!protyle) {
         if (panels.includes("dialog")) {
-            for (let i = 0; i < window.siyuan.dialogs.length; i++) {
+            const dialogLength = window.siyuan.dialogs.length;
+            for (let i = 0; i < dialogLength; i++) {
                 window.siyuan.dialogs[i].destroy();
-                i--;
             }
         }
         return;
@@ -27,13 +24,20 @@ export const hideElements = (panels: string[], protyle?: IProtyle, focusHide = f
             item.classList.remove("protyle-wysiwyg--hl");
         });
     }
+    //  不能 remove("protyle-wysiwyg--hl") 否则打开页签的时候 "cb-get-hl" 高亮会被移除
+    if (protyle.gutter && panels.includes("gutterOnly")) {
+        if (!isIPhone()) {
+            protyle.gutter.element.classList.add("fn__none");
+        }
+        protyle.gutter.element.innerHTML = "";
+    }
     if (protyle.toolbar && panels.includes("toolbar")) {
         protyle.toolbar.element.classList.add("fn__none");
         protyle.toolbar.element.style.display = "";
     }
     if (protyle.toolbar && panels.includes("util")) {
         const pinElement = protyle.toolbar.subElement.querySelector('[data-type="pin"]');
-        if (focusHide || !pinElement || (pinElement && !pinElement.classList.contains("block__icon--active"))) {
+        if (focusHide || !pinElement || (pinElement && pinElement.getAttribute("aria-label") === window.siyuan.languages.pin)) {
             protyle.toolbar.subElement.classList.add("fn__none");
             if (protyle.toolbar.subElementCloseCB) {
                 protyle.toolbar.subElementCloseCB();
@@ -59,22 +63,18 @@ export const hideAllElements = (types: string[]) => {
         });
     }
     if (types.includes("util")) {
-        /// #if MOBILE
-        const editor = getCurrentEditor();
-        editor.protyle.toolbar.subElement.classList.add("fn__none");
-        if (editor.protyle.toolbar.subElementCloseCB) {
-            editor.protyle.toolbar.subElementCloseCB();
-            editor.protyle.toolbar.subElementCloseCB = undefined;
-        }
-        /// #else
-        getAllModels().editor.forEach(item => {
-            item.editor.protyle.toolbar.subElement.classList.add("fn__none");
-            if (item.editor.protyle.toolbar.subElementCloseCB) {
-                item.editor.protyle.toolbar.subElementCloseCB();
-                item.editor.protyle.toolbar.subElementCloseCB = undefined;
+        getAllEditor().forEach(item => {
+            if (item.protyle.toolbar) {
+                const pinElement = item.protyle.toolbar.subElement.querySelector('[data-type="pin"]');
+                if (!pinElement || (pinElement && pinElement.getAttribute("aria-label") === window.siyuan.languages.pin)) {
+                    item.protyle.toolbar.subElement.classList.add("fn__none");
+                    if (item.protyle.toolbar.subElementCloseCB) {
+                        item.protyle.toolbar.subElementCloseCB();
+                        item.protyle.toolbar.subElementCloseCB = undefined;
+                    }
+                }
             }
         });
-        /// #endif
     }
     if (types.includes("pdfutil")) {
         document.querySelectorAll(".pdf__util").forEach(item => {

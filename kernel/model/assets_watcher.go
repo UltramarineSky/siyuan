@@ -33,24 +33,31 @@ import (
 var assetsWatcher *fsnotify.Watcher
 
 func WatchAssets() {
-	if util.ContainerAndroid == util.Container || util.ContainerIOS == util.Container {
+	if !isFileWatcherAvailable() {
 		return
 	}
 
-	go func() {
-		watchAssets()
-	}()
+	go watchAssets()
 }
 
 func watchAssets() {
+	CloseWatchAssets()
 	assetsDir := filepath.Join(util.DataDir, "assets")
-	if nil != assetsWatcher {
-		assetsWatcher.Close()
-	}
 
 	var err error
-	if assetsWatcher, err = fsnotify.NewWatcher(); nil != err {
+	assetsWatcher, err = fsnotify.NewWatcher()
+	if err != nil {
 		logging.LogErrorf("add assets watcher for folder [%s] failed: %s", assetsDir, err)
+		return
+	}
+
+	if !gulu.File.IsDir(assetsDir) {
+		os.MkdirAll(assetsDir, 0755)
+	}
+
+	if err = assetsWatcher.Add(assetsDir); err != nil {
+		logging.LogErrorf("add assets watcher for folder [%s] failed: %s", assetsDir, err)
+		CloseWatchAssets()
 		return
 	}
 
@@ -81,28 +88,25 @@ func watchAssets() {
 			case <-timer.C:
 				//logging.LogInfof("assets changed: %s", lastEvent)
 				if lastEvent.Op&fsnotify.Write == fsnotify.Write {
-					// 外部修改已有资源文件后纳入云端同步 https://github.com/siyuan-note/siyuan/issues/4694
 					IncSync()
 				}
 
 				// 重新缓存资源文件，以便使用 /资源 搜索
 				go cache.LoadAssets()
+
+				if lastEvent.Op&fsnotify.Remove == fsnotify.Remove {
+					HandleAssetsRemoveEvent(lastEvent.Name)
+				} else {
+					HandleAssetsChangeEvent(lastEvent.Name)
+				}
 			}
 		}
 	}()
-
-	if !gulu.File.IsDir(assetsDir) {
-		os.MkdirAll(assetsDir, 0755)
-	}
-
-	if err = assetsWatcher.Add(assetsDir); err != nil {
-		logging.LogErrorf("add assets watcher for folder [%s] failed: %s", assetsDir, err)
-	}
-	//logging.LogInfof("added file watcher [%s]", assetsDir)
 }
 
 func CloseWatchAssets() {
 	if nil != assetsWatcher {
 		assetsWatcher.Close()
+		assetsWatcher = nil
 	}
 }

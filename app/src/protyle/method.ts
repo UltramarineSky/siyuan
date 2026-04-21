@@ -5,13 +5,12 @@ import { mermaidRender } from "./render/mermaidRender";
 import { flowchartRender } from "./render/flowchartRender";
 import { chartRender } from "./render/chartRender";
 import { abcRender } from "./render/abcRender";
+import { htmlRender } from "./render/htmlRender";
 import { mindmapRender } from "./render/mindmapRender";
 import { plantumlRender } from "./render/plantumlRender";
-import { avRender } from "./render/av/render";
 import "../assets/scss/export.scss";
 
 class Protyle {
-
     /** 对 graphviz 进行渲染 */
     public static graphvizRender = graphvizRender;
     /** 为 element 中的代码块进行高亮渲染 */
@@ -30,7 +29,8 @@ class Protyle {
     public static mindmapRender = mindmapRender;
     /** UML 渲染 */
     public static plantumlRender = plantumlRender;
-    public static avRender = avRender;
+    /** html 块渲染 */
+    public static htmlRender = htmlRender;
 }
 
 // 由于 https://github.com/siyuan-note/siyuan/issues/7800，先临时解决一下

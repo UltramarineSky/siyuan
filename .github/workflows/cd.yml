@@ -232,15 +232,46 @@ jobs:
           asset_path: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build/siyuan-${{ needs.create_release.outputs.version }}-${{ matrix.config.suffix }}
           asset_content_type: application/octet-stream
 
-      - name: Upload Linux Release Assets
+      - name: Upload AppImage
         if: matrix.config.goos == 'linux'
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ needs.create_release.outputs.version }}"
-          BUILD_DIR="${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build"
-          for ext in AppImage tar.gz deb rpm; do
-            asset="${BUILD_DIR}/siyuan-${VERSION}-linux.${ext}"
-            echo "Uploading linux.${ext}..."
-            gh release upload "${{ github.ref_name }}" "${asset}" --clobber
-          done
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_name: siyuan-${{ needs.create_release.outputs.release_version }}-linux.AppImage
+          asset_path: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build/siyuan-${{ needs.create_release.outputs.version }}-linux.AppImage
+          asset_content_type: application/octet-stream
+
+      - name: Upload tar.gz
+        if: matrix.config.goos == 'linux'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_name: siyuan-${{ needs.create_release.outputs.release_version }}-linux.tar.gz
+          asset_path: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build/siyuan-${{ needs.create_release.outputs.version }}-linux.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: Upload deb
+        if: matrix.config.goos == 'linux'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_name: siyuan-${{ needs.create_release.outputs.release_version }}-linux.deb
+          asset_path: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build/siyuan-${{ needs.create_release.outputs.version }}-linux.deb
+          asset_content_type: application/octet-stream
+
+      - name: Upload rpm
+        if: matrix.config.goos == 'linux'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_name: siyuan-${{ needs.create_release.outputs.release_version }}-linux.rpm
+          asset_path: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build/siyuan-${{ needs.create_release.outputs.version }}-linux.rpm
+          asset_content_type: application/octet-stream

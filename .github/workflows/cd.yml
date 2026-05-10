@@ -214,6 +214,7 @@ jobs:
         if: matrix.config.goos != 'linux'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release upload ${{ github.ref_name }} "${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build/siyuan-${{ needs.create_release.outputs.version }}-${{ matrix.config.suffix }}#siyuan-${{ needs.create_release.outputs.release_version }}-${{ matrix.config.suffix }}"
 
@@ -221,6 +222,7 @@ jobs:
         if: matrix.config.goos == 'linux'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           BUILD_DIR="${{ github.workspace }}/go/src/github.com/${{ github.repository }}/app/build"
           gh release upload ${{ github.ref_name }} \

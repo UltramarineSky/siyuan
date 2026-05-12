@@ -128,6 +128,7 @@ jobs:
         with:
           go-version-file: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/kernel/go.mod
           cache-dependency-path: ${{ github.workspace }}/go/src/github.com/${{ github.repository }}/kernel/go.sum
+          cache: false
       - run: go version
 
       - name: Set up goversioninfo

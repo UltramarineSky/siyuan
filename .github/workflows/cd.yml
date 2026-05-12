@@ -241,6 +241,7 @@ jobs:
       - name: Upload Release Assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           VERSION=${{ needs.prepare.outputs.version }}
           REL_VER=${{ needs.prepare.outputs.release_version }}
